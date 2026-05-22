@@ -26,12 +26,12 @@ export function PasswordInput({
         autoComplete={autoComplete}
         required={required}
         placeholder={placeholder}
-        className="block min-h-11 w-full rounded-md border border-slate-300 bg-white pl-3 pr-10 py-2 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-black dark:text-zinc-50 dark:placeholder-zinc-500 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/20 sm:text-sm"
+        className="block min-h-11 w-full rounded-md border border-border bg-surface-elevated pl-3 pr-10 py-2 text-sm text-text placeholder-text-faint transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
       />
       <button
         type="button"
         onClick={() => setShowPassword(!showPassword)}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none dark:text-zinc-500 dark:hover:text-zinc-300"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-subtle focus:outline-none"
         aria-label={showPassword ? 'Hide password' : 'Show password'}
       >
         {showPassword ? (

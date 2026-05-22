@@ -1,0 +1,276 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SnapPath AI Brain API",
+    "description": "API for SnapPath Healthcare Engine to validate claims, check drug prices, and generate clinical pathways using Upstash Workflows & Vercel AI SDK.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/api/v1/providers": {
+      "post": {
+        "summary": "Create Provider & API Key",
+        "description": "Registers a new healthcare provider and generates a secure API Key for authentication.",
+        "tags": ["Admin"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": { "type": "string", "example": "BPJS" },
+                  "name": { "type": "string", "example": "BPJS Kesehatan" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Provider created successfully" }
+        }
+      }
+    },
+    "/api/v1/claims/validate": {
+      "post": {
+        "summary": "Full Claim Validation",
+        "description": "Triggers an asynchronous AI background job to validate diagnosis-treatment matching, check tariff limits, and verify drug prices.",
+        "tags": ["AI Workflows"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": { "type": "string", "example": "uuid-here" },
+                  "patient": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "example": "P-001" },
+                      "name": { "type": "string", "example": "Budi Santoso" },
+                      "gender": { "type": "string", "example": "M" }
+                    }
+                  },
+                  "encounter": {
+                    "type": "object",
+                    "properties": {
+                      "type": { "type": "string", "example": "RAWAT_INAP" },
+                      "admissionDate": { "type": "string", "example": "2026-05-20T10:00:00Z" }
+                    }
+                  },
+                  "diagnoses": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string", "example": "J18.9" },
+                        "description": { "type": "string", "example": "Pneumonia, unspecified" },
+                        "type": { "type": "string", "example": "PRIMARY" },
+                        "sequence": { "type": "integer", "example": 1 }
+                      }
+                    }
+                  },
+                  "procedures": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string", "example": "CPT-123" },
+                        "description": { "type": "string", "example": "Chest X-Ray" },
+                        "quantity": { "type": "integer", "example": 1 },
+                        "unitPrice": { "type": "number", "example": 250000 },
+                        "totalPrice": { "type": "number", "example": 250000 }
+                      }
+                    }
+                  },
+                  "medications": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string", "example": "Azithromycin 500mg" },
+                        "quantity": { "type": "integer", "example": 5 },
+                        "unitPrice": { "type": "number", "example": 15000 },
+                        "totalPrice": { "type": "number", "example": 75000 }
+                      }
+                    }
+                  },
+                  "documents": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string", "example": "RESUME_MEDIS" },
+                        "url": { "type": "string", "example": "https://storage.provider.com/doc.pdf" },
+                        "description": { "type": "string", "example": "Resume medis rawat inap" }
+                      }
+                    }
+                  },
+                  "totalClaimAmount": { "type": "number", "example": 325000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Job queued successfully. Returns a `jobId`." }
+        }
+      }
+    },
+    "/api/v1/tariff/validate": {
+      "post": {
+        "summary": "Tariff Validation",
+        "description": "Validates the claimed procedure prices against the provider's Master Tariff Book and Threshold Configurations.",
+        "tags": ["AI Workflows"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": { "type": "string", "example": "uuid-here" },
+                  "encounterType": { "type": "string", "example": "RAWAT_JALAN" },
+                  "procedures": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "string", "example": "CPT-123" },
+                        "description": { "type": "string", "example": "Consultation" },
+                        "quantity": { "type": "integer", "example": 1 },
+                        "unitPrice": { "type": "number", "example": 300000 },
+                        "totalPrice": { "type": "number", "example": 300000 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Job queued successfully. Returns a `jobId`." }
+        }
+      }
+    },
+    "/api/v1/drugs/price-check": {
+      "post": {
+        "summary": "Drug Price Check",
+        "description": "Validates drug prices against the latest market prices using DB cache and AI internet search.",
+        "tags": ["AI Workflows"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerId": { "type": "string", "example": "uuid-here" },
+                  "medications": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string", "example": "Paracetamol 500mg" },
+                        "quantity": { "type": "integer", "example": 10 },
+                        "unitPrice": { "type": "number", "example": 5000 },
+                        "totalPrice": { "type": "number", "example": 50000 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Job queued successfully. Returns a `jobId`." }
+        }
+      }
+    },
+    "/api/v1/pathways/generate": {
+      "post": {
+        "summary": "Generate Clinical Pathway",
+        "description": "Generates a detailed, phase-by-phase clinical pathway template for a specific diagnosis code.",
+        "tags": ["AI Workflows"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "diagnosisCode": { "type": "string", "example": "A09" },
+                  "diagnosisName": { "type": "string", "example": "Infectious gastroenteritis and colitis" },
+                  "encounterType": { "type": "string", "example": "RAWAT_INAP" },
+                  "providerId": { "type": "string", "example": "uuid-here" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Job queued successfully. Returns a `jobId`." }
+        }
+      }
+    },
+    "/api/v1/jobs/{jobId}/status": {
+      "get": {
+        "summary": "Check Job Status",
+        "description": "Polls the status of an asynchronous job.",
+        "tags": ["Polling"],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Returns the job status (e.g., QUEUED, PROCESSING, COMPLETED, FAILED)" }
+        }
+      }
+    },
+    "/api/v1/jobs/{jobId}/result": {
+      "get": {
+        "summary": "Get Job Result",
+        "description": "Retrieves the final JSON output of a completed job.",
+        "tags": ["Polling"],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "The final processed output." },
+          "400": { "description": "Job is not yet completed." }
+        }
+      }
+    }
+  }
+}

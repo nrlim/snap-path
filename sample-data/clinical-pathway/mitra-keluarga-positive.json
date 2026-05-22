@@ -1,0 +1,78 @@
+{
+  "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9",
+  "claimId": "CLM-MK-2026-0001",
+  "patient": {
+    "name": "Ibu Rahmawati",
+    "identifier": [{ "value": "PAT-MK-10029" }],
+    "birthDate": "1992-05-14",
+    "gender": "female"
+  },
+  "encounter": {
+    "class": { "code": "IMP" },
+    "period": { "start": "2026-02-10T08:00:00Z", "end": "2026-02-13T10:00:00Z" },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "O82.9",
+      "name": "Delivery by caesarean section, unspecified",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "OBGD010054",
+      "name": "Sectio Caesaria",
+      "quantity": 1,
+      "unitPrice": 18836400,
+      "totalPrice": 18836400
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "quantity": 3,
+      "unitPrice": 635000,
+      "totalPrice": 1905000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Cefotaxime 1g Injection",
+      "quantity": 4,
+      "unitPrice": 85000,
+      "totalPrice": 340000
+    },
+    {
+      "name": "Paracetamol 500mg",
+      "quantity": 9,
+      "unitPrice": 5000,
+      "totalPrice": 45000
+    }
+  ],
+  "documents": [
+    {
+      "type": "RESUME_MEDIS",
+      "date": "2026-02-13T10:00:00Z",
+      "conclusion": "Pasien hamil aterm dengan indikasi panggul sempit. Dilakukan Sectio Caesaria yang berjalan lancar tanpa komplikasi."
+    },
+    {
+      "type": "LAPORAN_OPERASI",
+      "date": "2026-02-10T11:00:00Z",
+      "conclusion": "Operasi berjalan lancar, pendarahan minimal."
+    }
+  ],
+  "extra": {
+    "nik": "3275012345678901",
+    "phone": "081234567890",
+    "insuranceType": "BPJS",
+    "insuranceNumber": "0001234567890",
+    "los": "3",
+    "losJustification": "Pemulihan post SC standar 3 hari sesuai panduan klinis, tidak ada komplikasi infeksi.",
+    "outcomeNotes": "Pasien pulang dengan kondisi baik, jahitan kering.",
+    "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9"
+  }
+}

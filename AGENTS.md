@@ -48,6 +48,10 @@ prisma.config.ts          # Prisma 7 config (datasource URL lives here, not in s
 5. **Design language.** Ultra-minimalist, medical-professional grade. Neutral slate/zinc tones. No emojis in UI. No heavy shadows or neon colors.
 6. **Language.** UI copy is in Bahasa Indonesia. Code comments and variable names are in English.
 7. **PowerShell shell.** This project runs on Windows. Use `;` instead of `&&` to chain terminal commands.
+8. **Mobile-first priority.** Always prioritize mobile-first resolution and responsive design when creating new features or pages.
+   - **Native App Feel:** On mobile screens (`lg:hidden`), use a **Fixed Bottom Navigation Bar** with up to 5 slots. The center slot should typically be a primary FAB (Floating Action Button) that triggers a bottom sheet menu.
+   - **Bottom Sheet Grid Menus:** Mobile popup menus should appear as bottom sheets floating above the navigation, featuring smooth rounded corners (e.g., `rounded-[24px]`) and a blurred backdrop (`backdrop-blur-sm`). Use **Grid layouts** (`grid-cols-4`) for navigation menus to emulate native app drawers.
+   - **Form Accessibility:** All inputs and selects must have a minimum font size of `text-base` on mobile to prevent iOS Safari auto-zoom, scaling to `sm:text-sm` for desktop layouts.
 
 ## Skills Reference
 Before writing code, check for relevant skill files in the skills directory:

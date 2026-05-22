@@ -20,3 +20,199 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// === AUTHENTICATION & API KEYS ===
+
+model ApiKey {
+  id          String   @id @default(uuid())
+  keyHash     String   @unique // Hashed key for security
+  name        String   // E.g., "Production Provider X"
+  providerId  String?  // Optional, if the key is tied to a specific provider
+  provider    Provider? @relation(fields: [providerId], references: [id])
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  usageLogs   ApiUsageLog[]
+}
+
+model ApiUsageLog {
+  id          String   @id @default(uuid())
+  apiKeyId    String
+  apiKey      ApiKey   @relation(fields: [apiKeyId], references: [id])
+  endpoint    String   // "/api/v1/claims/validate"
+  method      String
+  statusCode  Int
+  inputTokens Int      @default(0) // LLM tokens used (if applicable)
+  outputTokens Int     @default(0) // LLM tokens used (if applicable)
+  durationMs  Int      // Response time
+  createdAt   DateTime @default(now())
+
+  @@index([apiKeyId])
+  @@index([createdAt])
+}
+
+// === PROVIDER & CONFIGURATION ===
+
+model Provider {
+  id          String   @id @default(uuid())
+  code        String   @unique  // e.g., "BPJS", "PRUDENTIAL", "AXA"
+  name        String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  apiKeys           ApiKey[]
+  tariffBook        TariffEntry[]
+  thresholdConfigs  ThresholdConfig[]
+  claimJobs         ClaimJob[]
+}
+
+model ThresholdConfig {
+  id              String   @id @default(uuid())
+  providerId      String
+  provider        Provider @relation(fields: [providerId], references: [id])
+  category        String   // "TARIFF" | "DRUG_PRICE" | "PATHWAY"
+  thresholdPct    Float    // e.g., 10.0 = 10%
+  maxAbsoluteIdr  Float?   // Optional absolute threshold in IDR
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([providerId, category])
+}
+
+// === MASTER DATA: TARIFF BOOK ===
+
+model TariffEntry {
+  id            String   @id @default(uuid())
+  providerId    String
+  provider      Provider @relation(fields: [providerId], references: [id])
+  procedureCode String   // CPT / INA-CBG code or internal RS code
+  procedureName String
+  category      String   // "KAMAR" | "RAWAT_INAP" | "RAWAT_JALAN" | "IGD" | "TINDAKAN" | "OBAT" | "LAB" | "RADIOLOGI" | "OPERASI"
+  subcategory   String?  // More specific sub-grouping (e.g., "Kamar VIP", "Tindakan IGD", "Laboratorium Rujukan")
+  serviceCode   String?  // Internal hospital service code (e.g., "IGDJ000053", "RUAA010001")
+  unit          String?  // Unit of tariff: "per_hari" | "per_kunjungan" | "per_tindakan" | "per_paket"
+  regionCode    String?  // e.g., "JKT", "SBY" — regional pricing
+  basePrice     Float    // Minimum / lowest price across all tiers
+  maxPrice      Float    // Maximum / highest price across all tiers
+  priceTiersJson Json?   // Price per class: {rj, suite, eksekutif_vip, kelas_i, kelas_ii, kelas_iii}
+  currency      String   @default("IDR")
+  notes         String?  // Additional notes or conditions for this tariff
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([procedureCode, providerId])
+  @@index([category, providerId])
+  @@index([serviceCode])
+}
+
+// === MASTER DATA: ICD-10 DIAGNOSIS ===
+
+model DiagnosisCode {
+  id            String   @id @default(uuid())
+  icdCode       String   @unique  // e.g., "J18.9"
+  description   String            // e.g., "Pneumonia, unspecified organism"
+  descriptionId String?           // Indonesian translation
+  category      String            // e.g., "J00-J99" (Respiratory)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  allowedProcedures DiagnosisProcedureMap[]
+}
+
+model DiagnosisProcedureMap {
+  id              String        @id @default(uuid())
+  diagnosisId     String
+  diagnosis       DiagnosisCode @relation(fields: [diagnosisId], references: [id])
+  procedureCode   String        // CPT code
+  procedureName   String
+  isRequired      Boolean       @default(false)  // Mandatory for this diagnosis?
+  confidence      Float         @default(1.0)     // AI confidence mapping
+  source          String        @default("MANUAL") // "MANUAL" | "AI_GENERATED"
+  createdAt       DateTime      @default(now())
+
+  @@index([diagnosisId])
+  @@index([procedureCode])
+}
+
+// === JOB TRACKING ===
+
+model ClaimJob {
+  id            String    @id @default(uuid())
+  providerId    String?
+  provider      Provider? @relation(fields: [providerId], references: [id])
+  jobType       String    // "CLAIM_VALIDATION" | "TARIFF_CHECK" | "DRUG_PRICE" | "PATHWAY_GEN"
+  status        String    @default("QUEUED") // "QUEUED" | "PRE_PROCESSING" | "PROCESSING" | "POST_PROCESSING" | "COMPLETED" | "FAILED"
+  inputPayload  Json      // Raw input JSON
+  outputResult  Json?     // Final result JSON
+  errorMessage  String?
+  metadata      Json?     // Additional metadata (timing, step logs)
+  workflowRunId String?   // Upstash Workflow run ID
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([jobType])
+  @@index([workflowRunId])
+}
+
+// === DRUG PRICE CACHE ===
+
+model DrugPriceCache {
+  id              String   @id @default(uuid())
+  drugName        String
+  drugGenericName String?
+  marketPriceMax  Float    // Highest market price found
+  marketPriceAvg  Float?
+  sources         Json     // Array of source URLs/names
+  currency        String   @default("IDR")
+  fetchedAt       DateTime @default(now())
+  expiresAt       DateTime // Cache TTL
+  createdAt       DateTime @default(now())
+
+  @@index([drugName])
+  @@index([drugGenericName])
+}
+
+// === CLINICAL PATHWAY TEMPLATES ===
+
+model ClinicalPathway {
+  id              String   @id @default(uuid())
+  diagnosisCode   String   // ICD-10 code
+  diagnosisName   String
+  providerType    String?  // "BPJS" | "PRIVATE" | null (universal)
+  pathwayVersion  String   @default("1.0")
+  phases          Json     // Structured pathway phases (see JSON template)
+  estimatedLos    Int?     // Length of Stay in days
+  totalEstCost    Float?
+  isActive        Boolean  @default(true)
+  generatedBy     String   @default("MANUAL") // "MANUAL" | "AI"
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([diagnosisCode])
+}
+
+// === SYSTEM CONFIGURATION ===
+
+model SystemConfig {
+  id              String   @id @default("GLOBAL_CONFIG")
+  aiProvider      String   @default("sumopod") // "sumopod" | "vercel-ai-sdk" | "custom"
+  aiGatewayUrl    String   @default("https://api.sumopod.com/v1")
+  aiModel         String   @default("gpt-4o-mini")
+  aiMaxTokens     Int      @default(1500)
+  aiTemperature   Float    @default(0.7)
+  thresholdObatPct Float   @default(10.0)
+  thresholdTindakanPct Float @default(10.0)
+  thresholdLosDays Int     @default(1)
+  updatedAt       DateTime @updatedAt
+}
+

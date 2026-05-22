@@ -1,0 +1,85 @@
+{
+  "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9",
+  "claimId": "CLM-MK-2026-0002",
+  "patient": {
+    "name": "Ibu Kartini",
+    "identifier": [{ "value": "PAT-MK-10030" }],
+    "birthDate": "1994-11-20",
+    "gender": "female"
+  },
+  "encounter": {
+    "class": { "code": "IMP" },
+    "period": { "start": "2026-03-01T08:00:00Z", "end": "2026-03-08T10:00:00Z" },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "O82.9",
+      "name": "Delivery by caesarean section, unspecified",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "OBGD010054",
+      "name": "Sectio Caesaria",
+      "quantity": 1,
+      "unitPrice": 45000000,
+      "totalPrice": 45000000
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "quantity": 7,
+      "unitPrice": 1200000,
+      "totalPrice": 8400000
+    },
+    {
+      "code": "IGDJ000141",
+      "name": "Kardioversi",
+      "quantity": 1,
+      "unitPrice": 5000000,
+      "totalPrice": 5000000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Cefotaxime 1g Injection",
+      "quantity": 20,
+      "unitPrice": 150000,
+      "totalPrice": 3000000
+    },
+    {
+      "name": "Premium Vitamin C + Zinc Complex",
+      "quantity": 14,
+      "unitPrice": 250000,
+      "totalPrice": 3500000
+    }
+  ],
+  "documents": [
+    {
+      "type": "RESUME_MEDIS",
+      "date": "2026-03-08T10:00:00Z",
+      "conclusion": "Pasien Sectio Caesaria. Ditagihkan dengan harga yang melebihi standar master data. Terdapat penambahan tindakan Kardioversi tanpa indikasi, obat antibiotik dan vitamin yang berlebih, serta hari rawat (LOS) yang mencapai 7 hari (jauh di atas rata-rata normal)."
+    },
+    {
+      "type": "LAPORAN_OPERASI",
+      "date": "2026-03-01T11:00:00Z",
+      "conclusion": "Operasi Sectio Caesaria dilakukan. Adanya komplikasi pendarahan dan detak jantung tidak stabil (diklaim perlu kardioversi)."
+    }
+  ],
+  "extra": {
+    "nik": "3275012345678902",
+    "phone": "081234567891",
+    "insuranceType": "BPJS",
+    "insuranceNumber": "0001234567891",
+    "los": "7",
+    "losJustification": "Pasien membutuhkan observasi ekstra karena pendarahan ringan dan kecemasan pasca operasi, sehingga menolak pulang.",
+    "outcomeNotes": "Pasien dipulangkan hari ke-7.",
+    "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9"
+  }
+}

@@ -33,7 +33,7 @@ export default function RegisterPage() {
     }
 
     try {
-      const res = await fetch('/api/auth/register', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),
@@ -57,17 +57,17 @@ export default function RegisterPage() {
   return (
     <div>
       <div className="mb-8 text-center">
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 dark:text-zinc-50">
+        <h1 className="mt-2 text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
           Create a SnapPath account
         </h1>
-        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-zinc-400">
+        <p className="mt-3 text-sm leading-6 text-text-subtle">
           Register your professional profile for validated clinical pathway access.
         </p>
       </div>
 
       {error && (
         <div
-          className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300"
+          className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
           role="alert"
         >
           {error}
@@ -78,7 +78,7 @@ export default function RegisterPage() {
         <div>
           <label
             htmlFor="name"
-            className="block text-sm font-medium text-slate-700 dark:text-zinc-300"
+            className="block text-sm font-medium text-text-subtle"
           >
             Full name
           </label>
@@ -89,7 +89,7 @@ export default function RegisterPage() {
               type="text"
               autoComplete="name"
               required
-              className="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 transition-colors focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-black dark:text-zinc-50 dark:placeholder-zinc-500 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/20 sm:text-sm"
+              className="block min-h-11 w-full rounded-md border border-border bg-surface-elevated px-3 py-2 text-text placeholder-text-faint transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-base sm:text-sm"
               placeholder="Dr. Full Name"
             />
           </div>
@@ -98,7 +98,7 @@ export default function RegisterPage() {
         <div>
           <label
             htmlFor="email"
-            className="block text-sm font-medium text-slate-700 dark:text-zinc-300"
+            className="block text-sm font-medium text-text-subtle"
           >
             Email address
           </label>
@@ -109,7 +109,7 @@ export default function RegisterPage() {
               type="email"
               autoComplete="email"
               required
-              className="block min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder-slate-400 transition-colors focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-black dark:text-zinc-50 dark:placeholder-zinc-500 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/20 sm:text-sm"
+              className="block min-h-11 w-full rounded-md border border-border bg-surface-elevated px-3 py-2 text-text placeholder-text-faint transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-base sm:text-sm"
               placeholder="name@institution.org"
             />
           </div>
@@ -118,11 +118,11 @@ export default function RegisterPage() {
         <div>
           <label
             htmlFor="password"
-            className="block text-sm font-medium text-slate-700 dark:text-zinc-300"
+            className="block text-sm font-medium text-text-subtle"
           >
             Password
           </label>
-          <p className="mt-1 text-xs text-slate-500 dark:text-zinc-500">
+          <p className="mt-1 text-xs text-text-faint">
             Minimum 8 characters.
           </p>
           <div className="relative mt-1.5">
@@ -132,12 +132,12 @@ export default function RegisterPage() {
               type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
               required
-              className="block min-h-11 w-full rounded-md border border-slate-300 bg-white pl-3 pr-10 py-2 text-slate-900 placeholder-slate-400 transition-colors focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500/20 dark:border-zinc-700 dark:bg-black dark:text-zinc-50 dark:placeholder-zinc-500 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/20 sm:text-sm"
+              className="block min-h-11 w-full rounded-md border border-border bg-surface-elevated pl-3 pr-10 py-2 text-text placeholder-text-faint transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-base sm:text-sm"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none dark:text-zinc-500 dark:hover:text-zinc-300"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-subtle focus:outline-none"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? (
@@ -160,17 +160,17 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={loading}
-          className="flex min-h-11 w-full justify-center rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-50 dark:text-zinc-950 dark:hover:bg-zinc-200 dark:focus:ring-zinc-300 dark:focus:ring-offset-zinc-950"
+          className="flex min-h-11 w-full justify-center rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? 'Creating account...' : 'Create account'}
         </button>
       </form>
 
-      <div className="mt-6 border-t border-slate-200 pt-6 text-center text-sm dark:border-zinc-800">
-        <span className="text-slate-500 dark:text-zinc-400">Already have an account? </span>
+      <div className="mt-6 border-t border-border pt-6 text-center text-sm">
+        <span className="text-text-faint">Already have an account? </span>
         <Link
           href="/login"
-          className="font-semibold text-slate-900 underline-offset-4 transition-colors hover:text-slate-600 hover:underline dark:text-zinc-50 dark:hover:text-zinc-300"
+          className="font-semibold text-text underline-offset-4 transition-colors hover:text-text-subtle hover:underline"
         >
           Sign in
         </Link>
