@@ -133,11 +133,11 @@ export async function getAIGateway(context: AIGatewayContext = {}): Promise<AIGa
     apiKey = process.env.SUMOPOD_API_KEY || process.env.AI_GATEWAY_API_KEY || "";
     if (!baseURL) baseURL = "https://api.sumopod.com/v1";
   } else if (providerName === "vercel-ai-sdk") {
-    apiKey = process.env.VERCEL_API_KEY || process.env.OPENAI_API_KEY || "";
+    apiKey = process.env.AI_SDK_API_KEY || process.env.OPENAI_API_KEY || "";
     if (!baseURL) baseURL = "https://ai-gateway.vercel.sh/v1";
   } else {
     // Custom / Default
-    apiKey = process.env.OPENAI_API_KEY || process.env.VERCEL_API_KEY || "";
+    apiKey = process.env.OPENAI_API_KEY || process.env.AI_SDK_API_KEY || "";
     if (!baseURL) baseURL = "https://api.openai.com/v1"; // Custom can fallback to standard OpenAI
   }
   const model = providerConfig?.aiModel || config?.aiModel || "gpt-4o-mini";
