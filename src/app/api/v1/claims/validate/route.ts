@@ -11,7 +11,8 @@ export const runtime = 'nodejs';
 export async function POST(request: Request) {
   const startTime = Date.now();
   const auth = await authenticateApiRequest(request);
-  let providerId = auth.providerId;
+  let clientId = auth.clientId;
+  let providerId: string | null | undefined = null;
   let isDashboardUser = false;
 
   if (!auth.authenticated) {
@@ -20,11 +21,15 @@ export async function POST(request: Request) {
       return auth.response;
     }
     isDashboardUser = true;
+    clientId = typeof session.clientId === 'string' ? session.clientId : null;
   }
 
   try {
     const payload = await request.json();
-    providerId = payload.providerId || providerId || 'UNKNOWN_PROVIDER';
+    clientId = payload.clientId || clientId || null;
+    providerId = payload.providerId || null;
+    payload.clientId = clientId;
+    payload.providerId = providerId;
 
     // Create job record in DB first to get a stable jobId
     const claimJob = await prisma.claimJob.create({
@@ -32,7 +37,8 @@ export async function POST(request: Request) {
         jobType: 'CLAIM_VALIDATION',
         status: 'QUEUED',
         inputPayload: payload,
-        providerId: providerId,
+        clientId,
+        providerId,
       },
     });
 
@@ -54,6 +60,9 @@ export async function POST(request: Request) {
     if (!isDashboardUser && auth.apiKeyId) {
       await recordApiUsage({
         apiKeyId: auth.apiKeyId,
+        clientId,
+        providerId,
+        jobId: claimJob.id,
         endpoint: '/api/v1/claims/validate',
         method: 'POST',
         statusCode: 202,
@@ -68,6 +77,8 @@ export async function POST(request: Request) {
     if (!isDashboardUser && auth.apiKeyId) {
       await recordApiUsage({
         apiKeyId: auth.apiKeyId,
+        clientId,
+        providerId,
         endpoint: '/api/v1/claims/validate',
         method: 'POST',
         statusCode: 500,

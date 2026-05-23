@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useRef } from "react";
 
-type Stage = "upload" | "processing" | "preview" | "error";
+type Stage = "upload" | "processing" | "preview" | "error"; 
+type ImportMode = "ai" | "direct";
 
 interface MappedClaim {
   patient: any;
@@ -29,6 +30,7 @@ export default function PathwayImportModal({
   const [error, setError] = useState<string | null>(null);
   const [mapped, setMapped] = useState<MappedClaim | null>(null);
   const [processingMsg, setProcessingMsg] = useState("Menganalisis struktur JSON...");
+  const [importMode, setImportMode] = useState<ImportMode>("ai");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const PROCESSING_MESSAGES = [
@@ -38,6 +40,37 @@ export default function PathwayImportModal({
     "Menormalkan format tanggal dan kode ICD-10...",
     "Memfinalisasi hasil pemetaan...",
   ];
+
+  const normalizeDirectJson = (rawJson: any): MappedClaim => {
+    const source = rawJson?.claim || rawJson?.payload || rawJson;
+    const procedures = Array.isArray(source?.procedures) ? source.procedures : [];
+    const medications = Array.isArray(source?.medications) ? source.medications : [];
+
+    return {
+      patient: source?.patient || {},
+      encounter: source?.encounter || {},
+      diagnoses: Array.isArray(source?.diagnoses) ? source.diagnoses : [],
+      procedures: procedures.map((proc: any) => ({
+        ...proc,
+        name: proc.name || proc.description || proc.procedureName || proc.code || "",
+        quantity: proc.quantity || 1,
+        price: proc.price ?? proc.unitPrice ?? proc.claimedUnitPrice ?? 0,
+        unitPrice: proc.unitPrice ?? proc.price ?? proc.claimedUnitPrice ?? 0,
+        totalPrice: proc.totalPrice ?? proc.claimedTotal ?? ((proc.unitPrice ?? proc.price ?? proc.claimedUnitPrice ?? 0) * (proc.quantity || 1)),
+      })),
+      medications: medications.map((med: any) => ({
+        ...med,
+        name: med.name || med.medicationName || "",
+        quantity: med.quantity || 1,
+        price: med.price ?? med.unitPrice ?? med.claimedUnitPrice ?? 0,
+        unitPrice: med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0,
+        totalPrice: med.totalPrice ?? med.claimedTotal ?? ((med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0) * (med.quantity || 1)),
+      })),
+      documents: Array.isArray(source?.documents) ? source.documents : [],
+      extra: source?.extra || {},
+      _mappingNotes: "AI mapping dilewati. Data diambil langsung dari key standar SnapPath: patient, encounter, diagnoses, procedures, medications, documents, dan extra.",
+    };
+  };
 
   const processFile = useCallback(async (file: File) => {
     setError(null);
@@ -61,6 +94,13 @@ export default function PathwayImportModal({
         throw new Error("File bukan JSON yang valid. Pastikan format file sudah benar.");
       }
 
+      if (importMode === "direct") {
+        clearInterval(msgInterval);
+        setMapped(normalizeDirectJson(rawJson));
+        setStage("preview");
+        return;
+      }
+
       const res = await fetch("/api/v1/claims/map-json", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,7 +121,7 @@ export default function PathwayImportModal({
       setError(err.message);
       setStage("error");
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [importMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -129,7 +169,7 @@ export default function PathwayImportModal({
               </svg>
               AI Smart Import
             </h2>
-            <p className="text-xs text-text-subtle mt-0.5">Upload JSON apapun — AI akan memetakan ke struktur SnapPath secara otomatis</p>
+            <p className="text-xs text-text-subtle mt-0.5">Upload JSON dengan AI mapping atau gunakan struktur standar SnapPath secara langsung</p>
           </div>
           <button onClick={onClose} className="p-2 text-text-subtle hover:text-text rounded-full hover:bg-surface-elevated transition-colors">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -140,7 +180,7 @@ export default function PathwayImportModal({
         <div className="flex items-center gap-0 border-b border-border/60 px-6 flex-shrink-0">
           {[
             { id: "upload", label: "Upload" },
-            { id: "processing", label: "AI Mapping" },
+            { id: "processing", label: importMode === "ai" ? "AI Mapping" : "Direct Parse" },
             { id: "preview", label: "Preview & Confirm" },
           ].map((s, i, arr) => {
             const isActive = stage === s.id || (stage === "error" && s.id === "processing");
@@ -187,6 +227,16 @@ export default function PathwayImportModal({
                 </div>
                 <p className="text-sm font-semibold text-text mb-1">{isDragging ? "Lepaskan file di sini" : "Drag & drop JSON file"}</p>
                 <p className="text-xs text-text-subtle mb-4">atau klik untuk memilih file · Format: .json</p>
+                <div className="mb-4 grid w-full max-w-md grid-cols-1 gap-2 rounded-xl border border-border/70 bg-surface/80 p-2 text-left sm:grid-cols-2" onClick={(e) => e.stopPropagation()}>
+                  <label className={`flex cursor-pointer items-start gap-2 rounded-lg p-3 text-xs transition-colors ${importMode === "ai" ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "text-text-subtle hover:bg-surface-elevated"}`}>
+                    <input type="radio" name="importMode" value="ai" checked={importMode === "ai"} onChange={() => setImportMode("ai")} className="mt-0.5" />
+                    <span><span className="block font-semibold">AI mapping</span><span className="block text-[11px] opacity-80">Untuk JSON bebas/FHIR/HL7/custom.</span></span>
+                  </label>
+                  <label className={`flex cursor-pointer items-start gap-2 rounded-lg p-3 text-xs transition-colors ${importMode === "direct" ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "text-text-subtle hover:bg-surface-elevated"}`}>
+                    <input type="radio" name="importMode" value="direct" checked={importMode === "direct"} onChange={() => setImportMode("direct")} className="mt-0.5" />
+                    <span><span className="block font-semibold">Skip AI mapping</span><span className="block text-[11px] opacity-80">Pakai key SnapPath langsung.</span></span>
+                  </label>
+                </div>
                 <div className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover transition-colors pointer-events-none">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
                   Pilih File JSON
@@ -196,7 +246,7 @@ export default function PathwayImportModal({
 
               <div className="mt-4 rounded-lg bg-primary/5 border border-primary/15 p-4 text-xs text-text-subtle leading-relaxed">
                 <p className="font-semibold text-primary mb-1">Format apapun didukung</p>
-                Format yang bisa diproses oleh AI: FHIR R4, HL7 v2, export SIMRS/SIRS custom, format BPJS SEP, atau struktur JSON hospital manapun. AI akan menerjemahkan secara otomatis.
+                Mode AI mendukung FHIR R4, HL7 v2, export SIMRS/SIRS custom, BPJS SEP, atau JSON hospital lain. Mode skip AI mapping membaca langsung key standar SnapPath tanpa request AI.
               </div>
             </div>
           )}
@@ -214,11 +264,11 @@ export default function PathwayImportModal({
                 </div>
               </div>
               <div className="text-center">
-                <p className="font-semibold text-text mb-1">AI sedang memproses...</p>
-                <p className="text-sm text-text-subtle animate-pulse">{processingMsg}</p>
+                <p className="font-semibold text-text mb-1">{importMode === "ai" ? "AI sedang memproses..." : "Membaca JSON secara langsung..."}</p>
+                <p className="text-sm text-text-subtle animate-pulse">{importMode === "ai" ? processingMsg : "Menyalin field standar tanpa AI mapping"}</p>
               </div>
               <div className="text-xs text-text-faint text-center max-w-xs">
-                AI menganalisis dan memetakan seluruh field dari JSON Anda ke struktur data klaim SnapPath
+                {importMode === "ai" ? "AI menganalisis dan memetakan seluruh field dari JSON Anda ke struktur data klaim SnapPath" : "Tidak ada request AI. Pastikan JSON memiliki key standar agar preview terisi lengkap."}
               </div>
             </div>
           )}

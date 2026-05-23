@@ -1,0 +1,78 @@
+{
+  "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9",
+  "claimId": "CLM-MK-2026-0005",
+  "patient": {
+    "name": "Ibu Siti Aisyah",
+    "identifier": [{ "value": "PAT-MK-10033" }],
+    "birthDate": "1994-02-18",
+    "gender": "female"
+  },
+  "encounter": {
+    "class": { "code": "IMP" },
+    "period": { "start": "2026-06-10T08:00:00Z", "end": "2026-06-13T10:00:00Z" },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "O82.9",
+      "name": "Delivery by caesarean section, unspecified",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "OBGD010054",
+      "name": "Sectio Caesaria",
+      "quantity": 1,
+      "unitPrice": 23545500,
+      "totalPrice": 23545500
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "quantity": 3,
+      "unitPrice": 850000,
+      "totalPrice": 2550000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Cefotaxime 1g Injection",
+      "quantity": 4,
+      "unitPrice": 127500,
+      "totalPrice": 510000
+    },
+    {
+      "name": "Paracetamol 500mg",
+      "quantity": 9,
+      "unitPrice": 8000,
+      "totalPrice": 72000
+    }
+  ],
+  "documents": [
+    {
+      "type": "RESUME_MEDIS",
+      "date": "2026-06-13T10:00:00Z",
+      "conclusion": "Pasien hamil aterm dengan indikasi persalinan lama. Dilakukan Sectio Caesaria yang berjalan lancar."
+    },
+    {
+      "type": "LAPORAN_OPERASI",
+      "date": "2026-06-10T11:00:00Z",
+      "conclusion": "Operasi selesai dengan pendarahan dalam batas normal."
+    }
+  ],
+  "extra": {
+    "nik": "3175056789012345",
+    "phone": "081998877665",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "AS-11223344",
+    "los": "3",
+    "losJustification": "Perawatan pasca operasi berjalan normal.",
+    "outcomeNotes": "Pasien pulang dalam keadaan stabil.",
+    "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9"
+  }
+}

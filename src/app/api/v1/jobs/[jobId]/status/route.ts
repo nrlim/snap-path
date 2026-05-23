@@ -10,11 +10,13 @@ export async function GET(
   const { jobId } = await params;
   
   const auth = await authenticateApiRequest(request);
+  let authenticatedClientId = auth.authenticated ? auth.clientId : null;
   if (!auth.authenticated) {
     const session = await getSession();
     if (!session) {
       return auth.response;
     }
+    authenticatedClientId = typeof session.clientId === 'string' ? session.clientId : null;
   }
 
   try {
@@ -28,6 +30,7 @@ export async function GET(
         createdAt: true,
         startedAt: true,
         completedAt: true,
+        clientId: true,
         providerId: true,
       }
     });
@@ -36,8 +39,8 @@ export async function GET(
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    // Security check: ensure the job belongs to the authenticated provider (if providerId is enforced)
-    if (auth.providerId && job.providerId !== auth.providerId) {
+    // Security check: external client credentials can only access their own jobs.
+    if (authenticatedClientId && job.clientId !== authenticatedClientId) {
       return NextResponse.json({ error: "Unauthorized access to this job" }, { status: 403 });
     }
 

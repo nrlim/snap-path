@@ -16,7 +16,8 @@ SnapPath is an AI-powered platform for healthcare professionals. It provides det
 - **Styling:** Tailwind CSS v4 (via `@tailwindcss/postcss`)
 - **Database:** PostgreSQL (Supabase-hosted) via Prisma ORM v7
 - **Auth:** Custom JWT-based authentication (bcryptjs + jose). No third-party auth providers
-- **AI Gateway:** Upstash Workflow (`@upstash/workflow`)
+- **AI Gateway:** Provider-configurable AI gateway via Vercel AI SDK-compatible driver
+- **Workflow:** Background workflow runner for claim validation steps
 - **Fonts:** Geist Sans & Geist Mono (via `next/font/google`)
 
 ## Project Structure
@@ -41,6 +42,7 @@ prisma.config.ts          # Prisma 7 config (datasource URL lives here, not in s
 ```
 
 ## Critical Rules
+0. **Clinical Pathway data contract:** Before changing Clinical Pathway, Claim Validation, Fees & Drugs, scoring, AI Usage Logs, API docs, API keys, validators, workflow aggregation, or result UI, read `docs/clinical-pathway-data-contract.md` completely. This file defines the canonical field names, fallback keys, scoring rules, LOS behavior, timeline grouping behavior, and safe-change checklist. Do not rename or repurpose keys without updating every producer/consumer listed there.
 1. **Prisma 7 breaking change:** `url` and `directUrl` are configured in `prisma.config.ts`, NOT in `schema.prisma`. The schema only declares `provider`.
 2. **No third-party auth.** All authentication is custom-built. Do not introduce NextAuth, Auth.js, Supabase Auth, Clerk, or any external auth provider.
 3. **Password security.** Passwords must always be hashed with bcryptjs before storage. Never store or log plain-text passwords.

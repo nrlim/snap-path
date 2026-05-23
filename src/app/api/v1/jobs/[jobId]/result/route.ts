@@ -10,11 +10,13 @@ export async function GET(
   const { jobId } = await params;
   
   const auth = await authenticateApiRequest(request);
+  let authenticatedClientId = auth.authenticated ? auth.clientId : null;
   if (!auth.authenticated) {
     const session = await getSession();
     if (!session) {
       return auth.response;
     }
+    authenticatedClientId = typeof session.clientId === 'string' ? session.clientId : null;
   }
 
   try {
@@ -26,7 +28,7 @@ export async function GET(
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    if (auth.providerId && job.providerId !== auth.providerId) {
+    if (authenticatedClientId && job.clientId !== authenticatedClientId) {
       return NextResponse.json({ error: "Unauthorized access to this job" }, { status: 403 });
     }
 

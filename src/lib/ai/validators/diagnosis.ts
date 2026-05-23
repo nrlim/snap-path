@@ -2,9 +2,9 @@ import prisma from '@/lib/db';
 import { ClaimValidationInput, ClaimValidationOutput } from '../types';
 import { getAIGateway } from '../gateway';
 
-export async function validateDiagnosisTreatment(input: ClaimValidationInput): Promise<ClaimValidationOutput['diagnosisValidation']> {
+export async function validateDiagnosisTreatment(input: ClaimValidationInput, jobId?: string): Promise<ClaimValidationOutput['diagnosisValidation']> {
   const { diagnoses, procedures } = input;
-  const gateway = await getAIGateway();
+  const gateway = await getAIGateway({ clientId: input.clientId, providerId: input.providerId, jobId });
 
   const details: ClaimValidationOutput['diagnosisValidation']['details'] = [];
   const claimedProcedureCodes = procedures.map(p => p.code);

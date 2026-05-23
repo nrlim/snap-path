@@ -1,6 +1,16 @@
 import prisma from '@/lib/db';
 import { TariffValidationInput, TariffValidationOutput } from '../types';
 
+function getProcedureUnitPrice(proc: any) {
+  return Number(proc.unitPrice ?? proc.price ?? proc.claimedUnitPrice ?? 0);
+}
+
+function getProcedureTotalPrice(proc: any) {
+  const explicitTotal = proc.totalPrice ?? proc.claimedTotal ?? proc.claimedPrice;
+  if (explicitTotal !== undefined && explicitTotal !== null) return Number(explicitTotal);
+  return getProcedureUnitPrice(proc) * Number(proc.quantity || 1);
+}
+
 export async function validateTariffPrice(input: TariffValidationInput, jobId: string): Promise<TariffValidationOutput> {
   const { providerId, procedures, encounterType } = input;
 
@@ -24,7 +34,10 @@ export async function validateTariffPrice(input: TariffValidationInput, jobId: s
   const items: TariffValidationOutput['items'] = [];
 
   for (const proc of procedures) {
-    totalClaimed += proc.totalPrice;
+    const quantity = Number(proc.quantity || 1);
+    const claimedUnitPrice = getProcedureUnitPrice(proc);
+    const claimedTotal = getProcedureTotalPrice(proc);
+    totalClaimed += claimedTotal;
     
     // Find master tariff
     const masterEntries = await prisma.tariffEntry.findMany({
@@ -44,10 +57,10 @@ export async function validateTariffPrice(input: TariffValidationInput, jobId: s
     if (!master) {
       items.push({
         code: proc.code,
-        description: proc.description,
-        quantity: proc.quantity,
-        claimedUnitPrice: proc.unitPrice,
-        claimedTotal: proc.totalPrice,
+        description: proc.description || (proc as any).name || proc.code,
+        quantity,
+        claimedUnitPrice,
+        claimedTotal,
         masterBasePrice: 0,
         masterMaxPrice: 0,
         expectedTotal: 0,
@@ -58,15 +71,14 @@ export async function validateTariffPrice(input: TariffValidationInput, jobId: s
       continue;
     }
 
-    const expectedTotal = master.maxPrice * proc.quantity;
-    totalExpected += expectedTotal;
+    const expectedTotal = master.maxPrice * quantity;    totalExpected += expectedTotal;
 
-    const diff = proc.totalPrice - expectedTotal;
+    const diff = claimedTotal - expectedTotal;
     let variancePct = 0;
     
     if (expectedTotal > 0) {
       variancePct = (diff / expectedTotal) * 100;
-    } else if (proc.totalPrice > 0) {
+    } else if (claimedTotal > 0) {
       variancePct = 100; // Infinity mathematically, but let's call it 100% variance
     }
     
@@ -81,10 +93,10 @@ export async function validateTariffPrice(input: TariffValidationInput, jobId: s
 
     items.push({
       code: proc.code,
-      description: proc.description,
-      quantity: proc.quantity,
-      claimedUnitPrice: proc.unitPrice,
-      claimedTotal: proc.totalPrice,
+      description: proc.description || (proc as any).name || proc.code,
+      quantity,
+      claimedUnitPrice,
+      claimedTotal,
       masterBasePrice: master.basePrice,
       masterMaxPrice: master.maxPrice,
       expectedTotal,

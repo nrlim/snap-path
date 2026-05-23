@@ -8,12 +8,10 @@ export default async function BukuTarifPage(props: {
   searchParams: Promise<{ [key: string]: string | undefined }>;
 }) {
   const searchParams = await props.searchParams;
-  const page = Number(searchParams.page) || 1;
-  const providerId = searchParams.providerId;
-  const category = searchParams.category;
+  const page = 1;
 
-  // We fetch standard page size
-  const data = await getTariffEntries({ page, limit: 15, providerId, category });
+  // Table tools are handled client-side for a consistent search/filter/sort/pagination UX.
+  const data = await getTariffEntries({ page, limit: 1000 });
   const providers = await getProviders();
 
   return (

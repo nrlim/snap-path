@@ -1,274 +1,1468 @@
 {
-  "openapi": "3.0.0",
+  "openapi": "3.0.3",
   "info": {
     "title": "SnapPath AI Brain API",
-    "description": "API for SnapPath Healthcare Engine to validate claims, check drug prices, and generate clinical pathways using Upstash Workflows & Vercel AI SDK.",
-    "version": "1.0.0"
+    "version": "1.1.0",
+    "description": "SnapPath API service documentation untuk client terdaftar. Client eksternal memakai x-api-key dan x-api-secret, sedangkan dashboard internal SnapPath memakai JWT session user login."
   },
   "servers": [
     {
       "url": "http://localhost:3000",
-      "description": "Local Development Server"
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Clinical Pathway Result Guide",
+      "description": "Panduan membaca setiap section hasil Clinical Pathway di dashboard SnapPath."
+    },
+    {
+      "name": "Authentication",
+      "description": "Client eksternal memakai x-api-key + x-api-secret atau Basic auth. Dashboard SnapPath memakai JWT session internal."
+    },
+    {
+      "name": "Claim Workflows",
+      "description": "Workflow validasi klaim end-to-end dan polling result."
+    },
+    {
+      "name": "Clinical Pathway",
+      "description": "Generate dan interpretasi clinical pathway AI."
+    },
+    {
+      "name": "Tariff",
+      "description": "Master tarif dan validasi harga tindakan."
+    },
+    {
+      "name": "Drug Price",
+      "description": "Validasi harga obat dengan cache dan AI-assisted market reference."
+    },
+    {
+      "name": "Providers",
+      "description": "Provider klaim/tarif milik client, misalnya BPJS atau private insurer."
+    },
+    {
+      "name": "Jobs",
+      "description": "Polling status dan result job asynchronous."
     }
   ],
   "components": {
     "securitySchemes": {
-      "bearerAuth": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "Public API key client, contoh: sp_xxx"
+      },
+      "ApiSecretAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-secret",
+        "description": "API secret client, contoh: sps_xxx"
+      },
+      "BasicAuth": {
         "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
+        "scheme": "basic",
+        "description": "Alternative auth: Authorization Basic base64(apiKey:apiSecret)"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "QueuedJobResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "runId": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string"
+          },
+          "statusUrl": {
+            "type": "string",
+            "example": "/api/v1/jobs/{jobId}/status"
+          }
+        }
+      },
+      "ClaimValidationInput": {
+        "type": "object",
+        "required": [
+          "providerId",
+          "patient",
+          "encounter",
+          "diagnoses",
+          "procedures",
+          "medications",
+          "totalClaimAmount"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Optional. Jika memakai API key client, clientId otomatis diambil dari credential."
+          },
+          "providerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Provider klaim/tarif yang digunakan untuk threshold dan master tariff."
+          },
+          "claimId": {
+            "type": "string",
+            "example": "CLM-2026-0001"
+          },
+          "patient": {
+            "$ref": "#/components/schemas/Patient"
+          },
+          "encounter": {
+            "$ref": "#/components/schemas/Encounter"
+          },
+          "diagnoses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Diagnosis"
+            }
+          },
+          "procedures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Procedure"
+            }
+          },
+          "medications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Medication"
+            }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClinicalDocument"
+            }
+          },
+          "totalClaimAmount": {
+            "type": "number",
+            "example": 3250000
+          },
+          "currency": {
+            "type": "string",
+            "default": "IDR"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "Patient": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "P-001"
+          },
+          "name": {
+            "type": "string",
+            "example": "Budi Santoso"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date",
+            "example": "1985-04-21"
+          },
+          "gender": {
+            "type": "string",
+            "enum": [
+              "M",
+              "F"
+            ]
+          }
+        }
+      },
+      "Encounter": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "RAWAT_INAP",
+              "RAWAT_JALAN",
+              "IGD"
+            ]
+          },
+          "admissionDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dischargeDate": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "facility": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "example": "RS_TIPE_B"
+              }
+            }
+          }
+        }
+      },
+      "Diagnosis": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "J18.9"
+          },
+          "description": {
+            "type": "string",
+            "example": "Pneumonia, unspecified organism"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PRIMARY",
+              "SECONDARY",
+              "COMPLICATION"
+            ]
+          },
+          "sequence": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "Procedure": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "RAD-CXR"
+          },
+          "description": {
+            "type": "string",
+            "example": "Chest X-Ray"
+          },
+          "quantity": {
+            "type": "integer",
+            "example": 1
+          },
+          "unitPrice": {
+            "type": "number",
+            "example": 250000
+          },
+          "totalPrice": {
+            "type": "number",
+            "example": 250000
+          },
+          "performedDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "category": {
+            "type": "string",
+            "example": "RADIOLOGI"
+          },
+          "regionCode": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Medication": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Azithromycin 500mg"
+          },
+          "genericName": {
+            "type": "string",
+            "nullable": true
+          },
+          "dosage": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "integer",
+            "example": 5
+          },
+          "unitPrice": {
+            "type": "number",
+            "example": 15000
+          },
+          "totalPrice": {
+            "type": "number",
+            "example": 75000
+          },
+          "frequency": {
+            "type": "string",
+            "nullable": true
+          },
+          "duration": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ClinicalDocument": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "example": "RESUME_MEDIS"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ClinicalPathwayInput": {
+        "type": "object",
+        "required": [
+          "diagnosisCode",
+          "encounterType"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "providerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "diagnosisCode": {
+            "type": "string",
+            "example": "A09"
+          },
+          "diagnosisName": {
+            "type": "string",
+            "example": "Infectious gastroenteritis and colitis"
+          },
+          "encounterType": {
+            "type": "string",
+            "enum": [
+              "RAWAT_INAP",
+              "RAWAT_JALAN",
+              "IGD"
+            ]
+          },
+          "providerType": {
+            "type": "string",
+            "nullable": true,
+            "example": "BPJS"
+          },
+          "patientProfile": {
+            "type": "object",
+            "properties": {
+              "age": {
+                "type": "integer"
+              },
+              "gender": {
+                "type": "string",
+                "enum": [
+                  "M",
+                  "F"
+                ]
+              },
+              "comorbidities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "includeCosting": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "ClinicalPathwayOutput": {
+        "type": "object",
+        "description": "Core result clinical pathway. Jika dipanggil via /pathways/generate, result ini tersedia di GET /api/v1/jobs/{jobId}/result pada field result.",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "diagnosisCode": {
+            "type": "string",
+            "example": "A09"
+          },
+          "diagnosisName": {
+            "type": "string"
+          },
+          "pathwayVersion": {
+            "type": "string",
+            "example": "1.0-ai"
+          },
+          "estimatedLos": {
+            "type": "integer",
+            "description": "Perkiraan Length of Stay standar dalam hari."
+          },
+          "phases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClinicalPathwayPhase"
+            }
+          },
+          "totalEstimatedCost": {
+            "type": "number",
+            "nullable": true
+          },
+          "generatedBy": {
+            "type": "string",
+            "enum": [
+              "AI",
+              "TEMPLATE",
+              "HYBRID"
+            ]
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Confidence internal terhadap pathway yang dihasilkan."
+          }
+        }
+      },
+      "ClinicalPathwayPhase": {
+        "type": "object",
+        "description": "Satu fase perjalanan perawatan. Phase biasanya Admission/IGD, Day 1-2, Day 3-5, Discharge.",
+        "properties": {
+          "phaseId": {
+            "type": "string",
+            "example": "admission"
+          },
+          "phaseName": {
+            "type": "string",
+            "example": "IGD/Admisi"
+          },
+          "dayRange": {
+            "type": "string",
+            "example": "Day 0"
+          },
+          "objectives": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Target klinis fase ini."
+          },
+          "assessments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathwayAssessment"
+            }
+          },
+          "treatments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathwayTreatment"
+            }
+          },
+          "medications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathwayMedication"
+            }
+          },
+          "nursing": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PathwayNursing"
+            }
+          },
+          "nutrition": {
+            "$ref": "#/components/schemas/PathwayNutrition"
+          },
+          "education": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dischargeGate": {
+            "$ref": "#/components/schemas/DischargeGate"
+          }
+        }
+      },
+      "PathwayAssessment": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "string"
+          },
+          "mandatory": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PathwayTreatment": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string",
+            "nullable": true
+          },
+          "mandatory": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PathwayMedication": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "dosage": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "string"
+          },
+          "mandatory": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PathwayNursing": {
+        "type": "object",
+        "properties": {
+          "activity": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "string"
+          }
+        }
+      },
+      "PathwayNutrition": {
+        "type": "object",
+        "properties": {
+          "diet": {
+            "type": "string"
+          },
+          "restrictions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "DischargeGate": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mustMeetAll": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ClaimValidationOutput": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "VALID",
+              "INVALID",
+              "WARNING",
+              "REVIEW_NEEDED"
+            ]
+          },
+          "overallScore": {
+            "type": "integer",
+            "description": "Skor akhir 0-100 setelah scoring deduction."
+          },
+          "summary": {
+            "type": "string"
+          },
+          "scoringExplanation": {
+            "$ref": "#/components/schemas/ScoringExplanation"
+          },
+          "documentValidation": {
+            "type": "object"
+          },
+          "diagnosisValidation": {
+            "type": "object"
+          },
+          "tariffValidation": {
+            "type": "object"
+          },
+          "drugPriceValidation": {
+            "type": "object"
+          },
+          "clinicalPathway": {
+            "$ref": "#/components/schemas/ClaimClinicalPathwaySection"
+          },
+          "processingTime": {
+            "type": "object"
+          },
+          "auditTrail": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "ScoringExplanation": {
+        "type": "object",
+        "description": "Penjelasan scoring yang digunakan di SnapPath UI. Skor dimulai dari 100 lalu dikurangi berdasarkan temuan validasi.",
+        "properties": {
+          "baseScore": {
+            "type": "integer",
+            "example": 100
+          },
+          "deductions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "parameter": {
+                  "type": "string",
+                  "example": "Diagnosis & tindakan klinis"
+                },
+                "maxDeduction": {
+                  "type": "integer",
+                  "example": 30
+                },
+                "trigger": {
+                  "type": "string",
+                  "example": "diagnosisValidation.isValid === false"
+                },
+                "meaning": {
+                  "type": "string"
+                }
+              }
+            },
+            "example": [
+              {
+                "parameter": "Diagnosis & tindakan klinis",
+                "maxDeduction": 30,
+                "trigger": "Diagnosis tidak sesuai tindakan atau prosedur wajib hilang",
+                "meaning": "Mendeteksi mismatch diagnosis-treatment, prosedur tidak relevan, atau prosedur wajib belum ada."
+              },
+              {
+                "parameter": "Tarif tindakan",
+                "maxDeduction": 20,
+                "trigger": "tariffValidation.status WARNING/INVALID",
+                "meaning": "Ada item tarif di luar master tariff atau melewati threshold."
+              },
+              {
+                "parameter": "Harga obat",
+                "maxDeduction": 20,
+                "trigger": "drugPriceValidation.status WARNING/INVALID",
+                "meaning": "Harga obat melewati referensi pasar + threshold atau obat tidak ditemukan."
+              },
+              {
+                "parameter": "Kelengkapan dokumen",
+                "maxDeduction": 10,
+                "trigger": "documentValidation.isValid === false",
+                "meaning": "Dokumen mandatory seperti resume medis, hasil lab/radiologi, rujukan, atau laporan operasi belum lengkap."
+              }
+            ]
+          }
+        }
+      },
+      "ClaimClinicalPathwaySection": {
+        "type": "object",
+        "description": "Section clinicalPathway di full claim validation. Berisi recommendedPathway hasil AI/template untuk diagnosis primer.",
+        "properties": {
+          "diagnosisCode": {
+            "type": "string"
+          },
+          "adherenceScore": {
+            "type": "integer",
+            "example": 100,
+            "description": "Saat ini default 100 karena sistem menghasilkan pathway rekomendasi; deviasi detail akan diisi saat adherence engine aktif."
+          },
+          "recommendedPathway": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClinicalPathwayPhase"
+            }
+          },
+          "deviations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TariffEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "procedureCode": {
+            "type": "string"
+          },
+          "procedureName": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "subcategory": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "unit": {
+            "type": "string",
+            "nullable": true
+          },
+          "regionCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "basePrice": {
+            "type": "number"
+          },
+          "maxPrice": {
+            "type": "number"
+          },
+          "priceTiersJson": {
+            "type": "object",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "default": "IDR"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "effectiveTo": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProviderInput": {
+        "type": "object",
+        "required": [
+          "code",
+          "name"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "example": "BPJS"
+          },
+          "name": {
+            "type": "string",
+            "example": "BPJS Kesehatan"
+          }
+        }
       }
     }
   },
   "security": [
     {
-      "bearerAuth": []
+      "ApiKeyAuth": [],
+      "ApiSecretAuth": []
+    },
+    {
+      "BasicAuth": []
     }
   ],
   "paths": {
-    "/api/v1/providers": {
+    "/guide/clinical-pathway-result/ai-outcome-summary": {
+      "get": {
+        "tags": [
+          "Clinical Pathway Result Guide"
+        ],
+        "summary": "Guide: AI Outcome & Validation Summary",
+        "description": "Section ini adalah ringkasan paling atas dari hasil clinical pathway dan validasi klaim.\n\n| Item | Penjelasan |\n| --- | --- |\n| Overall Score | Skor akhir 0-100. Skor awal 100 lalu dikurangi berdasarkan issue validasi. |\n| Status Validasi | Valid, Warning, Review Needed, atau Invalid sebagai indikator risiko review. |\n| Perhitungan Skor | Breakdown pengurangan skor dari diagnosis, tarif tindakan, harga obat, dokumen, LOS compliance, dan master data tidak terdaftar. |\n| Validasi Obat & Tindakan | Persentase item yang sesuai dari total validasi tarif, obat, dan diagnosis-treatment. |\n| Length of Stay (LOS compliance) | Membandingkan LOS compliance aktual dengan standar LOS compliance dari AI pathway. Jika overstay, masuk pengurangan skor. |\n| Kelengkapan Dokumen Medis | Jumlah dokumen tersedia dan dokumen wajib yang hilang. |\n| Catatan Varians & Outcome | Catatan tambahan dari input user untuk menjelaskan variance atau outcome klinis. |\n\n\n\n**Catatan interpretasi**\n\n- `Tarif tindakan terdaftar` dan `Harga obat terdaftar` hanya menilai item yang sudah memiliki referensi harga.\n- Jika tindakan/obat belum punya referensi, deduction masuk ke `Kesiapan master data`, bukan ke price compliance.\n- `LOS compliance` berdiri sendiri dan hanya minus jika LOS aktual melebihi standar pathway.\n\n**Preview section**\n\n```text\nAI Outcome & Validation Summary        [Valid]\n\nScore Count\nAwal 100 | Minus -20 | Akhir 80\n\n- Diagnosis & tindakan klinis   0 / 30\n- Tarif tindakan terdaftar              -20 / 20\n- Harga obat terdaftar                    0 / 20\n- Kelengkapan dokumen           0 / 10\n- LOS compliance                            0 / 10\n- Kesiapan master data    0 / 15\n\nConformance Metrics\n- Validasi Obat & Tindakan: 86% Sesuai\n- LOS compliance: 3 hari aktual - standar AI 3 hari\n- Dokumen: 5 dokumen dilampirkan\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Documentation only. Not a runtime API endpoint."
+          }
+        }
+      }
+    },
+    "/guide/clinical-pathway-result/patient-clinical-summary": {
+      "get": {
+        "tags": [
+          "Clinical Pathway Result Guide"
+        ],
+        "summary": "Guide: Patient Clinical Summary",
+        "description": "Section ini merangkum konteks pasien dan episode perawatan agar reviewer tidak perlu membaca payload mentah.\n\n| Item | Penjelasan |\n| --- | --- |\n| Patient Identity | Nama pasien, gender/tanggal lahir, MRN, dan nomor asuransi bila tersedia. |\n| Admission Episode | Tipe encounter, tanggal masuk, tanggal pulang, dan LOS aktual. |\n| Diagnoses | Daftar diagnosis primary/secondary/complication beserta kode dan deskripsi. |\n| AI Clinical Context | Ringkasan klinis singkat dari AI untuk diagnosis utama. |\n| Procedures Claimed | Ringkasan tindakan yang diklaim, biasanya menampilkan kode dan nama tindakan. |\n| Medications Claimed | Ringkasan obat yang diklaim, termasuk nama dan jumlah. |\n\n**Preview section**\n\n```text\nPatient Clinical Summary\n\nPatient Identity\nName        Budi Santoso\nGender/DOB  M - 21 Apr 1985\nMRN         MR-001\nInsurance   BPJS-00001\n\nAdmission Episode\nType        RAWAT_INAP\nAdmission   20 Mei 2026\nDischarge   23 Mei 2026\nLOS         3 Days (AI Standard: 3 days)\n\nDiagnoses\n[J18.9] Pneumonia (primary)\n\nAI Clinical Context\nRingkasan kondisi klinis utama pasien.\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Documentation only. Not a runtime API endpoint."
+          }
+        }
+      }
+    },
+    "/guide/clinical-pathway-result/recommended-treatment-pathway": {
+      "get": {
+        "tags": [
+          "Clinical Pathway Result Guide"
+        ],
+        "summary": "Guide: Recommended Treatment Pathway (AI)",
+        "description": "Section ini adalah rencana pathway standar yang direkomendasikan AI atau template internal berdasarkan diagnosis utama.\n\n| Item | Penjelasan |\n| --- | --- |\n| Phase / Day Range | Periode pathway seperti Admission, Day 1-2, Day 3-5, atau Discharge. |\n| Objectives | Target klinis yang perlu dicapai pada fase tersebut. |\n| Assessments | Pemeriksaan atau monitoring, termasuk frekuensi dan status mandatory. |\n| Treatments | Intervensi atau tindakan medis yang direkomendasikan. |\n| Medications | Obat yang direkomendasikan beserta dosis, frekuensi, rute, durasi, dan mandatory flag. |\n| Nursing / Nutrition / Education | Aktivitas keperawatan, rekomendasi diet, dan edukasi pasien/keluarga. |\n| Discharge Gate | Kriteria klinis yang harus dipenuhi sebelum pasien layak pulang. |\n\n**Preview section**\n\n```text\nRecommended Treatment Pathway (AI)     Day 1 - 3\n\n1. IGD/Admisi - Day 0\n   Objectives: stabilisasi, identifikasi severity\n   Assessments: tanda vital q4h, lab awal\n   Treatments: oksigenasi, cairan, terapi suportif\n\n2. Hari 1-2\n   Objectives: kontrol gejala, evaluasi response therapy\n   Medications: antibiotic/analgesic sesuai indikasi\n\n3. Discharge\n   Discharge Gate:\n   - Kondisi stabil\n   - Toleransi oral baik\n   - Edukasi pulang selesai\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Documentation only. Not a runtime API endpoint."
+          }
+        }
+      }
+    },
+    "/guide/clinical-pathway-result/fees-and-drugs": {
+      "get": {
+        "tags": [
+          "Clinical Pathway Result Guide"
+        ],
+        "summary": "Guide: Fees & Drugs",
+        "description": "Tab ini menjelaskan hasil validasi finansial terhadap tindakan dan obat.\n\n| Item | Penjelasan |\n| --- | --- |\n| Master Fee Schedule Validation | Membandingkan tindakan yang diklaim dengan master tariff provider. |\n| Total Claim | Total nilai klaim tindakan. |\n| Total Master Max | Batas atas tarif berdasarkan master fee schedule. |\n| Drug Price Validation | Membandingkan harga obat dengan market reference/cache/AI estimate. |\n| Variance | Selisih nilai klaim terhadap referensi. |\n| WITHIN_RANGE | Item masih dalam rentang wajar. |\n| OVER_THRESHOLD / NOT_FOUND | Item perlu review karena melewati threshold atau referensi tidak ditemukan. |\n\n**Preview section**\n\n```text\nFees & Drugs\n\nMaster Fee Schedule Validation\nProcedure       Claim      Master Max   Variance   Status\nChest X-Ray     250.000    300.000      -16%       WITHIN_RANGE\nProcedure X     900.000    600.000      +50%       OVER_THRESHOLD\n\nDrug Price Validation\nDrug A          150.000    100.000      +50%       OVER_THRESHOLD\nDrug B           20.000     22.000       -9%       WITHIN_RANGE\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Documentation only. Not a runtime API endpoint."
+          }
+        }
+      }
+    },
+    "/guide/clinical-pathway-result/diagnosis-and-docs": {
+      "get": {
+        "tags": [
+          "Clinical Pathway Result Guide"
+        ],
+        "summary": "Guide: Diagnosis & Docs",
+        "description": "Tab ini menjelaskan validasi kecocokan diagnosis-tindakan dan kelengkapan dokumen.\n\n| Item | Penjelasan |\n| --- | --- |\n| Diagnosis vs Procedure Validation | Menilai apakah tindakan yang diklaim relevan dengan diagnosis. |\n| Matched Procedures | Tindakan yang sesuai dengan diagnosis. |\n| Irrelevant Procedures | Tindakan yang tidak relevan dan perlu review. |\n| Missing Required Procedures | Tindakan wajib/relevan yang belum ada pada klaim. |\n| Suggested Procedures | Rekomendasi AI untuk tindakan tambahan beserta rationale. |\n| Document Completeness Validation | Menilai apakah dokumen mandatory sudah tersedia. |\n| Attached / Missing Documents | Dokumen yang tersedia dan dokumen wajib yang belum dilampirkan. |\n\n**Preview section**\n\n```text\nDiagnosis & Docs\n\nDiagnosis vs Procedure Validation\nDiagnosis: J18.9 Pneumonia\n\nMatched Procedures:\n- RAD-CXR - Chest X-Ray\n\nIrrelevant Procedures:\n- PROC-X - Procedure not related to pneumonia\n\nMissing Required Procedures:\n- LAB-CBC - Complete Blood Count\n\nDocument Completeness Validation\nAttached: RESUME_MEDIS, HASIL_RADIOLOGI\nMissing: HASIL_LAB\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Documentation only. Not a runtime API endpoint."
+          }
+        }
+      }
+    },
+    "/api/v1/claims/map-json": {
       "post": {
-        "summary": "Create Provider & API Key",
-        "description": "Registers a new healthcare provider and generates a secure API Key for authentication.",
-        "tags": ["Admin"],
+        "tags": [
+          "Claim Workflows"
+        ],
+        "summary": "Map arbitrary JSON to SnapPath claim schema",
+        "description": "Mengubah payload dari SIMRS/FHIR/HL7/custom export menjadi struktur ClaimValidationInput. Endpoint ini menggunakan AI dan mengembalikan usage token.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {
-                  "code": { "type": "string", "example": "BPJS" },
-                  "name": { "type": "string", "example": "BPJS Kesehatan" }
-                }
+                "additionalProperties": true
               }
             }
           }
         },
         "responses": {
-          "201": { "description": "Provider created successfully" }
+          "200": {
+            "description": "Mapped claim payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "mapped": {
+                      "$ref": "#/components/schemas/ClaimValidationInput"
+                    },
+                    "_mappingNotes": {
+                      "type": "string"
+                    },
+                    "usage": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
         }
       }
     },
     "/api/v1/claims/validate": {
       "post": {
+        "tags": [
+          "Claim Workflows"
+        ],
         "summary": "Full Claim Validation",
-        "description": "Triggers an asynchronous AI background job to validate diagnosis-treatment matching, check tariff limits, and verify drug prices.",
-        "tags": ["AI Workflows"],
+        "description": "Menjalankan workflow asynchronous: document validation, diagnosis-treatment validation, tariff validation, drug price check, dan clinical pathway generation untuk diagnosis primer.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "providerId": { "type": "string", "example": "uuid-here" },
-                  "patient": {
-                    "type": "object",
-                    "properties": {
-                      "id": { "type": "string", "example": "P-001" },
-                      "name": { "type": "string", "example": "Budi Santoso" },
-                      "gender": { "type": "string", "example": "M" }
-                    }
-                  },
-                  "encounter": {
-                    "type": "object",
-                    "properties": {
-                      "type": { "type": "string", "example": "RAWAT_INAP" },
-                      "admissionDate": { "type": "string", "example": "2026-05-20T10:00:00Z" }
-                    }
-                  },
-                  "diagnoses": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "code": { "type": "string", "example": "J18.9" },
-                        "description": { "type": "string", "example": "Pneumonia, unspecified" },
-                        "type": { "type": "string", "example": "PRIMARY" },
-                        "sequence": { "type": "integer", "example": 1 }
-                      }
-                    }
-                  },
-                  "procedures": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "code": { "type": "string", "example": "CPT-123" },
-                        "description": { "type": "string", "example": "Chest X-Ray" },
-                        "quantity": { "type": "integer", "example": 1 },
-                        "unitPrice": { "type": "number", "example": 250000 },
-                        "totalPrice": { "type": "number", "example": 250000 }
-                      }
-                    }
-                  },
-                  "medications": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": { "type": "string", "example": "Azithromycin 500mg" },
-                        "quantity": { "type": "integer", "example": 5 },
-                        "unitPrice": { "type": "number", "example": 15000 },
-                        "totalPrice": { "type": "number", "example": 75000 }
-                      }
-                    }
-                  },
-                  "documents": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "type": { "type": "string", "example": "RESUME_MEDIS" },
-                        "url": { "type": "string", "example": "https://storage.provider.com/doc.pdf" },
-                        "description": { "type": "string", "example": "Resume medis rawat inap" }
-                      }
-                    }
-                  },
-                  "totalClaimAmount": { "type": "number", "example": 325000 }
-                }
+                "$ref": "#/components/schemas/ClaimValidationInput"
               }
             }
           }
         },
         "responses": {
-          "202": { "description": "Job queued successfully. Returns a `jobId`." }
+          "202": {
+            "description": "Job queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueuedJobResponse"
+                }
+              }
+            }
+          }
         }
       }
     },
-    "/api/v1/tariff/validate": {
-      "post": {
-        "summary": "Tariff Validation",
-        "description": "Validates the claimed procedure prices against the provider's Master Tariff Book and Threshold Configurations.",
-        "tags": ["AI Workflows"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "providerId": { "type": "string", "example": "uuid-here" },
-                  "encounterType": { "type": "string", "example": "RAWAT_JALAN" },
-                  "procedures": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "code": { "type": "string", "example": "CPT-123" },
-                        "description": { "type": "string", "example": "Consultation" },
-                        "quantity": { "type": "integer", "example": 1 },
-                        "unitPrice": { "type": "number", "example": 300000 },
-                        "totalPrice": { "type": "number", "example": 300000 }
-                      }
-                    }
-                  }
-                }
-              }
+    "/api/v1/claims/status": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Poll claim validation workflow status",
+        "description": "Endpoint khusus workflow /claims/validate. Gunakan runId dan jobId dari response submit klaim. Workflow ini dijalankan oleh background workflow runner SnapPath, bukan dokumentasi vendor-specific.",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jobId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
             }
           }
-        },
+        ],
         "responses": {
-          "202": { "description": "Job queued successfully. Returns a `jobId`." }
-        }
-      }
-    },
-    "/api/v1/drugs/price-check": {
-      "post": {
-        "summary": "Drug Price Check",
-        "description": "Validates drug prices against the latest market prices using DB cache and AI internet search.",
-        "tags": ["AI Workflows"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "providerId": { "type": "string", "example": "uuid-here" },
-                  "medications": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": { "type": "string", "example": "Paracetamol 500mg" },
-                        "quantity": { "type": "integer", "example": 10 },
-                        "unitPrice": { "type": "number", "example": 5000 },
-                        "totalPrice": { "type": "number", "example": 50000 }
-                      }
-                    }
-                  }
-                }
-              }
-            }
+          "200": {
+            "description": "Workflow status; when completed includes full result."
           }
-        },
-        "responses": {
-          "202": { "description": "Job queued successfully. Returns a `jobId`." }
-        }
-      }
-    },
-    "/api/v1/pathways/generate": {
-      "post": {
-        "summary": "Generate Clinical Pathway",
-        "description": "Generates a detailed, phase-by-phase clinical pathway template for a specific diagnosis code.",
-        "tags": ["AI Workflows"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "diagnosisCode": { "type": "string", "example": "A09" },
-                  "diagnosisName": { "type": "string", "example": "Infectious gastroenteritis and colitis" },
-                  "encounterType": { "type": "string", "example": "RAWAT_INAP" },
-                  "providerId": { "type": "string", "example": "uuid-here" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "202": { "description": "Job queued successfully. Returns a `jobId`." }
         }
       }
     },
     "/api/v1/jobs/{jobId}/status": {
       "get": {
-        "summary": "Check Job Status",
-        "description": "Polls the status of an asynchronous job.",
-        "tags": ["Polling"],
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Check job status",
         "parameters": [
           {
             "name": "jobId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Returns the job status (e.g., QUEUED, PROCESSING, COMPLETED, FAILED)" }
+          "200": {
+            "description": "Job metadata and status."
+          },
+          "404": {
+            "description": "Job not found"
+          }
         }
       }
     },
     "/api/v1/jobs/{jobId}/result": {
       "get": {
-        "summary": "Get Job Result",
-        "description": "Retrieves the final JSON output of a completed job.",
-        "tags": ["Polling"],
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Get completed job result",
+        "description": "Mengambil result JSON final. Untuk PATHWAY_GEN, field result mengikuti ClinicalPathwayOutput. Untuk CLAIM_VALIDATION, field result mengikuti ClaimValidationOutput.",
         "parameters": [
           {
             "name": "jobId",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
-          "200": { "description": "The final processed output." },
-          "400": { "description": "Job is not yet completed." }
+          "200": {
+            "description": "Completed job result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jobId": {
+                      "type": "string"
+                    },
+                    "jobType": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "oneOf": [
+                        {
+                          "$ref": "#/components/schemas/ClinicalPathwayOutput"
+                        },
+                        {
+                          "$ref": "#/components/schemas/ClaimValidationOutput"
+                        }
+                      ]
+                    },
+                    "completedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Job not finished yet"
+          },
+          "404": {
+            "description": "Job not found"
+          }
+        }
+      }
+    },
+    "/api/v1/pathways/generate": {
+      "post": {
+        "tags": [
+          "Clinical Pathway"
+        ],
+        "summary": "Generate Clinical Pathway",
+        "description": "Generate pathway phase-by-phase untuk diagnosis tertentu. Result final diambil melalui GET /api/v1/jobs/{jobId}/result.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClinicalPathwayInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Job queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueuedJobResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drugs/price-check": {
+      "post": {
+        "tags": [
+          "Drug Price"
+        ],
+        "summary": "Drug Price Check",
+        "description": "Validasi harga obat terhadap cache market price dan AI-assisted reference. Result diambil lewat job result endpoint.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "providerId",
+                  "medications"
+                ],
+                "properties": {
+                  "clientId": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "providerId": {
+                    "type": "string"
+                  },
+                  "medications": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Medication"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Job queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueuedJobResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tariff": {
+      "get": {
+        "tags": [
+          "Tariff"
+        ],
+        "summary": "List tariff entries",
+        "parameters": [
+          {
+            "name": "providerId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "isActive",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated tariff list"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Tariff"
+        ],
+        "summary": "Create tariff entry",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TariffEntry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tariff entry created"
+          }
+        }
+      }
+    },
+    "/api/v1/tariff/{id}": {
+      "put": {
+        "tags": [
+          "Tariff"
+        ],
+        "summary": "Update tariff entry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TariffEntry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tariff entry updated"
+          },
+          "404": {
+            "description": "Tariff entry not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tariff"
+        ],
+        "summary": "Soft delete tariff entry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tariff entry marked inactive"
+          },
+          "404": {
+            "description": "Tariff entry not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tariff/bulk": {
+      "post": {
+        "tags": [
+          "Tariff"
+        ],
+        "summary": "Bulk create tariff entries",
+        "description": "Maksimal 500 entry per request.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "entries"
+                ],
+                "properties": {
+                  "entries": {
+                    "type": "array",
+                    "maxItems": 500,
+                    "items": {
+                      "$ref": "#/components/schemas/TariffEntry"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bulk insert completed"
+          },
+          "400": {
+            "description": "Invalid entries"
+          }
+        }
+      }
+    },
+    "/api/v1/tariff/validate": {
+      "post": {
+        "tags": [
+          "Tariff"
+        ],
+        "summary": "Tariff Validation",
+        "description": "Validasi harga tindakan terhadap master tariff provider dan threshold config.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "providerId",
+                  "encounterType",
+                  "procedures"
+                ],
+                "properties": {
+                  "providerId": {
+                    "type": "string"
+                  },
+                  "encounterType": {
+                    "type": "string",
+                    "enum": [
+                      "RAWAT_INAP",
+                      "RAWAT_JALAN",
+                      "IGD"
+                    ]
+                  },
+                  "procedures": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Procedure"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Job queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueuedJobResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers": {
+      "post": {
+        "tags": [
+          "Providers"
+        ],
+        "summary": "Create claim/tariff provider",
+        "description": "Membuat provider klaim/tarif di bawah client. Endpoint ini membutuhkan JWT session internal, bukan API key client eksternal.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Provider created"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
         }
       }
     }

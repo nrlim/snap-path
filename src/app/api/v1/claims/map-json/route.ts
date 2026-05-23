@@ -17,7 +17,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const gateway = await getAIGateway();
+    const gateway = await getAIGateway({
+      clientId: typeof body.clientId === 'string' ? body.clientId : null,
+      providerId: typeof body.providerId === 'string' ? body.providerId : null,
+    });
     const { data, usage } = await gateway.mapArbitraryJsonToClaim(body);
 
     return NextResponse.json({

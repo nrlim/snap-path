@@ -11,12 +11,16 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json();
+    payload.clientId = payload.clientId || auth.clientId || null;
+    payload.providerId = payload.providerId || null;
+
     const claimJob = await prisma.claimJob.create({
       data: {
         jobType: "PATHWAY_GEN",
         status: "QUEUED",
         inputPayload: payload,
-        providerId: payload.providerId || auth.providerId,
+        clientId: payload.clientId,
+        providerId: payload.providerId,
       }
     });
 
@@ -39,6 +43,9 @@ export async function POST(request: Request) {
 
     await recordApiUsage({
       apiKeyId: auth.apiKeyId!,
+      clientId: payload.clientId,
+      providerId: payload.providerId,
+      jobId: claimJob.id,
       endpoint: "/api/v1/pathways/generate",
       method: "POST",
       statusCode: 202,

@@ -4,8 +4,20 @@ export interface AIMessage {
 }
 
 export interface Usage {
-  promptTokens: number;
-  completionTokens: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+export interface AIGatewayContext {
+  clientId?: string | null;
+  providerId?: string | null;
+  apiKeyId?: string | null;
+  jobId?: string | null;
+  aiProvider?: string | null;
+  aiModel?: string | null;
 }
 
 export interface AIGatewayDriver {
@@ -25,40 +37,76 @@ export interface AIGatewayDriver {
  */
 export class AIGateway {
   private driver: AIGatewayDriver;
+  private context: AIGatewayContext;
 
-  constructor(driver: AIGatewayDriver) {
+  constructor(driver: AIGatewayDriver, context: AIGatewayContext = {}) {
     this.driver = driver;
+    this.context = context;
+  }
+
+  private async track<T extends { usage?: Usage }>(operation: string, action: () => Promise<T>): Promise<T> {
+    const startTime = Date.now();
+    let statusCode = 200;
+    let usage: Usage | undefined;
+
+    try {
+      const result = await action();
+      usage = result.usage;
+      return result;
+    } catch (error) {
+      statusCode = 500;
+      throw error;
+    } finally {
+      const inputTokens = usage?.promptTokens ?? usage?.inputTokens ?? 0;
+      const outputTokens = usage?.completionTokens ?? usage?.outputTokens ?? 0;
+
+      await recordApiUsage({
+        apiKeyId: this.context.apiKeyId,
+        clientId: this.context.clientId,
+        providerId: this.context.providerId,
+        jobId: this.context.jobId,
+        endpoint: `AI:${operation}`,
+        method: 'POST',
+        statusCode,
+        requestType: 'AI',
+        aiProvider: this.context.aiProvider,
+        aiModel: this.context.aiModel,
+        inputTokens,
+        outputTokens,
+        durationMs: Date.now() - startTime,
+      });
+    }
   }
 
   async summarizePathway(clinicalText: string) {
-    return this.driver.generateText(
+    return this.track('summarizePathway', () => this.driver.generateText(
       "Ringkas teks rekam medis berikut menjadi pathway deterministik yang jelas.",
       [{ role: "user", content: clinicalText }]
-    );
+    ));
   }
 
   async extractEntities(clinicalText: string) {
-    return this.driver.extractMedicalData(clinicalText);
+    return this.track('extractMedicalData', () => this.driver.extractMedicalData(clinicalText));
   }
 
   async validateDiagnosisTreatment(payload: any) {
-    return this.driver.validateDiagnosisTreatment(payload);
+    return this.track('validateDiagnosisTreatment', () => this.driver.validateDiagnosisTreatment(payload));
   }
 
   async searchDrugMarketPrice(drugName: string) {
-    return this.driver.searchDrugMarketPrice(drugName);
+    return this.track('searchDrugMarketPrice', () => this.driver.searchDrugMarketPrice(drugName));
   }
 
   async generateClinicalPathway(diagnosisCode: string, diagnosisName: string) {
-    return this.driver.generateClinicalPathway(diagnosisCode, diagnosisName);
+    return this.track('generateClinicalPathway', () => this.driver.generateClinicalPathway(diagnosisCode, diagnosisName));
   }
 
   async validateDocumentCompleteness(payload: any) {
-    return this.driver.validateDocumentCompleteness(payload);
+    return this.track('validateDocumentCompleteness', () => this.driver.validateDocumentCompleteness(payload));
   }
 
   async mapArbitraryJsonToClaim(rawJson: any) {
-    return this.driver.mapArbitraryJsonToClaim(rawJson);
+    return this.track('mapArbitraryJsonToClaim', () => this.driver.mapArbitraryJsonToClaim(rawJson));
   }
 }
 
@@ -66,16 +114,20 @@ export class AIGateway {
 import { OpenAIDriver } from './drivers/openai';
 
 import prisma from '../db';
+import { recordApiUsage } from '../api-key';
 
-export async function getAIGateway(): Promise<AIGateway> {
-  // Always fetch latest config from DB
-  const config = await prisma.systemConfig.findUnique({
-    where: { id: "GLOBAL_CONFIG" }
-  });
+export async function getAIGateway(context: AIGatewayContext = {}): Promise<AIGateway> {
+  // Always fetch latest config from DB, then apply provider-specific overrides.
+  const [config, providerConfig] = await Promise.all([
+    prisma.systemConfig.findUnique({ where: { id: "GLOBAL_CONFIG" } }),
+    context.clientId
+      ? prisma.client.findUnique({ where: { id: context.clientId } })
+      : Promise.resolve(null),
+  ]);
 
-  const providerName = config?.aiProvider || "sumopod";
+  const providerName = providerConfig?.aiProvider || config?.aiProvider || "sumopod";
   let apiKey = "";
-  let baseURL = config?.aiGatewayUrl || "";
+  let baseURL = providerConfig?.aiGatewayUrl || config?.aiGatewayUrl || "";
 
   if (providerName === "sumopod") {
     apiKey = process.env.SUMOPOD_API_KEY || process.env.AI_GATEWAY_API_KEY || "";
@@ -88,10 +140,10 @@ export async function getAIGateway(): Promise<AIGateway> {
     apiKey = process.env.OPENAI_API_KEY || process.env.VERCEL_API_KEY || "";
     if (!baseURL) baseURL = "https://api.openai.com/v1"; // Custom can fallback to standard OpenAI
   }
-  const model = config?.aiModel || "gpt-4o-mini";
-  const maxTokens = config?.aiMaxTokens || 1500;
-  const temperature = config?.aiTemperature ?? 0.7;
+  const model = providerConfig?.aiModel || config?.aiModel || "gpt-4o-mini";
+  const maxTokens = providerConfig?.aiMaxTokens || config?.aiMaxTokens || 1500;
+  const temperature = providerConfig?.aiTemperature ?? config?.aiTemperature ?? 0.7;
   
   const driver = new OpenAIDriver(apiKey, baseURL, model, maxTokens, temperature);
-  return new AIGateway(driver);
+  return new AIGateway(driver, { ...context, aiProvider: providerName, aiModel: model });
 }

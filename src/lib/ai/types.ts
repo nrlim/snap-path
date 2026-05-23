@@ -3,6 +3,7 @@
 // ==========================================
 
 export interface ClaimValidationInput {
+  clientId?: string | null;
   providerId: string;
   claimId?: string;
   patient: {
@@ -105,7 +106,7 @@ export interface ClaimValidationOutput {
       claimedPrice: number;
       marketPriceMax: number;
       marketPriceMaxWithThreshold: number;
-      status: "WITHIN_RANGE" | "OVER_THRESHOLD" | "NOT_FOUND";
+      status: "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" | "NOT_FOUND";
       variancePct: number;
       sources: string[];
     }>;
@@ -188,6 +189,7 @@ export interface TariffValidationOutput {
 // ==========================================
 
 export interface DrugPriceCheckInput {
+  clientId?: string | null;
   providerId: string;
   medications: Array<{
     name: string;
@@ -211,7 +213,7 @@ export interface DrugPriceCheckOutput {
     marketPriceMax: number;
     marketPriceMaxWithThreshold: number;
     expectedTotal: number;
-    status: "WITHIN_RANGE" | "OVER_THRESHOLD" | "NOT_FOUND" | "CACHE_HIT";
+    status: "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" | "NOT_FOUND" | "CACHE_HIT";
     variancePct: number;
     sources: string[];
     cachedAt: string | null;
@@ -237,6 +239,7 @@ export interface ClinicalPathwayInput {
   };
   includeCosting?: boolean;
   providerId?: string;
+  clientId?: string | null;
 }
 
 export interface ClinicalPathwayOutput {

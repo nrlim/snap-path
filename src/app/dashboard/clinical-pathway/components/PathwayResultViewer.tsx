@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import ValidationSummaryCard from "./ValidationSummaryCard";
 import PathwayTimeline from "./PathwayTimeline";
-import { BrainCircuit, ClipboardCheck, Copy, CheckCheck } from 'lucide-react';
+import { ArrowUp, BrainCircuit, Calculator, CheckCheck, CheckCircle2, ClipboardCheck, Copy, MinusCircle } from 'lucide-react';
 
 export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?: number }) {
   const strokeWidth = size * 0.08;
@@ -43,9 +42,9 @@ export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?
 
 function ConformanceRow({ label, value, badgeLabel, isSuccess, isWarning }: { label: string; value: string; badgeLabel: string; isSuccess: boolean; isWarning?: boolean }) {
   return (
-    <div className="flex justify-between items-center px-4 py-2.5 bg-surface border border-border/60 rounded-md">
+    <div className="flex flex-col gap-2 px-4 py-3 bg-surface border border-border/60 rounded-md sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <span className="text-sm font-medium text-text-subtle">{label}</span>
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3">
         <span className="text-sm font-bold text-text">{value}</span>
         <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${
           isSuccess ? 'bg-green-500/10 text-green-600 ring-1 ring-inset ring-green-500/20' :
@@ -59,10 +58,88 @@ function ConformanceRow({ label, value, badgeLabel, isSuccess, isWarning }: { la
   );
 }
 
+type ScoreBreakdownItem = {
+  label: string;
+  maxDeduction: number;
+  deducted: number;
+  reason: string;
+};
+
+type LooseValidationItem = {
+  status?: string;
+  unmatchedProcedures?: unknown[];
+};
+
+type PersistedScoreBreakdownItem = {
+  label: string;
+  maxDeduction: number;
+  deducted: number;
+  reason: string;
+};
+
+function ScoreBreakdownPanel({ score, items }: { score: number; items: ScoreBreakdownItem[] }) {
+  const totalDeduction = items.reduce((total, item) => total + item.deducted, 0);
+  const calculatedScore = Math.max(0, 100 - totalDeduction);
+
+  return (
+    <div className="rounded-xl border border-border/70 bg-surface/95 p-4">
+      <div className="flex flex-col gap-3 border-b border-border/60 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-subtle">
+            <Calculator className="h-4 w-4 text-primary" />
+            Perhitungan Skor
+          </div>
+          <p className="mt-1 text-sm text-text-subtle">Skor awal 100, dikurangi sesuai temuan validasi.</p>
+        </div>
+        <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-border/60 bg-surface-elevated/30 text-center sm:min-w-[260px]">
+          <div className="px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Awal</p>
+            <p className="text-lg font-extrabold text-text">100</p>
+          </div>
+          <div className="border-x border-border/60 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Minus</p>
+            <p className="text-lg font-extrabold text-red-600">-{totalDeduction}</p>
+          </div>
+          <div className="px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Akhir</p>
+            <p className="text-lg font-extrabold text-primary">{Number.isFinite(score) ? score : calculatedScore}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+        {items.map((item) => {
+          const hasDeduction = item.deducted > 0;
+          return (
+            <div key={item.label} className={`rounded-lg border p-3 ${hasDeduction ? 'border-red-500/20 bg-red-500/5' : 'border-green-500/20 bg-green-500/5'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2">
+                  {hasDeduction ? <MinusCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />}
+                  <div>
+                    <p className="text-sm font-bold text-text">{item.label}</p>
+                    <p className="mt-0.5 text-xs leading-5 text-text-subtle">{item.reason}</p>
+                  </div>
+                </div>
+                <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-extrabold ${hasDeduction ? 'bg-red-500/10 text-red-700' : 'bg-green-500/10 text-green-700'}`}>
+                  {hasDeduction ? `-${item.deducted}` : '0'} / {item.maxDeduction}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const [job, setJob] = useState(initialJob);
   const [activeTab, setActiveTab] = useState("pathway");
   const [copied, setCopied] = useState(false);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // Polling logic
   useEffect(() => {
@@ -125,6 +202,15 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
   const result = job.outputResult || {};
   const validationScore = result.overallScore || result.validationScore || 0;
+  const persistedLatencyMs = result.processingTime?.totalMs ?? result.processingTime?.total;
+  const startedTime = job.startedAt ? new Date(job.startedAt).getTime() : null;
+  const completedTime = job.completedAt ? new Date(job.completedAt).getTime() : null;
+  const workflowLatencyMs = typeof persistedLatencyMs === 'number' && persistedLatencyMs > 0
+    ? persistedLatencyMs
+    : startedTime && completedTime
+      ? Math.max(0, completedTime - startedTime)
+      : 0;
+  const workflowLatencyText = workflowLatencyMs > 0 ? `${(workflowLatencyMs / 1000).toFixed(2)} detik` : 'Belum tersedia';
   const statusConfig = {
     VALID: { color: "success", label: "Valid" },
     INVALID: { color: "error", label: "Invalid" },
@@ -143,6 +229,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const docWarnings = docDetails.missingRequiredDocuments?.length || 0;
 
   const drugItems = result.drugPriceValidation?.items || result.drugPriceValidations || [];
+  const drugIssues = (drugItems as LooseValidationItem[]).filter((d) => d.status && d.status !== "WITHIN_RANGE").length;
+  const tariffIssues = (tariffItems as LooseValidationItem[]).filter((t) => t.status && t.status !== "WITHIN_RANGE").length;
+  const unmatchedProcedures = (diagDetails as LooseValidationItem[]).reduce((acc, d) => acc + (d.unmatchedProcedures?.length || 0), 0);
 
   // Calculate detailed summary metrics
   const totalTariff = tariffItems.length;
@@ -163,9 +252,107 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     || 0;
   const actualLOSVal = inputPayload?.extra?.los ? parseInt(inputPayload.extra.los) : 0;
   
-  const losIsSuccess = actualLOSVal > 0 && expectedLOSVal > 0 ? actualLOSVal <= expectedLOSVal : true;
+  const losIsMissingActual = expectedLOSVal > 0 && actualLOSVal <= 0;
   const losIsOverstay = actualLOSVal > 0 && expectedLOSVal > 0 && actualLOSVal > expectedLOSVal;
+  const losHasDeduction = losIsOverstay || losIsMissingActual;
   const varianceText = inputPayload?.extra?.outcomeNotes || "Tidak ada catatan varians";
+  const diagnosisHasDeduction = result.diagnosisValidation ? !result.diagnosisValidation.isValid : false;
+  const tariffHasDeduction = ["WARNING", "INVALID"].includes(result.tariffValidation?.status);
+  const drugHasDeduction = ["WARNING", "INVALID"].includes(result.drugPriceValidation?.status);
+  const documentHasDeduction = result.documentValidation ? !result.documentValidation.isValid : false;
+  const hasUnregisteredTariff = (tariffItems as LooseValidationItem[]).some((item) => item.status === "NOT_FOUND");
+  const hasUnregisteredDrug = (drugItems as LooseValidationItem[]).some((item) => item.status === "NOT_FOUND");
+  const fallbackScoreBreakdown: ScoreBreakdownItem[] = [
+    {
+      label: "Diagnosis & tindakan klinis",
+      maxDeduction: 25,
+      deducted: diagnosisHasDeduction ? 25 : 0,
+      reason: diagnosisHasDeduction
+        ? `${diagWarnings} prosedur wajib belum ada, ${unmatchedProcedures} prosedur tidak sesuai pathway.`
+        : "Diagnosis dan tindakan sesuai kebutuhan klinis utama.",
+    },
+    {
+      label: "Tarif tindakan terdaftar",
+      maxDeduction: 20,
+      deducted: tariffHasDeduction ? 20 : 0,
+      reason: tariffHasDeduction
+        ? `${tariffIssues || tariffOver} item tindakan terdaftar melewati batas threshold.`
+        : "Item tindakan yang terdaftar berada dalam threshold master fee schedule.",
+    },
+    {
+      label: "Harga obat terdaftar",
+      maxDeduction: 20,
+      deducted: drugHasDeduction ? 20 : 0,
+      reason: drugHasDeduction
+        ? `${drugIssues} item obat terdaftar melewati threshold atau perlu review.`
+        : "Item obat yang memiliki referensi harga berada dalam threshold."
+    },
+    {
+      label: "Kelengkapan dokumen",
+      maxDeduction: 10,
+      deducted: documentHasDeduction ? 10 : 0,
+      reason: documentHasDeduction
+        ? `${docWarnings} dokumen wajib belum dilampirkan.`
+        : "Dokumen medis wajib sudah lengkap.",
+    },
+    {
+      label: "LOS compliance",
+      maxDeduction: 10,
+      deducted: losHasDeduction ? 10 : 0,
+      reason: losIsMissingActual
+        ? `LOS aktual tidak diisi. Standar AI memberi estimasi ${expectedLOSVal} hari, tetapi data input kosong sehingga perlu dilengkapi.`
+        : losIsOverstay
+          ? `LOS aktual ${actualLOSVal} hari melebihi standar pathway ${expectedLOSVal} hari.`
+          : "LOS aktual sesuai standar pathway.",
+    },
+    {
+      label: "Kesiapan master data",
+      maxDeduction: 15,
+      deducted: hasUnregisteredTariff || hasUnregisteredDrug ? 15 : 0,
+      reason: hasUnregisteredTariff || hasUnregisteredDrug
+        ? `${hasUnregisteredTariff ? "Ada tindakan yang belum tersedia di master tarif, sehingga belum bisa divalidasi harga. " : ""}${hasUnregisteredDrug ? "Ada obat yang belum ditemukan pada referensi harga, sehingga belum bisa divalidasi harga." : ""}`.trim()
+        : "Semua tindakan dan obat tersedia pada master data/referensi.",
+    },
+  ];
+  const persistedScoreItems = result.scoreBreakdown?.items as PersistedScoreBreakdownItem[] | undefined;
+  const scoreBreakdown: ScoreBreakdownItem[] = Array.isArray(persistedScoreItems) && persistedScoreItems.length > 0
+    ? persistedScoreItems.map((item) => ({
+        label: item.label,
+        maxDeduction: item.maxDeduction,
+        deducted: item.deducted,
+        reason: item.reason,
+      }))
+    : fallbackScoreBreakdown;
+
+  const findClaimedProcedure = (item: any) => {
+    const code = item.code || item.procedureCode;
+    return (inputPayload?.procedures || []).find((procedure: any) => procedure.code === code || procedure.procedureCode === code || procedure.name === item.description || procedure.description === item.description);
+  };
+
+  const findClaimedMedication = (item: any) => {
+    const name = String(item.name || item.medicationName || '').toLowerCase();
+    return (inputPayload?.medications || []).find((medication: any) => String(medication.name || medication.medicationName || '').toLowerCase() === name);
+  };
+
+  const getProcedureClaimedTotal = (item: any) => {
+    const claimed = findClaimedProcedure(item);
+    return item.claimedTotal ?? item.claimedPrice ?? item.totalPrice ?? claimed?.totalPrice ?? claimed?.claimedTotal ?? ((item.claimedUnitPrice ?? item.unitPrice ?? claimed?.unitPrice ?? claimed?.price ?? 0) * (item.quantity ?? claimed?.quantity ?? 1));
+  };
+
+  const getProcedureClaimedUnit = (item: any) => {
+    const claimed = findClaimedProcedure(item);
+    return item.claimedUnitPrice ?? item.unitPrice ?? claimed?.unitPrice ?? claimed?.price ?? null;
+  };
+
+  const getDrugClaimedTotal = (item: any) => {
+    const claimed = findClaimedMedication(item);
+    return item.claimedTotal ?? item.totalPrice ?? claimed?.totalPrice ?? ((item.claimedUnitPrice ?? item.unitPrice ?? claimed?.unitPrice ?? claimed?.price ?? 0) * (item.quantity ?? claimed?.quantity ?? 1));
+  };
+
+  const getDrugClaimedUnit = (item: any) => {
+    const claimed = findClaimedMedication(item);
+    return item.claimedUnitPrice ?? item.unitPrice ?? claimed?.unitPrice ?? claimed?.price ?? null;
+  };
 
   const handleCopyJSON = () => {
     navigator.clipboard.writeText(JSON.stringify(result, null, 2));
@@ -175,6 +362,14 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
   return (
     <div className="space-y-6">
+      <button
+        type="button"
+        onClick={scrollToTop}
+        className="fixed bottom-24 right-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-surface-elevated/95 text-text-subtle shadow-lg shadow-surface-accent/20 backdrop-blur transition-colors hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/40 lg:bottom-6 lg:right-6"
+        aria-label="Kembali ke atas halaman"
+      >
+        <ArrowUp className="h-5 w-5" />
+      </button>
       {/* Hero Score Banner & Summary Panel */}
       <div className="rounded-xl border border-border/80 bg-surface shadow-sm overflow-hidden relative">
         <div className="p-6 border-b border-border/60 flex items-center justify-between bg-surface-elevated/20">
@@ -182,9 +377,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
             <h2 className="text-lg font-bold text-text flex items-center gap-2">
               <BrainCircuit className="w-5 h-5 text-primary" />
               AI Outcome & Validation Summary
-              {result.processingTime?.total > 0 && (
+              {workflowLatencyMs > 0 && (
                 <span className="text-xs font-mono text-text-subtle font-normal ml-2">
-                  ({(result.processingTime.total / 1000).toFixed(2)}s)
+                  ({(workflowLatencyMs / 1000).toFixed(2)}s)
                 </span>
               )}
             </h2>
@@ -212,17 +407,18 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
           </div>
 
           {/* Conformance Metrics */}
-          <div className="space-y-3 w-full max-w-3xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-bold text-text-subtle uppercase tracking-wider">Conformance Metrics</h3>
+          <div className="space-y-4 w-full max-w-4xl">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 className="text-xs font-bold text-text-subtle uppercase tracking-wider">Perhitungan Skor & Metrik Kepatuhan</h3>
               <button
                 onClick={handleCopyJSON}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs font-medium text-text-subtle hover:text-text hover:bg-surface-elevated transition-colors"
+                className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text sm:min-h-0 sm:py-1.5"
               >
                 {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? 'Copied!' : 'Export JSON'}
               </button>
             </div>
+            <ScoreBreakdownPanel score={validationScore} items={scoreBreakdown} />
             <ConformanceRow 
               label="Validasi Obat & Tindakan" 
               value={`${aiPassRate}% Sesuai`} 
@@ -239,12 +435,12 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                   : expectedLOSVal > 0 ? `Standar AI: ${expectedLOSVal} Hari (LOS aktual tidak diisi)`
                   : 'Data LOS tidak tersedia'
               }
-              isSuccess={!losIsOverstay && (actualLOSVal > 0 || expectedLOSVal > 0)}
-              isWarning={losIsOverstay}
+              isSuccess={!losHasDeduction && (actualLOSVal > 0 || expectedLOSVal > 0)}
+              isWarning={false}
               badgeLabel={
                 actualLOSVal > 0 && expectedLOSVal > 0
-                  ? (losIsOverstay ? `Overstay +${actualLOSVal - expectedLOSVal}h` : 'Efisiensi Baik')
-                  : 'Data Kurang'
+                  ? (losIsOverstay ? `Overstay +${actualLOSVal - expectedLOSVal} hari` : 'Efisiensi Baik')
+                  : losIsMissingActual ? 'Data Kurang' : 'Data Kurang'
               }
             />
             <ConformanceRow 
@@ -252,6 +448,13 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               value={`${docDetails.providedDocuments?.length || 0} Dokumen Dilampirkan`} 
               isSuccess={docWarnings === 0}
               badgeLabel={docWarnings === 0 ? 'Lengkap' : `${docWarnings} Dokumen Hilang`} 
+            />
+            <ConformanceRow
+              label="Waktu Workflow"
+              value={`${workflowLatencyText} untuk 1x request clinical pathway`}
+              isSuccess={workflowLatencyMs > 0 && workflowLatencyMs <= 60000}
+              isWarning={workflowLatencyMs > 60000}
+              badgeLabel={workflowLatencyMs > 0 ? 'Tercatat Real-time' : 'Tidak Tercatat'}
             />
             
             <div className="mt-4 p-4 bg-surface-elevated/40 rounded-lg border border-border/40">
@@ -414,21 +617,20 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         const isUnder = item.status === "UNDER_PRICED";
                         const isNotFound = item.status === "NOT_FOUND";
                         const variancePct = item.variancePct ?? 0;
+                        const claimedTotal = getProcedureClaimedTotal(item);
+                        const claimedUnit = getProcedureClaimedUnit(item);
                         return (
                           <tr key={i} className={isOver ? "bg-red-500/5" : isNotFound || isUnder ? "bg-yellow-500/5" : ""}>
                             <td className="px-4 py-3">
-                              <p className="font-medium text-text">{item.description || item.code || item.procedureCode}</p>
-                              {(item.code || item.procedureCode) && item.description && (
-                                <p className="text-xs font-mono text-text-faint mt-0.5">{item.code || item.procedureCode}</p>
-                              )}
+                              <p className="font-medium text-text">{item.description || findClaimedProcedure(item)?.name || findClaimedProcedure(item)?.description || item.procedureName || 'Tindakan medis'}</p>
                             </td>
                             <td className="px-4 py-3 text-right font-medium text-text-subtle">
                               {item.quantity || 1}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <div className="font-medium">{item.claimedTotal || item.claimedPrice ? new Intl.NumberFormat('id-ID').format(item.claimedTotal || item.claimedPrice) : '—'}</div>
-                              {item.claimedUnitPrice ? (
-                                <div className="text-[10px] text-text-subtle font-normal mt-0.5">@ {new Intl.NumberFormat('id-ID').format(item.claimedUnitPrice)}</div>
+                              <div className="font-medium">{claimedTotal ? new Intl.NumberFormat('id-ID').format(claimedTotal) : '—'}</div>
+                              {claimedUnit ? (
+                                <div className="text-[10px] text-text-subtle font-normal mt-0.5">@ {new Intl.NumberFormat('id-ID').format(claimedUnit)}</div>
                               ) : null}
                             </td>
                             <td className="px-4 py-3 text-right">
@@ -489,6 +691,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           const isDrugUnder = item.status === "UNDER_PRICED";
                           const isDrugNotFound = item.status === "NOT_FOUND";
                           const drugVariancePct = item.variancePct ?? 0;
+                          const drugClaimedTotal = getDrugClaimedTotal(item);
+                          const drugClaimedUnit = getDrugClaimedUnit(item);
                           return (
                             <tr key={i} className={isDrugOver ? "bg-red-500/5" : isDrugNotFound || isDrugUnder ? "bg-yellow-500/5" : ""}>
                               <td className="px-4 py-3">
@@ -498,9 +702,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 {item.quantity || 1}
                               </td>
                               <td className="px-4 py-3 text-right">
-                                <div className="font-medium">{item.claimedTotal || item.claimedUnitPrice ? new Intl.NumberFormat('id-ID').format(item.claimedTotal || item.claimedUnitPrice) : '—'}</div>
-                                {item.claimedUnitPrice ? (
-                                  <div className="text-[10px] text-text-subtle font-normal mt-0.5">@ {new Intl.NumberFormat('id-ID').format(item.claimedUnitPrice)}</div>
+                                <div className="font-medium">{drugClaimedTotal ? new Intl.NumberFormat('id-ID').format(drugClaimedTotal) : '—'}</div>
+                                {drugClaimedUnit ? (
+                                  <div className="text-[10px] text-text-subtle font-normal mt-0.5">@ {new Intl.NumberFormat('id-ID').format(drugClaimedUnit)}</div>
                                 ) : null}
                               </td>
                               <td className="px-4 py-3 text-right">

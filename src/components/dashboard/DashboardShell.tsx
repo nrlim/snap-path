@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
+import WorkflowProgressModal, { ACTIVE_WORKFLOW_STORAGE_KEY } from '@/app/dashboard/clinical-pathway/components/WorkflowProgressModal'
 
 type DashboardShellProps = {
   children: React.ReactNode
@@ -18,16 +19,18 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const [isWorkflowOpen, setIsWorkflowOpen] = useState(false)
+  const [workflowPayload, setWorkflowPayload] = useState<any>(null)
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     'Reference Data': true,
     'Clinical Workflows': true,
     'Configuration': true
   })
-  
+
   const toggleMenu = (menu: string) => {
     setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }))
   }
-  
+
   const profileRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -44,6 +47,30 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
   useEffect(() => {
     setIsMobileMenuOpen(false)
   }, [pathname])
+
+  useEffect(() => {
+    const stored = window.sessionStorage.getItem(ACTIVE_WORKFLOW_STORAGE_KEY)
+    if (stored) {
+      try {
+        const activeWorkflow = JSON.parse(stored)
+        if (activeWorkflow?.runId && activeWorkflow?.jobId) {
+          setWorkflowPayload({ __resume: activeWorkflow })
+          setIsWorkflowOpen(true)
+        }
+      } catch {
+        window.sessionStorage.removeItem(ACTIVE_WORKFLOW_STORAGE_KEY)
+      }
+    }
+
+    const handleWorkflowStart = (event: Event) => {
+      const customEvent = event as CustomEvent<any>
+      setWorkflowPayload(customEvent.detail?.payload)
+      setIsWorkflowOpen(true)
+    }
+
+    window.addEventListener('snappath:start-claim-workflow', handleWorkflowStart)
+    return () => window.removeEventListener('snappath:start-claim-workflow', handleWorkflowStart)
+  }, [])
 
   async function handleSignOut() {
     setIsSigningOut(true)
@@ -74,13 +101,32 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
         subtitle: 'Manage AI gateway routing, API keys, and model parameters.',
       }
     }
+
+    if (pathname.startsWith('/dashboard/settings/ai-usage-logs')) {
+      return {
+        title: 'AI Usage Logs',
+        subtitle: 'Review token usage and AI request logs by client.',
+      }
+    }
     if (pathname.startsWith('/dashboard/settings/threshold')) {
       return {
         title: 'Clinical Pathway Thresholds',
         subtitle: 'Set global tolerance limits for Clinical Pathway validations.',
       }
     }
-    
+    if (pathname.startsWith('/dashboard/settings/client-api-keys')) {
+      return {
+        title: 'Client API Keys',
+        subtitle: 'Generate client API key and secret credentials for external integrations.',
+      }
+    }
+    if (pathname.startsWith('/dashboard/settings/user-management')) {
+      return {
+        title: 'User Management',
+        subtitle: 'Manage internal user roles and client assignments.',
+      }
+    }
+
     return {
       title: 'Clinical Workspace',
       subtitle: 'Overview of your operational workflow settings and environment.',
@@ -102,14 +148,14 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
             </div>
 
             <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Dashboard navigation">
-              
+
               <Link href="/dashboard" className={`flex min-h-9 items-center rounded-md px-3 text-sm font-medium transition-colors ${pathname === '/dashboard' ? 'bg-primary/10 text-primary' : 'text-text-subtle hover:bg-secondary-soft hover:text-secondary'}`}>
                 Overview
               </Link>
 
               {/* Reference Data Collapsible */}
               <div>
-                <button 
+                <button
                   onClick={() => toggleMenu('Reference Data')}
                   className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-sm font-medium text-text-subtle hover:text-text transition-colors hover:bg-surface-elevated"
                 >
@@ -125,7 +171,7 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
 
               {/* Clinical Workflows Collapsible */}
               <div>
-                <button 
+                <button
                   onClick={() => toggleMenu('Clinical Workflows')}
                   className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-sm font-medium text-text-subtle hover:text-text transition-colors hover:bg-surface-elevated"
                 >
@@ -141,7 +187,7 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
 
               {/* Configuration Collapsible */}
               <div>
-                <button 
+                <button
                   onClick={() => toggleMenu('Configuration')}
                   className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-sm font-medium text-text-subtle hover:text-text transition-colors hover:bg-surface-elevated"
                 >
@@ -151,6 +197,9 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
                 {openMenus['Configuration'] && (
                   <div className="mt-0.5 space-y-0.5 pl-3">
                     <Link href="/dashboard/settings/ai-provider" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-provider') || pathname === '/dashboard/settings' ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Integrations</Link>
+                    <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Usage Logs</Link>
+                    <Link href="/dashboard/settings/client-api-keys" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/client-api-keys') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Client API Keys</Link>
+                    <Link href="/dashboard/settings/user-management" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/user-management') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>User Management</Link>
                     <Link href="/dashboard/settings/threshold" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/threshold') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Clinical Thresholds</Link>
                   </div>
                 )}
@@ -192,7 +241,7 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
                         <p className="truncate text-sm font-medium text-text">{userEmail}</p>
                       </div>
                     </div>
-                    
+
                     <div className="pt-2">
                       <button
                         type="button"
@@ -230,7 +279,7 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
           <span className="text-[10px] font-medium">Home</span>
         </Link>
-        
+
         <Link href="/dashboard#workspace" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-text-subtle transition-colors hover:text-primary">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           <span className="text-[10px] font-medium">Workspace</span>
@@ -238,7 +287,7 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
 
         {/* Center FAB */}
         <div className="relative -top-5 flex justify-center w-16">
-          <button 
+          <button
             onClick={() => setIsMobileMenuOpen(true)}
             className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/30 transition-transform active:scale-95 focus:outline-none focus:ring-4 focus:ring-primary/20"
             aria-label="Open full menu"
@@ -259,22 +308,28 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
       </nav>
 
       {/* Mobile Menu Popup Overlay */}
+      <WorkflowProgressModal
+        isOpen={isWorkflowOpen}
+        onClose={() => setIsWorkflowOpen(false)}
+        payload={workflowPayload}
+      />
+
       {isMobileMenuOpen && (
         <div className="lg:hidden">
           {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-40 bg-surface-elevated/40 backdrop-blur-[3px] transition-opacity" 
+          <div
+            className="fixed inset-0 z-40 bg-surface-elevated/40 backdrop-blur-[3px] transition-opacity"
             onClick={() => setIsMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          
+
           {/* Popup Menu Card (Bottom Sheet style) */}
           <div className="fixed inset-x-4 bottom-[88px] z-50 flex max-h-[75vh] flex-col overflow-hidden rounded-[24px] border border-border/80 bg-surface-elevated shadow-2xl shadow-surface-accent/20">
             {/* Drag Handle Indicator */}
             <div className="flex w-full items-center justify-center bg-surface-elevated/40 pb-2 pt-4">
               <div className="h-1.5 w-12 rounded-full bg-border/80"></div>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto px-5 pb-6 pt-2">
               <div className="mb-6 flex items-center gap-4 rounded-2xl border border-primary/10 bg-primary-soft/30 p-3.5">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-base font-bold text-white shadow-sm">
@@ -295,7 +350,7 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
                     </div>
                     <span className="text-[10px] font-medium text-center">Overview</span>
                   </Link>
-                  
+
                   <Link href="/dashboard/master-data/buku-tarif" className="group flex flex-col items-center justify-start gap-2 rounded-2xl p-2 transition-colors hover:bg-secondary-soft text-text">
                     <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-surface border border-primary/10 shadow-sm group-hover:bg-white group-hover:shadow-md transition-all text-secondary">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg>
@@ -309,7 +364,7 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
                     </div>
                     <span className="text-[10px] font-medium text-center leading-tight">Pathways</span>
                   </Link>
-                  
+
                   <Link href="/dashboard/settings" className="group flex flex-col items-center justify-start gap-2 rounded-2xl p-2 transition-colors hover:bg-secondary-soft text-text">
                     <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-surface border border-primary/10 shadow-sm group-hover:bg-white group-hover:shadow-md transition-all text-secondary">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -318,7 +373,7 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
                   </Link>
                 </nav>
               </div>
-              
+
               <div className="mt-6 border-t border-border/60 pt-5">
                 <button
                   type="button"

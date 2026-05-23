@@ -1,0 +1,78 @@
+{
+  "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9",
+  "claimId": "CLM-MK-2026-0006",
+  "patient": {
+    "name": "Bapak Anton Wibowo",
+    "identifier": [{ "value": "PAT-MK-10034" }],
+    "birthDate": "1982-10-05",
+    "gender": "male"
+  },
+  "encounter": {
+    "class": { "code": "IMP" },
+    "period": { "start": "2026-07-02T10:00:00Z", "end": "2026-07-05T13:00:00Z" },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "K35.8",
+      "name": "Acute appendicitis, other and unspecified",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "47.09",
+      "name": "Other appendectomy",
+      "quantity": 1,
+      "unitPrice": 25000000,
+      "totalPrice": 25000000
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "quantity": 3,
+      "unitPrice": 1200000,
+      "totalPrice": 3600000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Ceftriaxone 1g Injection",
+      "quantity": 3,
+      "unitPrice": 150000,
+      "totalPrice": 450000
+    },
+    {
+      "name": "Ketorolac 30mg Injection",
+      "quantity": 6,
+      "unitPrice": 65000,
+      "totalPrice": 390000
+    }
+  ],
+  "documents": [
+    {
+      "type": "RESUME_MEDIS",
+      "date": "2026-07-05T12:00:00Z",
+      "conclusion": "Pasien menderita usus buntu akut. Tindakan operasi berjalan normal tanpa penyulit, recovery sesuai panduan."
+    },
+    {
+      "type": "LAPORAN_OPERASI",
+      "date": "2026-07-02T14:00:00Z",
+      "conclusion": "Operasi pengangkatan usus buntu lancar, pendarahan minim."
+    }
+  ],
+  "extra": {
+    "nik": "3175088899901112",
+    "phone": "081122334466",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "AS-5544332211",
+    "los": "3",
+    "losJustification": "Pemulihan sesuai ekspektasi standar.",
+    "outcomeNotes": "Pasien pulang sembuh.",
+    "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9"
+  }
+}

@@ -78,15 +78,21 @@ async function main() {
   console.log("🏥 Starting Mitra Keluarga Bekasi Timur 2026 seed...");
 
   // 1. Ensure Provider exists
-  const provider = await prisma.provider.upsert({
-    where: { code: PROVIDER_CODE },
-    update: { name: "Mitra Keluarga Bekasi Timur", isActive: true },
-    create: {
-      code: PROVIDER_CODE,
-      name: "Mitra Keluarga Bekasi Timur",
-      isActive: true,
-    },
+  const existingProvider = await prisma.provider.findFirst({
+    where: { clientId: null, code: PROVIDER_CODE },
   });
+  const provider = existingProvider
+    ? await prisma.provider.update({
+        where: { id: existingProvider.id },
+        data: { name: "Mitra Keluarga Bekasi Timur", isActive: true },
+      })
+    : await prisma.provider.create({
+        data: {
+          code: PROVIDER_CODE,
+          name: "Mitra Keluarga Bekasi Timur",
+          isActive: true,
+        },
+      });
   console.log(`✅ Provider: ${provider.name} (${provider.id})`);
 
   // Read JSON

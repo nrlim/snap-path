@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import PathwayImportModal from "./PathwayImportModal";
-import WorkflowProgressModal from "./WorkflowProgressModal";
 import { getTariffEntries } from "../../master-data/buku-tarif/actions";
 
 const STEPS = [
@@ -86,11 +84,8 @@ function AutocompleteInput({
 }
 
 export default function PathwayWizard({ providers }: { providers: any[] }) {
-  const router = useRouter();
   const [step, setStep] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
-  const [workflowPayload, setWorkflowPayload] = useState<any>(null);
   
   // Submit handling
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -224,14 +219,23 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
         patient: formData.patient,
         encounter: formData.encounter,
         diagnoses: formData.diagnoses,
-        procedures: formData.procedures,
-        medications: formData.medications,
+        procedures: (formData.procedures || []).map((proc: any) => ({
+          ...proc,
+          description: proc.description || proc.name || proc.procedureName || proc.code,
+          unitPrice: proc.unitPrice ?? proc.price ?? 0,
+          totalPrice: proc.totalPrice ?? ((proc.unitPrice ?? proc.price ?? 0) * (proc.quantity || 1)),
+        })),
+        medications: (formData.medications || []).map((med: any) => ({
+          ...med,
+          unitPrice: med.unitPrice ?? med.price ?? 0,
+          totalPrice: med.totalPrice ?? ((med.unitPrice ?? med.price ?? 0) * (med.quantity || 1)),
+        })),
         documents: formData.documents,
-        providerId: formData.extra.providerId
+        providerId: formData.extra.providerId,
+        extra: formData.extra,
       };
 
-      setWorkflowPayload(payload);
-      setIsProgressModalOpen(true);
+      window.dispatchEvent(new CustomEvent("snappath:start-claim-workflow", { detail: { payload } }));
       setIsSubmitting(false);
     } catch (e: any) {
       setError(e.message);
@@ -661,12 +665,6 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         onImport={handleImport} 
-      />
-      
-      <WorkflowProgressModal 
-        isOpen={isProgressModalOpen}
-        onClose={() => setIsProgressModalOpen(false)}
-        payload={workflowPayload}
       />
     </div>
   );

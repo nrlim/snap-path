@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export interface WorkflowStepResult {
@@ -20,6 +20,14 @@ interface Props {
   payload: any;
 }
 
+type StoredWorkflow = {
+  runId: string;
+  jobId: string;
+  startedAt: number;
+};
+
+const ACTIVE_WORKFLOW_STORAGE_KEY = "snappath.activeClaimWorkflow";
+
 const WORKFLOW_STEPS: WorkflowStepResult[] = [
   { stepId: "init", label: "Inisialisasi", description: "Memvalidasi data awal dan menyiapkan job...", status: "waiting", timestamp: "" },
   { stepId: "doc-val", label: "Validasi Dokumen", description: "Mengecek kelengkapan berkas pendukung klaim...", status: "waiting", timestamp: "" },
@@ -30,25 +38,26 @@ const WORKFLOW_STEPS: WorkflowStepResult[] = [
   { stepId: "aggregate", label: "Agregasi Hasil", description: "Menyelesaikan validasi dan menghitung skor akhir...", status: "waiting", timestamp: "" },
 ];
 
+export { ACTIVE_WORKFLOW_STORAGE_KEY };
+
 export default function WorkflowProgressModal({ isOpen, onClose, payload }: Props) {
   const router = useRouter();
-  const [steps, setSteps] = useState<WorkflowStepResult[]>(WORKFLOW_STEPS.map(s => ({ ...s })));
+  const [steps, setSteps] = useState<WorkflowStepResult[]>(WORKFLOW_STEPS.map((s) => ({ ...s })));
   const [isDone, setIsDone] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
-  const runDataRef = useRef<{ runId: string; jobId: string } | null>(null);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const stepStartTimes = useRef<Record<number, number>>({});
   const [, setTicker] = useState(0);
 
   useEffect(() => {
     if (!isOpen || isDone) return;
-    const tickInterval = setInterval(() => setTicker(t => t + 1), 100);
+    const tickInterval = setInterval(() => setTicker((t) => t + 1), 100);
     return () => clearInterval(tickInterval);
   }, [isOpen, isDone]);
 
-  // Map jobStatus (DB field) → which step is active
   const jobStatusToStepIdx: Record<string, number> = {
     QUEUED: 0,
     INIT: 0,
@@ -58,67 +67,101 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
     DRUG_VAL: 4,
     PATHWAY_GEN: 5,
     AGGREGATE: 6,
-    PROCESSING: 1, // Fallback
+    PROCESSING: 1,
   };
+
+  function clearStoredWorkflow() {
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(ACTIVE_WORKFLOW_STORAGE_KEY);
+    }
+  }
 
   function markStepsProgress(activeIdx: number) {
     const now = Date.now();
-    if (!stepStartTimes.current[activeIdx]) {
-      stepStartTimes.current[activeIdx] = now;
-    }
+    if (!stepStartTimes.current[activeIdx]) stepStartTimes.current[activeIdx] = now;
     setCurrentStepIdx(activeIdx);
-    setSteps(prev =>
-      prev.map((step, idx) => {
-        if (idx < activeIdx) {
-          const start = stepStartTimes.current[idx] || now;
-          const dur = step.durationSec || ((now - start) / 1000).toFixed(1);
-          return { ...step, status: "completed", durationSec: dur };
-        }
-        if (idx === activeIdx) return { ...step, status: "running" };
-        return { ...step, status: "waiting" };
-      })
-    );
+    setSteps((prev) => prev.map((step, idx) => {
+      if (idx < activeIdx) {
+        const start = stepStartTimes.current[idx] || now;
+        const dur = step.durationSec || ((now - start) / 1000).toFixed(1);
+        return { ...step, status: "completed", durationSec: dur };
+      }
+      if (idx === activeIdx) return { ...step, status: "running" };
+      return { ...step, status: "waiting" };
+    }));
   }
 
   function markAllDone() {
     const now = Date.now();
-    setSteps(prev => prev.map((step, idx) => {
+    setSteps((prev) => prev.map((step, idx) => {
       const start = stepStartTimes.current[idx] || now;
       const dur = step.durationSec || ((now - start) / 1000).toFixed(1);
       return { ...step, status: "completed", durationSec: dur };
     }));
     setCurrentStepIdx(WORKFLOW_STEPS.length);
     setIsDone(true);
+    clearStoredWorkflow();
   }
 
   function markFailed(errMsg: string) {
-    setSteps(prev =>
-      prev.map((step, idx) =>
-        idx === currentStepIdx ? { ...step, status: "failed", error: errMsg } : step
-      )
-    );
+    setSteps((prev) => prev.map((step, idx) => idx === currentStepIdx ? { ...step, status: "failed", error: errMsg } : step));
     setError(errMsg);
     setIsDone(true);
+    clearStoredWorkflow();
   }
 
   useEffect(() => {
     if (!isOpen || !payload) return;
 
-    // Reset state on new run
-    setSteps(WORKFLOW_STEPS.map(s => ({ ...s })));
+    const resumeData = payload.__resume as StoredWorkflow | undefined;
+    const runStartedAt = resumeData?.startedAt || Date.now();
+    setSteps(WORKFLOW_STEPS.map((s) => ({ ...s })));
     setIsDone(false);
-    setIsMinimized(false);
+    setIsMinimized(Boolean(resumeData));
     setError(null);
     setCurrentStepIdx(0);
-    runDataRef.current = null;
-    stepStartTimes.current = { 0: Date.now() };
+    setStartedAt(runStartedAt);
+    stepStartTimes.current = { 0: runStartedAt };
 
     let stopped = false;
 
+    const startPolling = (runId: string, jobId: string) => {
+      markStepsProgress(0);
+      intervalRef.current = setInterval(async () => {
+        if (stopped) return;
+        try {
+          const pollRes = await fetch(`/api/v1/claims/status?runId=${runId}&jobId=${jobId}`);
+          const data = await pollRes.json();
+
+          if (data.status === "running") {
+            const stepIdx = jobStatusToStepIdx[data.jobStatus ?? "PROCESSING"] ?? 1;
+            markStepsProgress(stepIdx);
+          } else if (data.status === "completed") {
+            clearInterval(intervalRef.current!);
+            markAllDone();
+            setTimeout(() => {
+              router.push(`/dashboard/clinical-pathway/${jobId}`);
+              router.refresh();
+              onClose();
+            }, 1200);
+          } else if (data.status === "failed" || data.status === "not_found") {
+            clearInterval(intervalRef.current!);
+            markFailed(data.error || "Workflow gagal. Silakan coba lagi.");
+          }
+        } catch (pollErr) {
+          console.warn("Polling error:", pollErr);
+        }
+      }, 2500);
+    };
+
     const startWorkflow = async () => {
       try {
-        // Step 1: Fire the workflow (POST to validate)
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/v1/claims/validate`, {
+        if (resumeData) {
+          startPolling(resumeData.runId, resumeData.jobId);
+          return;
+        }
+
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ""}/api/v1/claims/validate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -130,44 +173,13 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
         }
 
         const { runId, jobId } = await res.json();
-        runDataRef.current = { runId, jobId };
-
-        // Step 2: Mark init as running
-        markStepsProgress(0);
-
-        // Step 3: Start polling
-        intervalRef.current = setInterval(async () => {
-          if (stopped) return;
-
-          try {
-            const pollRes = await fetch(
-              `/api/v1/claims/status?runId=${runId}&jobId=${jobId}`
-            );
-            const data = await pollRes.json();
-
-            if (data.status === "running") {
-              // Advance the step indicator based on DB job status
-              const stepIdx = jobStatusToStepIdx[data.jobStatus ?? "PROCESSING"] ?? 1;
-              markStepsProgress(Math.max(stepIdx, currentStepIdx));
-            } else if (data.status === "completed") {
-              clearInterval(intervalRef.current!);
-              markAllDone();
-              setTimeout(() => {
-                router.push(`/dashboard/clinical-pathway/${jobId}`);
-                router.refresh();
-              }, 1200);
-            } else if (data.status === "failed" || data.status === "not_found") {
-              clearInterval(intervalRef.current!);
-              markFailed(data.error || "Workflow gagal. Silakan coba lagi.");
-            }
-          } catch (pollErr) {
-            console.warn("Polling error:", pollErr);
-          }
-        }, 2500);
-      } catch (err: any) {
-        if (!stopped) {
-          markFailed(err.message || "Gagal memulai workflow validasi.");
+        const storedWorkflow: StoredWorkflow = { runId, jobId, startedAt: runStartedAt };
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(ACTIVE_WORKFLOW_STORAGE_KEY, JSON.stringify(storedWorkflow));
         }
+        startPolling(runId, jobId);
+      } catch (err: any) {
+        if (!stopped) markFailed(err.message || "Gagal memulai workflow validasi.");
       }
     };
 
@@ -182,127 +194,78 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
   if (!isOpen) return null;
 
   const now = Date.now();
+  const currentStep = currentStepIdx < steps.length ? steps[currentStepIdx] : steps[steps.length - 1];
+  const elapsedSec = startedAt ? ((now - startedAt) / 1000).toFixed(1) : "0.0";
 
   return (
     <>
       {!isMinimized && <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity" onClick={isDone ? onClose : undefined} />}
-      
-      <div className={`fixed z-50 transform transition-all duration-300 bg-surface border border-border overflow-hidden flex flex-col shadow-2xl
-        ${isMinimized 
-          ? "bottom-4 right-4 w-[360px] max-h-[400px] rounded-2xl" 
+      <div className={`fixed z-50 transform transition-all duration-300 bg-surface border border-border overflow-hidden flex flex-col shadow-2xl ${
+        isMinimized
+          ? "bottom-20 right-3 left-3 max-h-[168px] rounded-[22px] sm:bottom-4 sm:left-auto sm:w-[380px] sm:max-h-[190px]"
           : "inset-x-0 bottom-0 lg:inset-x-auto lg:bottom-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:w-full lg:max-w-md w-full rounded-t-[24px] lg:rounded-2xl max-h-[90vh]"
-        }
-      `}>
-        
+      }`}>
         <div className="p-5 border-b border-border/60 flex items-center justify-between bg-surface sticky top-0 z-20">
-          <div>
-            {!isMinimized && <div className="w-12 h-1.5 bg-border/80 rounded-full mx-auto mb-4 lg:hidden"></div>}
+          <div className="min-w-0">
+            {!isMinimized && <div className="w-12 h-1.5 bg-border/80 rounded-full mx-auto mb-4 lg:hidden" />}
             <h2 className={`${isMinimized ? "text-base" : "text-xl"} font-bold text-text mb-1 flex items-center gap-2`}>
               AI Brain Validation
-              {isMinimized && currentStepIdx < steps.length && (
-                <span className="flex h-2 w-2 relative ml-1">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                </span>
-              )}
+              {isMinimized && currentStepIdx < steps.length && <span className="relative ml-1 flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-primary" /></span>}
             </h2>
-            <p className="text-xs text-text-subtle">Memproses data klaim dan medical records...</p>
+            <p className="truncate text-xs text-text-subtle">{isMinimized && currentStep ? currentStep.description : "Memproses data klaim dan medical records..."}</p>
           </div>
-          
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsMinimized(!isMinimized)} 
-              className="p-1.5 text-text-subtle hover:bg-surface-elevated rounded-md transition-colors"
-              title={isMinimized ? "Expand" : "Minimize"}
-            >
+            <button onClick={() => setIsMinimized(!isMinimized)} className="min-h-11 min-w-11 p-2 text-text-subtle hover:bg-surface-elevated rounded-md transition-colors" title={isMinimized ? "Expand" : "Minimize"}>
               {isMinimized ? (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
               ) : (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
               )}
             </button>
-            {isDone && (
-              <button onClick={onClose} className="p-1.5 text-text-subtle hover:bg-surface-elevated rounded-md transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            )}
+            {isDone && <button onClick={onClose} className="min-h-11 min-w-11 p-2 text-text-subtle hover:bg-surface-elevated rounded-md transition-colors"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm border border-red-200 mb-4">
-              {error}
+        {isMinimized && currentStep ? (
+          <div className="border-b border-border/60 px-5 py-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="truncate text-xs font-bold uppercase tracking-wider text-primary">{currentStep.label}</span>
+              <span className="font-mono text-xs font-semibold text-text-subtle">{elapsedSec}s</span>
             </div>
-          )}
+            <div className="h-1.5 overflow-hidden rounded-full bg-surface-elevated">
+              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${Math.min(100, ((Math.min(currentStepIdx + 1, steps.length)) / steps.length) * 100)}%` }} />
+            </div>
+          </div>
+        ) : null}
 
+        <div className={`${isMinimized ? "hidden" : "flex-1"} overflow-y-auto p-6 space-y-5`}>
+          {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm border border-red-200 mb-4">{error}</div>}
           {steps.map((step, idx) => (
             <div key={step.stepId} className="flex gap-4 relative">
-              {idx !== steps.length - 1 && (
-                <div className="absolute top-8 bottom-[-20px] left-3.5 w-[2px] bg-border/60"></div>
-              )}
-              
+              {idx !== steps.length - 1 && <div className="absolute top-8 bottom-[-20px] left-3.5 w-[2px] bg-border/60" />}
               <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-surface">
-                {step.status === "waiting" && (
-                  <div className="w-3 h-3 rounded-full bg-border"></div>
-                )}
-                {step.status === "running" && (
-                  <svg className="animate-spin w-5 h-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                )}
-                {step.status === "completed" && (
-                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                  </div>
-                )}
-                {step.status === "failed" && (
-                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                  </div>
-                )}
+                {step.status === "waiting" && <div className="w-3 h-3 rounded-full bg-border" />}
+                {step.status === "running" && <svg className="animate-spin w-5 h-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
+                {step.status === "completed" && <div className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg></div>}
+                {step.status === "failed" && <div className="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></div>}
               </div>
-              
               <div className={`flex-1 pt-1 pb-1 ${step.status === "waiting" ? "opacity-50" : "opacity-100"}`}>
                 <div className="flex items-center justify-between mb-0.5">
-                  <h4 className={`font-semibold text-sm ${step.status === "failed" ? "text-red-600" : "text-text"}`}>
-                    {step.label}
-                  </h4>
+                  <h4 className={`font-semibold text-sm ${step.status === "failed" ? "text-red-600" : "text-text"}`}>{step.label}</h4>
                   <div className="flex items-center gap-2">
-                    {step.status === "running" && (
-                      <span className="text-xs font-mono text-primary font-medium">
-                        {((now - (stepStartTimes.current[idx] || now)) / 1000).toFixed(1)}s
-                      </span>
-                    )}
-                    {step.status === "completed" && step.durationSec && (
-                      <span className="text-xs font-mono text-text-subtle">
-                        {step.durationSec}s
-                      </span>
-                    )}
+                    {step.status === "running" && <span className="text-xs font-mono text-primary font-medium">{((now - (stepStartTimes.current[idx] || now)) / 1000).toFixed(1)}s</span>}
+                    {step.status === "completed" && step.durationSec && <span className="text-xs font-mono text-text-subtle">{step.durationSec}s</span>}
                   </div>
                 </div>
-                <p className="text-xs text-text-subtle leading-relaxed">
-                  {step.status === "failed" && step.error ? step.error : step.description}
-                </p>
+                <p className="text-xs text-text-subtle leading-relaxed">{step.status === "failed" && step.error ? step.error : step.description}</p>
               </div>
             </div>
           ))}
         </div>
 
-        {isDone && (
+        {isDone && !isMinimized && (
           <div className="p-4 border-t border-border/60 bg-surface-elevated/50 text-center">
-            {error ? (
-              <button onClick={onClose} className="w-full py-2.5 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-elevated transition-colors">Tutup</button>
-            ) : (
-              <p className="text-sm font-medium text-primary flex items-center justify-center gap-2">
-                <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Mengalihkan ke halaman hasil...
-              </p>
-            )}
+            {error ? <button onClick={onClose} className="w-full py-2.5 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-elevated transition-colors">Tutup</button> : <p className="text-sm font-medium text-primary flex items-center justify-center gap-2"><svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>Mengalihkan ke halaman hasil...</p>}
           </div>
         )}
       </div>

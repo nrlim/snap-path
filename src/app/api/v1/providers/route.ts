@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { generateApiKey } from "@/lib/api-key";
+import { getSession } from "@/lib/auth";
 
 // POST /api/v1/providers
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const payload = await request.json();
     const { code, name } = payload;
 
@@ -13,17 +18,10 @@ export async function POST(request: Request) {
     }
 
     const provider = await prisma.provider.create({
-      data: { code, name }
-    });
-
-    // Automatically generate an API key for this provider
-    const { key, hash } = generateApiKey();
-
-    await prisma.apiKey.create({
       data: {
-        keyHash: hash,
-        name: `Default Key for ${name}`,
-        providerId: provider.id,
+        code,
+        name,
+        clientId: payload.clientId || null,
       }
     });
 
@@ -34,8 +32,7 @@ export async function POST(request: Request) {
         code: provider.code,
         name: provider.name
       },
-      apiKey: key, // ONLY SHOWN ONCE
-      message: "Provider created. Please save the apiKey securely."
+      message: "Provider created."
     }, { status: 201 });
 
   } catch (error) {

@@ -12,61 +12,119 @@ datasource db {
   provider     = "postgresql"
 }
 
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  CLIENT_ADMIN
+  CLIENT_USER
+  VIEWER
+}
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
+  id        String    @id @default(uuid())
+  email     String    @unique
   name      String?
   password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role      UserRole  @default(VIEWER)
+  clientId  String?
+  client    Client?   @relation(fields: [clientId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([role])
 }
 
 // === AUTHENTICATION & API KEYS ===
 
 model ApiKey {
-  id          String   @id @default(uuid())
-  keyHash     String   @unique // Hashed key for security
-  name        String   // E.g., "Production Provider X"
-  providerId  String?  // Optional, if the key is tied to a specific provider
-  provider    Provider? @relation(fields: [providerId], references: [id])
-  isActive    Boolean  @default(true)
-  expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(uuid())
+  keyHash    String   @unique // Hashed public API key
+  secretHash String?  // Hashed API secret for external clients
+  keyCipher  String?  // Encrypted API key for controlled dashboard copy
+  secretCipher String? // Encrypted API secret for controlled dashboard copy
+  name       String   // E.g., "Production API Key"
+  clientId   String?
+  client     Client?  @relation(fields: [clientId], references: [id])
+  isActive   Boolean  @default(true)
+  expiresAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
   
-  usageLogs   ApiUsageLog[]
+  usageLogs  ApiUsageLog[]
+
+  @@index([clientId])
 }
 
 model ApiUsageLog {
-  id          String   @id @default(uuid())
-  apiKeyId    String
-  apiKey      ApiKey   @relation(fields: [apiKeyId], references: [id])
-  endpoint    String   // "/api/v1/claims/validate"
-  method      String
-  statusCode  Int
-  inputTokens Int      @default(0) // LLM tokens used (if applicable)
-  outputTokens Int     @default(0) // LLM tokens used (if applicable)
-  durationMs  Int      // Response time
-  createdAt   DateTime @default(now())
+  id           String    @id @default(uuid())
+  apiKeyId     String?
+  apiKey       ApiKey?   @relation(fields: [apiKeyId], references: [id])
+  clientId     String?
+  client       Client?   @relation(fields: [clientId], references: [id])
+  providerId   String?
+  provider     Provider? @relation(fields: [providerId], references: [id])
+  jobId        String?
+  endpoint     String    // "/api/v1/claims/validate" or "AI:validateDiagnosisTreatment"
+  method       String
+  statusCode   Int
+  requestType  String    @default("API") // "API" | "AI"
+  aiProvider   String?
+  aiModel      String?
+  inputTokens  Int       @default(0) // LLM tokens used (if applicable)
+  outputTokens Int       @default(0) // LLM tokens used (if applicable)
+  totalTokens  Int       @default(0)
+  durationMs   Int       // Response time
+  createdAt    DateTime  @default(now())
 
   @@index([apiKeyId])
+  @@index([clientId])
+  @@index([providerId])
+  @@index([jobId])
+  @@index([requestType, createdAt])
   @@index([createdAt])
 }
 
-// === PROVIDER & CONFIGURATION ===
+// === CLIENT, PROVIDER & CONFIGURATION ===
+
+model Client {
+  id                String   @id @default(uuid())
+  code              String   @unique // e.g., "RS_SILOAM", "KLINIK_ABC"
+  name              String
+  isActive          Boolean  @default(true)
+  aiProvider        String?  // override: "sumopod" | "vercel-ai-sdk" | "custom"
+  aiGatewayUrl      String?
+  aiModel           String?
+  aiMaxTokens       Int?
+  aiTemperature     Float?
+  monthlyTokenLimit Int?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  users             User[]
+  apiKeys           ApiKey[]
+  apiUsageLogs      ApiUsageLog[]
+  providers         Provider[]
+  claimJobs         ClaimJob[]
+}
 
 model Provider {
-  id          String   @id @default(uuid())
-  code        String   @unique  // e.g., "BPJS", "PRUDENTIAL", "AXA"
-  name        String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(uuid())
+  clientId         String?
+  client           Client?  @relation(fields: [clientId], references: [id])
+  code             String   // e.g., "BPJS", "PRUDENTIAL", "AXA"
+  name             String
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  apiKeys           ApiKey[]
+  apiUsageLogs      ApiUsageLog[]
   tariffBook        TariffEntry[]
   thresholdConfigs  ThresholdConfig[]
   claimJobs         ClaimJob[]
+
+  @@index([clientId])
+  @@unique([clientId, code])
 }
 
 model ThresholdConfig {
@@ -145,6 +203,8 @@ model DiagnosisProcedureMap {
 
 model ClaimJob {
   id            String    @id @default(uuid())
+  clientId      String?
+  client        Client?   @relation(fields: [clientId], references: [id])
   providerId    String?
   provider      Provider? @relation(fields: [providerId], references: [id])
   jobType       String    // "CLAIM_VALIDATION" | "TARIFF_CHECK" | "DRUG_PRICE" | "PATHWAY_GEN"
@@ -159,6 +219,7 @@ model ClaimJob {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  @@index([clientId])
   @@index([status])
   @@index([jobType])
   @@index([workflowRunId])

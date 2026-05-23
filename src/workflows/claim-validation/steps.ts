@@ -50,7 +50,7 @@ export async function validateDiagnosisStep(input: ClaimValidationPayload) {
   await updateJobStatusAndDelay(input.jobId, 'DIAG_VAL', 2500);
 
   try {
-    return await validateDiagnosisTreatment(input.payload);
+    return await validateDiagnosisTreatment(input.payload, input.jobId);
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     // Auth failures are permanent, do not retry
@@ -98,6 +98,7 @@ export async function checkDrugPricesStep(input: ClaimValidationPayload) {
   try {
     return await checkDrugPrices(
       {
+        clientId: input.payload.clientId,
         providerId: input.payload.providerId,
         medications: input.payload.medications.map((m: any) => ({
           ...m,
@@ -141,6 +142,7 @@ export async function generatePathwayStep(input: ClaimValidationPayload) {
         diagnosisName: primaryDiag.description || primaryDiag.name,
         encounterType: input.payload.encounter.type,
         providerId: input.payload.providerId,
+        clientId: input.payload.clientId,
       },
       input.jobId,
     );
@@ -172,27 +174,80 @@ export async function aggregateAndSaveStep(
   let overallScore = 100;
   let status = 'VALID';
 
+  const tariffItems = tariffRes?.items || [];
+  const drugItems = drugRes?.items || [];
+  const hasUnregisteredTariff = tariffItems.some((item: any) => item.status === 'NOT_FOUND');
+  const hasUnregisteredDrug = drugItems.some((item: any) => item.status === 'NOT_FOUND');
+  const expectedLos = pathRes?.estimatedLos || 0;
+  const actualLos = input.payload?.extra?.los ? parseInt(input.payload.extra.los, 10) : 0;
+  const losMissingActual = expectedLos > 0 && actualLos <= 0;
+  const losOverstay = actualLos > 0 && expectedLos > 0 && actualLos > expectedLos;
+  const scoreBreakdown = {
+    baseScore: 100,
+    items: [
+      { code: 'DIAGNOSIS_TREATMENT', label: 'Diagnosis & tindakan klinis', maxDeduction: 25, deducted: 0, reason: 'Diagnosis dan tindakan sesuai kebutuhan klinis utama.' },
+      { code: 'TARIFF', label: 'Tarif tindakan terdaftar', maxDeduction: 20, deducted: 0, reason: 'Item tindakan yang terdaftar berada dalam threshold master fee schedule.' },
+      { code: 'DRUG_PRICE', label: 'Harga obat terdaftar', maxDeduction: 20, deducted: 0, reason: 'Item obat yang memiliki referensi harga berada dalam threshold.' },
+      { code: 'DOCUMENT', label: 'Kelengkapan dokumen', maxDeduction: 10, deducted: 0, reason: 'Dokumen medis wajib sudah lengkap.' },
+      { code: 'LOS', label: 'LOS compliance', maxDeduction: 10, deducted: 0, reason: 'LOS aktual sesuai standar pathway.' },
+      { code: 'UNREGISTERED_MASTER_DATA', label: 'Kesiapan master data', maxDeduction: 15, deducted: 0, reason: 'Semua tindakan dan obat tersedia pada master data/referensi.' },
+    ],
+  };
+
   if (!diagRes.isValid) {
-    overallScore -= 30;
+    overallScore -= 25;
+    scoreBreakdown.items[0].deducted = 25;
+    scoreBreakdown.items[0].reason = 'Diagnosis tidak sesuai tindakan, ada prosedur tidak relevan, atau prosedur wajib belum ada.';
     status = 'REVIEW_NEEDED';
   }
   if (tariffRes.status === 'WARNING' || tariffRes.status === 'INVALID') {
     overallScore -= 20;
+    scoreBreakdown.items[1].deducted = 20;
+    scoreBreakdown.items[1].reason = 'Ada item tindakan terdaftar yang melewati threshold master fee schedule.';
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
   if (drugRes && (drugRes.status === 'WARNING' || drugRes.status === 'INVALID')) {
     overallScore -= 20;
+    scoreBreakdown.items[2].deducted = 20;
+    scoreBreakdown.items[2].reason = 'Ada item obat terdaftar yang melewati threshold market reference.';
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
   if (!docRes.isValid) {
     overallScore -= 10;
+    scoreBreakdown.items[3].deducted = 10;
+    scoreBreakdown.items[3].reason = 'Dokumen wajib belum lengkap.';
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
+  if (losOverstay || losMissingActual) {
+    overallScore -= 10;
+    scoreBreakdown.items[4].deducted = 10;
+    scoreBreakdown.items[4].reason = losMissingActual
+      ? `LOS aktual tidak diisi. Standar AI memberi estimasi ${expectedLos} hari, tetapi data input kosong sehingga perlu dilengkapi.`
+      : `LOS aktual ${actualLos} hari melebihi standar pathway ${expectedLos} hari.`;
+    if (status !== 'REVIEW_NEEDED') status = 'WARNING';
+  }
+  if (hasUnregisteredTariff || hasUnregisteredDrug) {
+    overallScore -= 15;
+    scoreBreakdown.items[5].deducted = 15;
+    scoreBreakdown.items[5].reason = `${hasUnregisteredTariff ? 'Ada tindakan yang belum tersedia di master tarif, sehingga belum bisa divalidasi harga. ' : ''}${hasUnregisteredDrug ? 'Ada obat yang belum ditemukan pada referensi harga, sehingga belum bisa divalidasi harga.' : ''}`.trim();
+    if (status !== 'REVIEW_NEEDED') status = 'WARNING';
+  }
+
+  overallScore = Math.max(0, overallScore);
+
+  const jobTiming = await prisma.claimJob.findUnique({
+    where: { id: input.jobId },
+    select: { createdAt: true, startedAt: true },
+  });
+  const completedAt = new Date();
+  const workflowStartedAt = jobTiming?.startedAt || jobTiming?.createdAt || completedAt;
+  const totalDurationMs = Math.max(0, completedAt.getTime() - workflowStartedAt.getTime());
 
   const outputData = {
     jobId: input.jobId,
     status,
     overallScore,
+    scoreBreakdown,
     summary: `Klaim berhasil divalidasi. Skor akhir: ${overallScore}/100.`,
     documentValidation: docRes,
     diagnosisValidation: diagRes,
@@ -202,12 +257,24 @@ export async function aggregateAndSaveStep(
       ? {
           diagnosisCode: pathRes.diagnosisCode,
           adherenceScore: 100,
+          estimatedLos: pathRes.estimatedLos,
+          pathwayVersion: pathRes.pathwayVersion,
+          generatedBy: pathRes.generatedBy,
+          confidence: pathRes.confidence,
           recommendedPathway: pathRes.phases,
           deviations: [],
         }
       : undefined,
-    processingTime: { total: 0, preProcessing: 0, mainProcessing: 0, postProcessing: 0 },
-    auditTrail: [{ step: 'WORKFLOW_SDK', timestamp: new Date().toISOString(), status: 'SUCCESS' }],
+    processingTime: {
+      total: totalDurationMs,
+      totalMs: totalDurationMs,
+      totalSeconds: Number((totalDurationMs / 1000).toFixed(2)),
+      label: 'Latency 1x request clinical pathway',
+      preProcessing: 0,
+      mainProcessing: totalDurationMs,
+      postProcessing: 0,
+    },
+    auditTrail: [{ step: 'WORKFLOW_SDK', timestamp: completedAt.toISOString(), status: 'SUCCESS' }],
   };
 
   await prisma.claimJob.update({
@@ -215,7 +282,7 @@ export async function aggregateAndSaveStep(
     data: {
       status: 'COMPLETED',
       outputResult: outputData as any,
-      completedAt: new Date(),
+      completedAt,
     },
   });
 

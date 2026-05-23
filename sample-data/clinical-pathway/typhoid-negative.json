@@ -1,0 +1,80 @@
+{
+  "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9",
+  "claimId": "CLM-MK-2026-0004",
+  "patient": {
+    "name": "Sdr. Andi Susanto",
+    "identifier": [{ "value": "PAT-MK-10032" }],
+    "birthDate": "1995-12-10",
+    "gender": "male"
+  },
+  "encounter": {
+    "class": { "code": "IMP" },
+    "period": { "start": "2026-05-01T10:00:00Z", "end": "2026-05-15T12:00:00Z" },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "A01.0",
+      "name": "Typhoid fever",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "RUAA010006",
+      "name": "Ruang Rawat - Kelas III",
+      "quantity": 14,
+      "unitPrice": 350000,
+      "totalPrice": 4900000
+    },
+    {
+      "code": "LAB010088",
+      "name": "Widal Test",
+      "quantity": 1,
+      "unitPrice": 150000,
+      "totalPrice": 150000
+    },
+    {
+      "code": "RAD010012",
+      "name": "MRI Kepala",
+      "quantity": 1,
+      "unitPrice": 3500000,
+      "totalPrice": 3500000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Ceftriaxone 1g Injection",
+      "quantity": 28,
+      "unitPrice": 75000,
+      "totalPrice": 2100000
+    },
+    {
+      "name": "Meropenem 1g Injection",
+      "quantity": 10,
+      "unitPrice": 350000,
+      "totalPrice": 3500000
+    }
+  ],
+  "documents": [
+    {
+      "type": "RESUME_MEDIS",
+      "date": "2026-05-15T11:00:00Z",
+      "conclusion": "Pasien demam tifoid. Dirawat 14 hari dengan pemberian antibiotik dosis tinggi. Pasien juga mengeluh pusing sehingga dilakukan MRI kepala."
+    }
+  ],
+  "extra": {
+    "nik": "3275045678901234",
+    "phone": "085566778899",
+    "insuranceType": "BPJS",
+    "insuranceNumber": "0005556667778",
+    "los": "14",
+    "losJustification": "Pasien merasa belum pulih sepenuhnya sehingga minta dirawat lebih lama.",
+    "outcomeNotes": "Pasien pulang atas permintaan sendiri.",
+    "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9"
+  }
+}

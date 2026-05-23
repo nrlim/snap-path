@@ -118,7 +118,18 @@ export class OpenAIDriver implements AIGatewayDriver {
     const { object, usage } = await generateObject({
       model: this.ai(this.defaultModel),
       schema,
-      prompt: `Generate a realistic clinical pathway for ${diagnosisCode} - ${diagnosisName} suitable for Indonesian healthcare context. Break it down into phases (e.g., Admission, Day 1-2, Discharge).`,
+      prompt: `Generate a realistic clinical pathway for ${diagnosisCode} - ${diagnosisName} suitable for Indonesian healthcare context.
+
+Requirements:
+1. Estimate the standard Length of Stay (LOS) for this diagnosis using general clinical knowledge and publicly known practice patterns when no internal master LOS is available.
+2. Return estimatedLos as the expected inpatient duration in days. For outpatient/IGD-only cases, use 1 unless the diagnosis usually requires observation/admission.
+3. Break phases according to the estimatedLos. Do NOT always force a static 3-day pathway.
+4. The phases array may group clinically similar adjacent days, but the grouped dayRange MUST clearly cover the entire estimatedLos from Day 1 through Day N. Example for estimatedLos 7: "Day 1", "Day 2-3", "Day 4-6", "Day 7".
+5. Do not stop before the estimatedLos. The final phase dayRange must include the last LOS day.
+6. Use phaseName as the clinical activity title only, e.g. "Admission", "Treatment", "Monitoring", "Discharge". Avoid putting day labels inside phaseName.
+7. Include discharge criteria in the final phase.
+
+Generate a clinically realistic and auditable pathway for Indonesian healthcare review context.`,
       temperature: this.temperature,
     });
 

@@ -1,161 +1,99 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { deactivateTariffEntry } from "../actions";
+import { defaultPageSizes, SortButton, TablePagination, TableSearch, type SortDirection } from "@/components/ui/DataTableControls";
 
-export default function TariffTable({ data, total, totalPages, currentPage, providers }: any) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+type SortField = "procedure" | "provider" | "category" | "basePrice" | "maxPrice" | "status";
 
-  const handleFilterChange = (key: string, value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set(key, value);
-    } else {
-      params.delete(key);
-    }
-    params.set("page", "1"); // Reset to page 1
-    router.push(`${pathname}?${params.toString()}`);
-  };
+function sortValue(item: any, field: SortField) {
+  if (field === "procedure") return `${item.procedureCode || ""} ${item.procedureName || ""}`.toLowerCase();
+  if (field === "provider") return String(item.provider?.name || "").toLowerCase();
+  if (field === "basePrice") return Number(item.basePrice || 0);
+  if (field === "maxPrice") return Number(item.maxPrice || 0);
+  if (field === "status") return item.isActive ? 1 : 0;
+  return String(item.category || "").toLowerCase();
+}
+
+export default function TariffTable({ data, providers }: any) {
+  const [search, setSearch] = useState("");
+  const [providerFilter, setProviderFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortField, setSortField] = useState<SortField>("procedure");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const filteredData = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return data
+      .filter((item: any) => {
+        const matchesSearch = !query || [item.procedureCode, item.procedureName, item.provider?.name, item.category, item.regionCode].some((value) => String(value || "").toLowerCase().includes(query));
+        const matchesProvider = providerFilter === "all" || item.providerId === providerFilter;
+        const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
+        const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? item.isActive : !item.isActive);
+        return matchesSearch && matchesProvider && matchesCategory && matchesStatus;
+      })
+      .sort((a: any, b: any) => {
+        const aValue = sortValue(a, sortField);
+        const bValue = sortValue(b, sortField);
+        const result = aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+        return sortDirection === "asc" ? result : -result;
+      });
+  }, [categoryFilter, data, providerFilter, search, sortDirection, sortField, statusFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  function handleSort(field: SortField) {
+    if (sortField === field) setSortDirection((value) => (value === "asc" ? "desc" : "asc"));
+    else { setSortField(field); setSortDirection("asc"); }
+  }
 
   const handleDeactivate = async (id: string) => {
-    if (confirm("Are you sure you want to deactivate this entry?")) {
-      await deactivateTariffEntry(id);
-    }
+    if (confirm("Are you sure you want to deactivate this entry?")) await deactivateTariffEntry(id);
   };
-
-  const currentProvider = searchParams.get("providerId") || "";
-  const currentCategory = searchParams.get("category") || "";
 
   return (
     <div>
-      {/* Filters */}
-      <div className="flex flex-col gap-4 p-4 sm:flex-row border-b border-border/60 bg-surface-elevated/50">
-        <select 
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          value={currentProvider}
-          onChange={(e) => handleFilterChange("providerId", e.target.value)}
-        >
-          <option value="">All Providers</option>
-          {providers.map((p: any) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
+      <div className="grid grid-cols-1 gap-3 border-b border-border/60 p-4 lg:grid-cols-[1fr_220px_170px_150px_120px]">
+        <TableSearch value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Search code, procedure, provider..." />
+        <select className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" value={providerFilter} onChange={(e) => { setProviderFilter(e.target.value); setPage(1); }}>
+          <option value="all">All Providers</option>{providers.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
-        
-        <select 
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-          value={currentCategory}
-          onChange={(e) => handleFilterChange("category", e.target.value)}
-        >
-          <option value="">All Categories</option>
-          <option value="RAWAT_INAP">Inpatient</option>
-          <option value="RAWAT_JALAN">Outpatient</option>
-          <option value="IGD">ER</option>
-          <option value="OBAT">Pharmacy</option>
-          <option value="LAB">Laboratory</option>
+        <select className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}>
+          <option value="all">All Categories</option><option value="RAWAT_INAP">Inpatient</option><option value="RAWAT_JALAN">Outpatient</option><option value="IGD">ER</option><option value="OBAT">Pharmacy</option><option value="LAB">Laboratory</option>
         </select>
+        <select className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
+          <option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option>
+        </select>
+        <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">{defaultPageSizes.map((size) => <option key={size} value={size}>{size} / page</option>)}</select>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+        <table className="w-full min-w-[980px] text-left text-sm">
           <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle uppercase tracking-wider">
-            <tr>
-              <th className="px-4 py-3">Code & Procedure</th>
-              <th className="px-4 py-3">Provider</th>
-              <th className="px-4 py-3">Category</th>
-              <th className="px-4 py-3 text-right">Base Price</th>
-              <th className="px-4 py-3 text-right">Max Price</th>
-              <th className="px-4 py-3 text-center">Status</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
+            <tr><th className="px-4 py-3"><SortButton field="procedure" label="Code & Procedure" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th><th className="px-4 py-3"><SortButton field="provider" label="Provider" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th><th className="px-4 py-3"><SortButton field="category" label="Category" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th><th className="px-4 py-3 text-right"><SortButton field="basePrice" label="Base Price" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th><th className="px-4 py-3 text-right"><SortButton field="maxPrice" label="Max Price" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th><th className="px-4 py-3 text-center"><SortButton field="status" label="Status" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th><th className="px-4 py-3 text-right">Actions</th></tr>
           </thead>
           <tbody className="divide-y divide-border/60">
-            {data.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-text-subtle">
-                  No fee records found.
-                </td>
+            {paginatedData.length === 0 ? <tr><td colSpan={7} className="px-4 py-10 text-center text-text-subtle">No fee records found.</td></tr> : paginatedData.map((item: any) => (
+              <tr key={item.id} className="transition-colors hover:bg-surface-elevated/30">
+                <td className="px-4 py-3"><p className="font-medium text-text">{item.procedureCode}</p><p className="text-xs text-text-subtle line-clamp-1">{item.procedureName}</p></td>
+                <td className="px-4 py-3 text-text-subtle">{item.provider?.name || "Unknown"}</td>
+                <td className="px-4 py-3"><span className="inline-flex items-center rounded-md bg-secondary-soft px-2 py-1 text-xs font-medium text-secondary ring-1 ring-inset ring-secondary/20">{item.category}</span></td>
+                <td className="px-4 py-3 text-right font-medium text-text">{new Intl.NumberFormat("id-ID", { style: "currency", currency: item.currency }).format(item.basePrice)}</td>
+                <td className="px-4 py-3 text-right font-medium text-text">{new Intl.NumberFormat("id-ID", { style: "currency", currency: item.currency }).format(item.maxPrice)}</td>
+                <td className="px-4 py-3 text-center">{item.isActive ? <span className="rounded-full bg-green-500/10 px-2.5 py-1 text-xs font-bold text-green-700">Active</span> : <span className="rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-bold text-red-700">Inactive</span>}</td>
+                <td className="px-4 py-3 text-right"><div className="flex items-center justify-end gap-2"><Link href={`/dashboard/master-data/buku-tarif/${item.id}`} className="rounded-md border border-border px-2.5 py-2 text-xs font-semibold text-text-subtle hover:bg-surface-elevated">Edit</Link>{item.isActive && <button onClick={() => handleDeactivate(item.id)} className="rounded-md border border-red-200 px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50">Deactivate</button>}</div></td>
               </tr>
-            ) : (
-              data.map((item: any) => (
-                <tr key={item.id} className="transition-colors hover:bg-surface-elevated/30">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-text">{item.procedureCode}</p>
-                    <p className="text-xs text-text-subtle line-clamp-1">{item.procedureName}</p>
-                  </td>
-                  <td className="px-4 py-3 text-text-subtle">{item.provider?.name || "Unknown"}</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center rounded-md bg-secondary-soft px-2 py-1 text-xs font-medium text-secondary ring-1 ring-inset ring-secondary/20">
-                      {item.category}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-text">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: item.currency }).format(item.basePrice)}
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium text-text">
-                    {new Intl.NumberFormat('id-ID', { style: 'currency', currency: item.currency }).format(item.maxPrice)}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {item.isActive ? (
-                      <span className="inline-flex h-2 w-2 rounded-full bg-green-500 ring-2 ring-green-500/20" title="Active"></span>
-                    ) : (
-                      <span className="inline-flex h-2 w-2 rounded-full bg-red-500 ring-2 ring-red-500/20" title="Inactive"></span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Link 
-                        href={`/dashboard/master-data/buku-tarif/${item.id}`}
-                        className="p-1.5 text-text-subtle hover:text-primary transition-colors rounded-md hover:bg-primary-soft"
-                        title="Edit"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                      </Link>
-                      {item.isActive && (
-                        <button 
-                          onClick={() => handleDeactivate(item.id)}
-                          className="p-1.5 text-text-subtle hover:text-red-500 transition-colors rounded-md hover:bg-red-50"
-                          title="Deactivate"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
       </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-border/60 p-4">
-          <p className="text-sm text-text-subtle">
-            Showing page <span className="font-medium text-text">{currentPage}</span> of <span className="font-medium text-text">{totalPages}</span> ({total} total records)
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleFilterChange("page", (currentPage - 1).toString())}
-              disabled={currentPage <= 1}
-              className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text transition-colors hover:bg-surface-elevated disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Prev
-            </button>
-            <button
-              onClick={() => handleFilterChange("page", (currentPage + 1).toString())}
-              disabled={currentPage >= totalPages}
-              className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-medium text-text transition-colors hover:bg-surface-elevated disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+      <TablePagination total={filteredData.length} visible={paginatedData.length} currentPage={currentPage} totalPages={totalPages} onPrev={() => setPage((value) => Math.max(1, value - 1))} onNext={() => setPage((value) => Math.min(totalPages, value + 1))} />
     </div>
   );
 }

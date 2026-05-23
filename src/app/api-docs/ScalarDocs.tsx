@@ -11,12 +11,10 @@ export function ScalarDocs({ spec }: ScalarDocsProps) {
   return (
     <ApiReferenceReact
       configuration={{
-        spec: {
-          content: spec,
-        },
-        theme: "mars",
+        content: spec,
+        theme: "elysiajs",
         showSidebar: true,
-        hideModels: false,
+        hideModels: true,
         hideDownloadButton: false,
       }}
     />

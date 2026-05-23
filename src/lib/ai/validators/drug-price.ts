@@ -4,6 +4,16 @@ import { getAIGateway } from '../gateway';
 
 const CACHE_TTL_DAYS = 7;
 
+function getMedicationUnitPrice(med: any) {
+  return Number(med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0);
+}
+
+function getMedicationTotalPrice(med: any) {
+  const explicitTotal = med.totalPrice ?? med.claimedTotal;
+  if (explicitTotal !== undefined && explicitTotal !== null) return Number(explicitTotal);
+  return getMedicationUnitPrice(med) * Number(med.quantity || 1);
+}
+
 export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string): Promise<DrugPriceCheckOutput> {
   const { providerId, medications } = input;
 
@@ -19,9 +29,10 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
 
   const thresholdPct = thresholdRecord?.thresholdPct ?? 0;
   let hasOverThreshold = false;
+  let hasUnderPriced = false;
   
   const items: DrugPriceCheckOutput['items'] = [];
-  const gateway = await getAIGateway();
+  const gateway = await getAIGateway({ clientId: input.clientId, providerId, jobId });
 
   for (const med of medications) {
     // 1. Check Cache
@@ -36,7 +47,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     let marketPriceMax = 0;
     let sources: string[] = [];
     let cachedAt: string | null = null;
-    let statusSource: "CACHE_HIT" | "NOT_FOUND" | "WITHIN_RANGE" | "OVER_THRESHOLD" = 'NOT_FOUND';
+    let statusSource: "CACHE_HIT" | "NOT_FOUND" | "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" = 'NOT_FOUND';
 
     if (cacheEntry) {
       marketPriceMax = cacheEntry.marketPriceMax;
@@ -76,13 +87,16 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
       }
     }
 
+    const claimedUnitPrice = getMedicationUnitPrice(med);
+    const claimedTotal = getMedicationTotalPrice(med);
+
     if (marketPriceMax === 0) {
       items.push({
         name: med.name,
         genericName: med.genericName || null,
         quantity: med.quantity,
-        claimedUnitPrice: med.unitPrice,
-        claimedTotal: med.totalPrice,
+        claimedUnitPrice,
+        claimedTotal,
         marketPriceMax: 0,
         marketPriceMaxWithThreshold: 0,
         expectedTotal: 0,
@@ -99,23 +113,27 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     let variancePct = 0;
     let status: DrugPriceCheckOutput['items'][0]['status'] = 'WITHIN_RANGE';
 
-    if (med.unitPrice > marketPriceMaxWithThreshold) {
+    if (claimedUnitPrice > marketPriceMaxWithThreshold) {
       status = 'OVER_THRESHOLD';
-      variancePct = ((med.unitPrice - marketPriceMax) / marketPriceMax) * 100;
+      variancePct = ((claimedUnitPrice - marketPriceMax) / marketPriceMax) * 100;
       hasOverThreshold = true;
     } else {
-      variancePct = ((med.unitPrice - marketPriceMax) / marketPriceMax) * 100;
+      variancePct = ((claimedUnitPrice - marketPriceMax) / marketPriceMax) * 100;
+      if (variancePct < -20) {
+        status = 'UNDER_PRICED';
+        hasUnderPriced = true;
+      }
     }
 
     items.push({
       name: med.name,
       genericName: med.genericName || null,
       quantity: med.quantity,
-      claimedUnitPrice: med.unitPrice,
-      claimedTotal: med.totalPrice,
+      claimedUnitPrice,
+      claimedTotal,
       marketPriceMax,
       marketPriceMaxWithThreshold,
-      expectedTotal: marketPriceMaxWithThreshold * med.quantity,
+      expectedTotal: marketPriceMaxWithThreshold * (med.quantity || 1),
       status,
       variancePct,
       sources,
@@ -124,7 +142,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
   }
 
   let overallStatus: DrugPriceCheckOutput['status'] = 'VALID';
-  if (hasOverThreshold) overallStatus = 'WARNING';
+  if (hasOverThreshold || hasUnderPriced) overallStatus = 'WARNING';
   if (items.some(i => i.status === 'NOT_FOUND')) overallStatus = 'WARNING';
 
   return {

@@ -2,6 +2,34 @@
 
 import React from "react";
 
+function normalizePhaseTitle(phase: any, idx: number, totalPhases: number) {
+  const rawDayRange = String(phase.dayRange || "").trim();
+  const rawPhaseName = String(phase.phaseName || "").trim();
+  const fallbackName = rawPhaseName || `Fase ${idx + 1}`;
+  const lowerName = fallbackName.toLowerCase();
+  const lowerRange = rawDayRange.toLowerCase();
+
+  const phaseNameWithoutDay = fallbackName
+    .replace(/^day\s*\d+(?:\s*[-–—]\s*\d+)?\s*[-–—:]?\s*/i, "")
+    .replace(/^hari\s*\d+(?:\s*[-–—]\s*\d+)?\s*[-–—:]?\s*/i, "")
+    .trim();
+
+  const titleFromName = phaseNameWithoutDay || fallbackName;
+  const isAdmission = /admission|admisi|igd|initial|assessment/.test(lowerName) || /admission|admisi|igd/.test(lowerRange);
+  const isDischarge = /discharge|pulang/.test(lowerName) || /discharge|pulang/.test(lowerRange) || idx === totalPhases - 1;
+  const isGenericDayTitle = /^day\s*\d+(?:\s*[-–—]\s*\d+)?$/i.test(fallbackName) || /^hari\s*\d+(?:\s*[-–—]\s*\d+)?$/i.test(fallbackName);
+
+  let readableName = isGenericDayTitle ? "Treatment Plan" : titleFromName;
+  if (isAdmission) readableName = "Admission";
+  if (isDischarge) readableName = "Discharge";
+
+  const normalizedRange = rawDayRange
+    ? rawDayRange.replace(/^Day\s*0\b/i, "Day 1")
+    : `Day ${idx + 1}`;
+
+  return `${normalizedRange} - ${readableName}`;
+}
+
 export default function PathwayTimeline({ phases }: { phases: any[] }) {
   if (!phases || phases.length === 0) {
     return (
@@ -18,8 +46,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
       
       <div className="space-y-12">
         {phases.map((phase: any, idx: number) => {
-          const hasDayStr = phase.phaseName?.toLowerCase().includes('day') || phase.phaseName?.toLowerCase().includes('hari');
-          const displayName = hasDayStr ? phase.phaseName : `Day ${idx + 1} — ${phase.phaseName}`;
+          const displayName = normalizePhaseTitle(phase, idx, phases.length);
           return (
           <div key={idx} className="relative">
             {/* Timeline Dot */}
