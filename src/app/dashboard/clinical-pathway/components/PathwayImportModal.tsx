@@ -41,8 +41,28 @@ export default function PathwayImportModal({
     "Memfinalisasi hasil pemetaan...",
   ];
 
+  const getSnapPathSource = (rawJson: any) => rawJson?.claim || rawJson?.payload || rawJson;
+
+  const isObject = (value: any) => value !== null && typeof value === "object" && !Array.isArray(value);
+
+  const hasAnyStandardArray = (source: any) =>
+    ["diagnoses", "procedures", "medications", "documents"].some((key) => Array.isArray(source?.[key]));
+
+  const isStandardSnapPathJson = (rawJson: any) => {
+    const source = getSnapPathSource(rawJson);
+    if (!isObject(source)) return false;
+    if (!isObject(source.patient) || !isObject(source.encounter)) return false;
+    if (!hasAnyStandardArray(source)) return false;
+
+    const arraysAreValid = ["diagnoses", "procedures", "medications", "documents"].every((key) =>
+      source[key] === undefined || Array.isArray(source[key])
+    );
+
+    return arraysAreValid;
+  };
+
   const normalizeDirectJson = (rawJson: any): MappedClaim => {
-    const source = rawJson?.claim || rawJson?.payload || rawJson;
+    const source = getSnapPathSource(rawJson);
     const procedures = Array.isArray(source?.procedures) ? source.procedures : [];
     const medications = Array.isArray(source?.medications) ? source.medications : [];
 
@@ -68,7 +88,7 @@ export default function PathwayImportModal({
       })),
       documents: Array.isArray(source?.documents) ? source.documents : [],
       extra: source?.extra || {},
-      _mappingNotes: "AI mapping dilewati. Data diambil langsung dari key standar SnapPath: patient, encounter, diagnoses, procedures, medications, documents, dan extra.",
+      _mappingNotes: "Struktur SnapPath terdeteksi. AI mapping dilewati dan data dibaca langsung dari key standar: patient, encounter, diagnoses, procedures, medications, documents, dan extra.",
     };
   };
 
@@ -94,12 +114,17 @@ export default function PathwayImportModal({
         throw new Error("File bukan JSON yang valid. Pastikan format file sudah benar.");
       }
 
-      if (importMode === "direct") {
+      if (isStandardSnapPathJson(rawJson)) {
+        setImportMode("direct");
+        setProcessingMsg("Struktur SnapPath valid. AI mapping dilewati...");
         clearInterval(msgInterval);
         setMapped(normalizeDirectJson(rawJson));
         setStage("preview");
         return;
       }
+
+      setImportMode("ai");
+      setProcessingMsg("JSON general terdeteksi. AI mapping dijalankan...");
 
       const res = await fetch("/api/v1/claims/map-json", {
         method: "POST",
@@ -121,7 +146,7 @@ export default function PathwayImportModal({
       setError(err.message);
       setStage("error");
     }
-  }, [importMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -144,6 +169,7 @@ export default function PathwayImportModal({
       setStage("upload");
       setMapped(null);
       setError(null);
+      setImportMode("ai");
     }, 300);
   };
 
@@ -151,6 +177,7 @@ export default function PathwayImportModal({
     setStage("upload");
     setMapped(null);
     setError(null);
+    setImportMode("ai");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -167,9 +194,9 @@ export default function PathwayImportModal({
               <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 1-6.23-.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
               </svg>
-              AI Smart Import
+              Smart JSON Import
             </h2>
-            <p className="text-xs text-text-subtle mt-0.5">Upload JSON dengan AI mapping atau gunakan struktur standar SnapPath secara langsung</p>
+            <p className="text-xs text-text-subtle mt-0.5">Upload JSON sekali. Struktur SnapPath dipakai langsung, JSON general otomatis dipetakan AI.</p>
           </div>
           <button onClick={onClose} className="p-2 text-text-subtle hover:text-text rounded-full hover:bg-surface-elevated transition-colors">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -227,15 +254,9 @@ export default function PathwayImportModal({
                 </div>
                 <p className="text-sm font-semibold text-text mb-1">{isDragging ? "Lepaskan file di sini" : "Drag & drop JSON file"}</p>
                 <p className="text-xs text-text-subtle mb-4">atau klik untuk memilih file · Format: .json</p>
-                <div className="mb-4 grid w-full max-w-md grid-cols-1 gap-2 rounded-xl border border-border/70 bg-surface/80 p-2 text-left sm:grid-cols-2" onClick={(e) => e.stopPropagation()}>
-                  <label className={`flex cursor-pointer items-start gap-2 rounded-lg p-3 text-xs transition-colors ${importMode === "ai" ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "text-text-subtle hover:bg-surface-elevated"}`}>
-                    <input type="radio" name="importMode" value="ai" checked={importMode === "ai"} onChange={() => setImportMode("ai")} className="mt-0.5" />
-                    <span><span className="block font-semibold">AI mapping</span><span className="block text-[11px] opacity-80">Untuk JSON bebas/FHIR/HL7/custom.</span></span>
-                  </label>
-                  <label className={`flex cursor-pointer items-start gap-2 rounded-lg p-3 text-xs transition-colors ${importMode === "direct" ? "bg-primary/10 text-primary ring-1 ring-primary/20" : "text-text-subtle hover:bg-surface-elevated"}`}>
-                    <input type="radio" name="importMode" value="direct" checked={importMode === "direct"} onChange={() => setImportMode("direct")} className="mt-0.5" />
-                    <span><span className="block font-semibold">Skip AI mapping</span><span className="block text-[11px] opacity-80">Pakai key SnapPath langsung.</span></span>
-                  </label>
+                <div className="mb-4 w-full max-w-md rounded-xl border border-border/70 bg-surface/80 p-3 text-left text-xs text-text-subtle">
+                  <p className="font-semibold text-text">Auto-detect import</p>
+                  <p className="mt-1 leading-relaxed">Jika JSON sudah memakai struktur SnapPath, data langsung dipakai tanpa request AI. Jika strukturnya general/custom, sistem otomatis menjalankan AI mapping.</p>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover transition-colors pointer-events-none">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m3.75 9v6m3-3H9m1.5-12H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
@@ -245,8 +266,8 @@ export default function PathwayImportModal({
               </div>
 
               <div className="mt-4 rounded-lg bg-primary/5 border border-primary/15 p-4 text-xs text-text-subtle leading-relaxed">
-                <p className="font-semibold text-primary mb-1">Format apapun didukung</p>
-                Mode AI mendukung FHIR R4, HL7 v2, export SIMRS/SIRS custom, BPJS SEP, atau JSON hospital lain. Mode skip AI mapping membaca langsung key standar SnapPath tanpa request AI.
+                <p className="font-semibold text-primary mb-1">Satu alur import</p>
+                Struktur standar SnapPath diproses langsung. FHIR R4, HL7 v2, export SIMRS/SIRS custom, BPJS SEP, atau JSON hospital lain akan otomatis dipetakan dengan AI.
               </div>
             </div>
           )}
