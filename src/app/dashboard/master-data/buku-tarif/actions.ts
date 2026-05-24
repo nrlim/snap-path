@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { buildTariffCategoryOptions } from "./categories";
 
 export async function getTariffEntries(params: { providerId?: string, category?: string, page?: number, limit?: number }) {
   const page = params.page || 1;
@@ -28,6 +29,16 @@ export async function getTariffEntries(params: { providerId?: string, category?:
 
 export async function getProviders() {
   return await prisma.provider.findMany({ orderBy: { name: 'asc' } });
+}
+
+export async function getTariffCategoryOptions() {
+  const categories = await prisma.tariffEntry.findMany({
+    distinct: ['category'],
+    select: { category: true },
+    orderBy: { category: 'asc' },
+  });
+
+  return buildTariffCategoryOptions(categories.map((item) => item.category));
 }
 
 export async function createTariffEntry(formData: any) {

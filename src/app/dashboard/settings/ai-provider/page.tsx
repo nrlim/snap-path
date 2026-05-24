@@ -1,7 +1,13 @@
+import { redirect } from 'next/navigation'
 import prisma from '@/lib/db'
+import { getCurrentUserPermission } from '@/lib/rbac'
 import AIProviderForm from './AIProviderForm'
 
 export default async function AIProviderPage() {
+  if (!(await getCurrentUserPermission('AI_ENGINE_CONFIG'))) {
+    redirect('/dashboard')
+  }
+
   const config = await prisma.systemConfig.findUnique({
     where: { id: "GLOBAL_CONFIG" }
   }) || {

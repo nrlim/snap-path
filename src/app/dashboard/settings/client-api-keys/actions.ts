@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/db";
 import { decryptCredential, generateApiCredential } from "@/lib/api-key";
+import { getCurrentUserPermission } from "@/lib/rbac";
 import { revalidatePath } from "next/cache";
 
 const PATH = "/dashboard/settings/client-api-keys";
@@ -17,8 +18,16 @@ function nullableNumber(value: FormDataEntryValue | null) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isPlatformRole(role: string) {
+  return role === "SUPER_ADMIN" || role === "ADMIN";
+}
+
 export async function getClientApiKeyData() {
+  const user = await getCurrentUserPermission("CLIENT_API_KEYS");
+  if (!user) return [];
+
   const clients = await prisma.client.findMany({
+    where: isPlatformRole(user.role) ? undefined : { id: user.clientId || "__none__" },
     include: {
       apiKeys: { orderBy: { createdAt: "desc" } },
       providers: { orderBy: { name: "asc" } },
@@ -28,6 +37,11 @@ export async function getClientApiKeyData() {
 
   return clients.map((client) => ({
     ...client,
+    aiProvider: isPlatformRole(user.role) ? client.aiProvider : null,
+    aiGatewayUrl: null,
+    aiModel: isPlatformRole(user.role) ? client.aiModel : null,
+    aiMaxTokens: isPlatformRole(user.role) ? client.aiMaxTokens : null,
+    aiTemperature: isPlatformRole(user.role) ? client.aiTemperature : null,
     apiKeys: client.apiKeys.map((key) => ({
       ...key,
       keyHash: undefined,
@@ -41,6 +55,11 @@ export async function getClientApiKeyData() {
 }
 
 export async function upsertClient(formData: FormData) {
+  const user = await getCurrentUserPermission("CLIENT_API_KEYS");
+  if (!user || !isPlatformRole(user.role)) {
+    return { success: false, error: "Hanya admin platform yang dapat membuat atau mengubah client." };
+  }
+
   try {
     const id = nullableString(formData.get("id"));
     const code = String(formData.get("code") || "").trim().toUpperCase();
@@ -72,8 +91,16 @@ export async function upsertClient(formData: FormData) {
 }
 
 export async function createClientApiCredential(formData: FormData) {
+  const user = await getCurrentUserPermission("CLIENT_API_KEYS");
+  if (!user) {
+    return { success: false, error: "Anda tidak memiliki akses untuk membuat API key." };
+  }
+
   try {
     const clientId = String(formData.get("clientId") || "");
+    if (!isPlatformRole(user.role) && clientId !== user.clientId) {
+      return { success: false, error: "Anda hanya dapat membuat API key untuk client sendiri." };
+    }
     const name = String(formData.get("name") || "").trim();
     const expiresAt = nullableString(formData.get("expiresAt"));
 
@@ -101,9 +128,19 @@ export async function createClientApiCredential(formData: FormData) {
 }
 
 export async function setClientApiKeyStatus(formData: FormData) {
+  const user = await getCurrentUserPermission("CLIENT_API_KEYS");
+  if (!user) {
+    return { success: false, error: "Anda tidak memiliki akses untuk mengubah status API key." };
+  }
+
   const id = String(formData.get("id") || "");
   const isActive = formData.get("isActive") === "true";
   if (!id) return { success: false, error: "API key tidak valid." };
+
+  const apiKey = await prisma.apiKey.findUnique({ where: { id }, select: { clientId: true } });
+  if (!apiKey || (!isPlatformRole(user.role) && apiKey.clientId !== user.clientId)) {
+    return { success: false, error: "API key tidak ditemukan untuk client Anda." };
+  }
 
   await prisma.apiKey.update({ where: { id }, data: { isActive } });
   revalidatePath(PATH);
@@ -111,6 +148,11 @@ export async function setClientApiKeyStatus(formData: FormData) {
 }
 
 export async function deleteClient(formData: FormData) {
+  const user = await getCurrentUserPermission("CLIENT_API_KEYS");
+  if (!user || !isPlatformRole(user.role)) {
+    return { success: false, error: "Hanya admin platform yang dapat menghapus client." };
+  }
+
   try {
     const id = String(formData.get("id") || "");
     if (!id) return { success: false, error: "Client tidak valid." };

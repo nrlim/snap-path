@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import prisma from "@/lib/db";
+import { getCurrentUserPermission } from "@/lib/rbac";
 import AIUsageLogsClient from "./AIUsageLogsClient";
 
 const DEFAULT_PRICING = { inputPerMillion: 0.15, outputPerMillion: 0.6 };
@@ -36,6 +38,10 @@ function estimateCostUsd(log: Pick<AIUsageLog, "aiModel" | "inputTokens" | "outp
 }
 
 export default async function AIUsageLogsPage() {
+  if (!(await getCurrentUserPermission("AI_USAGE_LOGS"))) {
+    redirect("/dashboard");
+  }
+
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);

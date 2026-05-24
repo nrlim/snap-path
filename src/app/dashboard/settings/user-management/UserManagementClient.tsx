@@ -20,7 +20,7 @@ function sortValue(user: User, field: SortField) {
   return String(user[field] || "").toLowerCase();
 }
 
-export default function UserManagementClient({ users, clients }: { users: User[]; clients: Client[] }) {
+export default function UserManagementClient({ users, clients, scope }: { users: User[]; clients: Client[]; scope: "platform" | "client" }) {
   const { showNotification } = useUI();
   const [isPending, startTransition] = useTransition();
   const [search, setSearch] = useState("");
@@ -30,6 +30,8 @@ export default function UserManagementClient({ users, clients }: { users: User[]
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const editableRoles = scope === "client" ? ["CLIENT_USER", "VIEWER"] : roles;
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -71,7 +73,7 @@ export default function UserManagementClient({ users, clients }: { users: User[]
     <div className="space-y-6 pb-10">
       <div>
         <h1 className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-2xl font-bold tracking-tight text-transparent">User Management</h1>
-        <p className="mt-1 max-w-2xl text-sm text-text-subtle">Kelola role user internal SnapPath dan relasi user ke client.</p>
+        <p className="mt-1 max-w-2xl text-sm text-text-subtle">{scope === "client" ? "Kelola user dalam client team Anda." : "Kelola role user internal SnapPath dan relasi user ke client."}</p>
       </div>
 
       <section className="rounded-lg border border-border/80 bg-surface shadow-sm">
@@ -88,7 +90,7 @@ export default function UserManagementClient({ users, clients }: { users: User[]
           </select>
           <select value={clientFilter} onChange={(event) => { setClientFilter(event.target.value); setPage(1); }} className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">
             <option value="all">Semua client</option>
-            <option value="unassigned">Tidak terikat client</option>
+            {scope === "platform" && <option value="unassigned">Tidak terikat client</option>}
             {clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}
           </select>
           <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">
@@ -117,8 +119,8 @@ export default function UserManagementClient({ users, clients }: { users: User[]
                   <td className="px-4 py-3">
                     <form action={submit} className="flex justify-end gap-2">
                       <input type="hidden" name="userId" value={user.id} />
-                      <select name="role" defaultValue={user.role} className="rounded-md border border-border bg-surface px-2 py-2 text-sm text-text">{roles.map((role) => <option key={role} value={role}>{role}</option>)}</select>
-                      <select name="clientId" defaultValue={user.clientId || ""} className="rounded-md border border-border bg-surface px-2 py-2 text-sm text-text"><option value="">No Client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>
+                      <select name="role" defaultValue={editableRoles.includes(user.role) ? user.role : editableRoles[0]} className="rounded-md border border-border bg-surface px-2 py-2 text-sm text-text">{editableRoles.map((role) => <option key={role} value={role}>{role}</option>)}</select>
+                      <select name="clientId" defaultValue={user.clientId || ""} className="rounded-md border border-border bg-surface px-2 py-2 text-sm text-text">{scope === "platform" && <option value="">No Client</option>}{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>
                       <button disabled={isPending} className="rounded-lg border border-border px-3 py-2 text-sm font-medium text-text-subtle hover:bg-surface-elevated disabled:opacity-50">Update</button>
                     </form>
                   </td>

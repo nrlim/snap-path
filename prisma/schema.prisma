@@ -274,6 +274,11 @@ model SystemConfig {
   thresholdObatPct Float   @default(10.0)
   thresholdTindakanPct Float @default(10.0)
   thresholdLosDays Int     @default(1)
+  pathwayDailyLimitViewer Int @default(3)
+  pathwayDailyLimitClientUser Int @default(10)
+  pathwayDailyLimitClientAdmin Int @default(25)
+  pathwayDailyLimitAdmin Int @default(0) // 0 means unlimited
+  pathwayDailyLimitSuperAdmin Int @default(0) // 0 means unlimited
   updatedAt       DateTime @updatedAt
 }
 

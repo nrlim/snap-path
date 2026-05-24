@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createTariffEntry, updateTariffEntry } from "../actions";
+import type { TariffCategoryOption } from "../categories";
 
-export default function TariffForm({ initialData, providers }: { initialData?: any, providers: any[] }) {
+export default function TariffForm({ initialData, providers, categories }: { initialData?: any, providers: any[], categories: TariffCategoryOption[] }) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,15 +100,13 @@ export default function TariffForm({ initialData, providers }: { initialData?: a
           <label className="text-sm font-medium text-text">Category</label>
           <select 
             name="category" 
-            defaultValue={initialData?.category || "RAWAT_JALAN"}
+            defaultValue={initialData?.category || categories[0]?.value || "RAWAT_JALAN"}
             required
             className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            <option value="RAWAT_INAP">Inpatient</option>
-            <option value="RAWAT_JALAN">Outpatient</option>
-            <option value="IGD">ER</option>
-            <option value="OBAT">Pharmacy</option>
-            <option value="LAB">Laboratory</option>
+            {categories.map((category) => (
+              <option key={category.value} value={category.value}>{category.label}</option>
+            ))}
           </select>
         </div>
 

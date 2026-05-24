@@ -8,11 +8,12 @@ import WorkflowProgressModal, { ACTIVE_WORKFLOW_STORAGE_KEY } from '@/app/dashbo
 type DashboardShellProps = {
   children: React.ReactNode
   userEmail?: string
+  userRole?: string
 }
 
 
 
-export default function DashboardShell({ children, userEmail }: DashboardShellProps) {
+export default function DashboardShell({ children, userEmail, userRole }: DashboardShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [isNavVisible, setIsNavVisible] = useState(true)
@@ -80,6 +81,10 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
   }
 
   const profileInitial = userEmail?.charAt(0).toUpperCase() ?? 'U'
+  const canSeeConfig = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'CLIENT_ADMIN'
+  const canSeeCoreAI = userRole === 'SUPER_ADMIN'
+  const canSeeClientConfig = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'CLIENT_ADMIN'
+  const canSeePathwayLimits = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
 
   // Dynamic header based on route
   const getHeaderInfo = () => {
@@ -112,6 +117,12 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
       return {
         title: 'Clinical Pathway Thresholds',
         subtitle: 'Set global tolerance limits for Clinical Pathway validations.',
+      }
+    }
+    if (pathname.startsWith('/dashboard/settings/pathway-limits')) {
+      return {
+        title: 'Clinical Pathway Request Limits',
+        subtitle: 'Set daily generation limits by user role.',
       }
     }
     if (pathname.startsWith('/dashboard/settings/client-api-keys')) {
@@ -186,24 +197,27 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
               </div>
 
               {/* Configuration Collapsible */}
-              <div>
-                <button
-                  onClick={() => toggleMenu('Configuration')}
-                  className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-sm font-medium text-text-subtle hover:text-text transition-colors hover:bg-surface-elevated"
-                >
-                  <span>Configuration</span>
-                  <svg className={`w-4 h-4 transition-transform ${openMenus['Configuration'] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                </button>
-                {openMenus['Configuration'] && (
-                  <div className="mt-0.5 space-y-0.5 pl-3">
-                    <Link href="/dashboard/settings/ai-provider" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-provider') || pathname === '/dashboard/settings' ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Integrations</Link>
-                    <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Usage Logs</Link>
-                    <Link href="/dashboard/settings/client-api-keys" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/client-api-keys') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Client API Keys</Link>
-                    <Link href="/dashboard/settings/user-management" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/user-management') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>User Management</Link>
-                    <Link href="/dashboard/settings/threshold" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/threshold') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Clinical Thresholds</Link>
-                  </div>
-                )}
-              </div>
+              {canSeeConfig && (
+                <div>
+                  <button
+                    onClick={() => toggleMenu('Configuration')}
+                    className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-sm font-medium text-text-subtle hover:text-text transition-colors hover:bg-surface-elevated"
+                  >
+                    <span>Configuration</span>
+                    <svg className={`w-4 h-4 transition-transform ${openMenus['Configuration'] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  </button>
+                  {openMenus['Configuration'] && (
+                    <div className="mt-0.5 space-y-0.5 pl-3">
+                      {canSeeCoreAI && <Link href="/dashboard/settings/ai-provider" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-provider') || pathname === '/dashboard/settings' ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Integrations</Link>}
+                      {canSeeCoreAI && <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Usage Logs</Link>}
+                      {canSeeClientConfig && <Link href="/dashboard/settings/client-api-keys" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/client-api-keys') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Client API Keys</Link>}
+                      {canSeeClientConfig && <Link href="/dashboard/settings/user-management" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/user-management') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>User Management</Link>}
+                      {canSeePathwayLimits && <Link href="/dashboard/settings/pathway-limits" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/pathway-limits') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Pathway Limits</Link>}
+                      {canSeeClientConfig && <Link href="/dashboard/settings/threshold" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/threshold') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Clinical Thresholds</Link>}
+                    </div>
+                  )}
+                </div>
+              )}
 
             </nav>
           </aside>
@@ -301,10 +315,12 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
           <span className="text-[10px] font-medium">Analytics</span>
         </Link>
 
-        <Link href="/dashboard/settings" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-text-subtle transition-colors hover:text-primary aria-[current=page]:text-primary" aria-current={pathname === '/dashboard/settings' ? 'page' : undefined}>
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-          <span className="text-[10px] font-medium">Settings</span>
-        </Link>
+        {canSeeConfig && (
+          <Link href="/dashboard/settings" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-text-subtle transition-colors hover:text-primary aria-[current=page]:text-primary" aria-current={pathname === '/dashboard/settings' ? 'page' : undefined}>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span className="text-[10px] font-medium">Settings</span>
+          </Link>
+        )}
       </nav>
 
       {/* Mobile Menu Popup Overlay */}
@@ -365,12 +381,14 @@ export default function DashboardShell({ children, userEmail }: DashboardShellPr
                     <span className="text-[10px] font-medium text-center leading-tight">Pathways</span>
                   </Link>
 
-                  <Link href="/dashboard/settings" className="group flex flex-col items-center justify-start gap-2 rounded-2xl p-2 transition-colors hover:bg-secondary-soft text-text">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-surface border border-primary/10 shadow-sm group-hover:bg-white group-hover:shadow-md transition-all text-secondary">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                    </div>
-                    <span className="text-[10px] font-medium text-center leading-tight">Config</span>
-                  </Link>
+                  {canSeeConfig && (
+                    <Link href="/dashboard/settings" className="group flex flex-col items-center justify-start gap-2 rounded-2xl p-2 transition-colors hover:bg-secondary-soft text-text">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-surface border border-primary/10 shadow-sm group-hover:bg-white group-hover:shadow-md transition-all text-secondary">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                      </div>
+                      <span className="text-[10px] font-medium text-center leading-tight">Config</span>
+                    </Link>
+                  )}
                 </nav>
               </div>
 

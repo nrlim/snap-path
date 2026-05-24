@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { getProviders } from "../actions";
+import { getProviders, getTariffCategoryOptions } from "../actions";
 import TariffForm from "../components/TariffForm";
 
 export default async function TambahBukuTarifPage() {
-  const providers = await getProviders();
+  const [providers, categories] = await Promise.all([
+    getProviders(),
+    getTariffCategoryOptions(),
+  ]);
 
   return (
     <div className="w-full space-y-6">
@@ -17,7 +20,7 @@ export default async function TambahBukuTarifPage() {
       </div>
 
       <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden p-6 sm:p-8">
-        <TariffForm providers={providers} />
+        <TariffForm providers={providers} categories={categories} />
       </div>
     </div>
   );

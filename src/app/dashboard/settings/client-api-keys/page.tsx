@@ -1,8 +1,15 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentUserPermission } from "@/lib/rbac";
 import ClientApiKeysClient from "./ClientApiKeysClient";
 import { getClientApiKeyData } from "./actions";
 
 export default async function ClientApiKeysPage() {
+  const user = await getCurrentUserPermission("CLIENT_API_KEYS");
+  if (!user) {
+    redirect("/dashboard");
+  }
+
   const clients = await getClientApiKeyData();
 
   return (
@@ -16,7 +23,7 @@ export default async function ClientApiKeysPage() {
           Buka API Docs
         </Link>
       </div>
-      <ClientApiKeysClient clients={clients} />
+      <ClientApiKeysClient clients={clients} canManageClients={user.role === "SUPER_ADMIN" || user.role === "ADMIN"} />
     </div>
   );
 }

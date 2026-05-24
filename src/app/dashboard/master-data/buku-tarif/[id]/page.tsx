@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getProviders, getTariffEntryById } from "../actions";
+import { getProviders, getTariffCategoryOptions, getTariffEntryById } from "../actions";
 import TariffForm from "../components/TariffForm";
 
 export default async function EditBukuTarifPage(props: {
   params: Promise<{ id: string }>;
 }) {
   const params = await props.params;
-  const [providers, entry] = await Promise.all([
+  const [providers, categories, entry] = await Promise.all([
     getProviders(),
+    getTariffCategoryOptions(),
     getTariffEntryById(params.id)
   ]);
 
@@ -28,7 +29,7 @@ export default async function EditBukuTarifPage(props: {
       </div>
 
       <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden p-6 sm:p-8">
-        <TariffForm initialData={entry} providers={providers} />
+        <TariffForm initialData={entry} providers={providers} categories={categories} />
       </div>
     </div>
   );

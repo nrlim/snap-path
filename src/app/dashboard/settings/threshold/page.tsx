@@ -1,7 +1,13 @@
+import { redirect } from 'next/navigation'
 import prisma from '@/lib/db'
+import { getCurrentUserPermission } from '@/lib/rbac'
 import ThresholdForm from './ThresholdForm'
 
 export default async function ThresholdPage() {
+  if (!(await getCurrentUserPermission('CLINICAL_THRESHOLDS'))) {
+    redirect('/dashboard')
+  }
+
   const config = await prisma.systemConfig.findUnique({
     where: { id: "GLOBAL_CONFIG" }
   }) || {

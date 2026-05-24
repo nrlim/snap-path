@@ -31,11 +31,13 @@ export async function POST(request: Request) {
         email,
         password: hashedPassword,
         name: name || null,
+        role: 'VIEWER',
       },
       select: {
         id: true,
         email: true,
         name: true,
+        role: true,
         createdAt: true,
       },
     })

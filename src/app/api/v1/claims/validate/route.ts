@@ -4,6 +4,8 @@ import { authenticateApiRequest } from '@/lib/middleware/auth-api';
 import { recordApiUsage } from '@/lib/api-key';
 import { getSession } from '@/lib/auth';
 import prisma from '@/lib/db';
+import { getAuthenticatedUser } from '@/lib/rbac';
+import { countTodayPathwayRequests, getPathwayLimitForRole, getPathwayLimitSettings, PATHWAY_LIMIT_WINDOW_LABEL } from '@/lib/pathway-limits';
 import { claimValidationWorkflow } from '@/workflows/claim-validation';
 
 export const runtime = 'nodejs';
@@ -14,14 +16,19 @@ export async function POST(request: Request) {
   let clientId = auth.clientId;
   let providerId: string | null | undefined = null;
   let isDashboardUser = false;
+  let dashboardUser: Awaited<ReturnType<typeof getAuthenticatedUser>> = null;
 
   if (!auth.authenticated) {
     const session = await getSession();
     if (!session) {
       return auth.response;
     }
+    dashboardUser = await getAuthenticatedUser();
+    if (!dashboardUser) {
+      return auth.response;
+    }
     isDashboardUser = true;
-    clientId = typeof session.clientId === 'string' ? session.clientId : null;
+    clientId = dashboardUser.clientId;
   }
 
   try {
@@ -30,6 +37,27 @@ export async function POST(request: Request) {
     providerId = payload.providerId || null;
     payload.clientId = clientId;
     payload.providerId = providerId;
+
+    if (isDashboardUser && dashboardUser) {
+      const settings = await getPathwayLimitSettings();
+      const limit = getPathwayLimitForRole(settings, dashboardUser.role);
+      const used = await countTodayPathwayRequests(dashboardUser.id);
+
+      if (limit > 0 && used >= limit) {
+        return NextResponse.json(
+          {
+            error: `Limit generate Clinical Pathway untuk role ${dashboardUser.role} sudah tercapai (${used}/${limit}) ${PATHWAY_LIMIT_WINDOW_LABEL}. Hubungi admin untuk menaikkan limit.`,
+            code: 'PATHWAY_DAILY_LIMIT_REACHED',
+            limit,
+            used,
+          },
+          { status: 429 },
+        );
+      }
+
+      payload.requestedByUserId = dashboardUser.id;
+      payload.requestedByUserRole = dashboardUser.role;
+    }
 
     // Create job record in DB first to get a stable jobId
     const claimJob = await prisma.claimJob.create({

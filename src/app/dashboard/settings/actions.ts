@@ -1,9 +1,20 @@
 "use server";
 
 import prisma from "@/lib/db";
+import { getCurrentUserPermission } from "@/lib/rbac";
 import { revalidatePath } from "next/cache";
 
+function formLimit(formData: FormData, key: string, fallback: number) {
+  const value = Number(formData.get(key));
+  if (!Number.isFinite(value) || value < 0) return fallback;
+  return Math.floor(value);
+}
+
 export async function updateSystemConfig(formData: FormData) {
+  if (!(await getCurrentUserPermission("AI_ENGINE_CONFIG"))) {
+    return { success: false, error: "Anda tidak memiliki akses untuk mengubah konfigurasi AI." };
+  }
+
   try {
     const aiProvider = formData.get("primaryProvider") as string;
     const aiGatewayUrl = formData.get("gatewayUrl") as string;
@@ -41,5 +52,65 @@ export async function updateSystemConfig(formData: FormData) {
   } catch (error) {
     console.error("Failed to update system config:", error);
     return { success: false, error: "Failed to update configuration" };
+  }
+}
+
+export async function updateThresholdConfig(formData: FormData) {
+  if (!(await getCurrentUserPermission("CLINICAL_THRESHOLDS"))) {
+    return { success: false, error: "Anda tidak memiliki akses untuk mengubah threshold Clinical Pathway." };
+  }
+
+  try {
+    const data = {
+      thresholdObatPct: Number.isFinite(Number(formData.get("thresholdObatPct"))) ? Number(formData.get("thresholdObatPct")) : 10.0,
+      thresholdTindakanPct: Number.isFinite(Number(formData.get("thresholdTindakanPct"))) ? Number(formData.get("thresholdTindakanPct")) : 10.0,
+      thresholdLosDays: formLimit(formData, "thresholdLosDays", 1),
+    };
+
+    await prisma.systemConfig.upsert({
+      where: { id: "GLOBAL_CONFIG" },
+      update: data,
+      create: {
+        id: "GLOBAL_CONFIG",
+        ...data,
+      },
+    });
+
+    revalidatePath("/dashboard/settings/threshold");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update threshold config:", error);
+    return { success: false, error: "Gagal menyimpan threshold Clinical Pathway." };
+  }
+}
+
+export async function updatePathwayLimitConfig(formData: FormData) {
+  if (!(await getCurrentUserPermission("PATHWAY_LIMITS"))) {
+    return { success: false, error: "Anda tidak memiliki akses untuk mengubah limit Clinical Pathway." };
+  }
+
+  try {
+    const data = {
+      pathwayDailyLimitViewer: formLimit(formData, "pathwayDailyLimitViewer", 3),
+      pathwayDailyLimitClientUser: formLimit(formData, "pathwayDailyLimitClientUser", 10),
+      pathwayDailyLimitClientAdmin: formLimit(formData, "pathwayDailyLimitClientAdmin", 25),
+      pathwayDailyLimitAdmin: formLimit(formData, "pathwayDailyLimitAdmin", 0),
+      pathwayDailyLimitSuperAdmin: formLimit(formData, "pathwayDailyLimitSuperAdmin", 0),
+    };
+
+    await prisma.systemConfig.upsert({
+      where: { id: "GLOBAL_CONFIG" },
+      update: data,
+      create: {
+        id: "GLOBAL_CONFIG",
+        ...data,
+      },
+    });
+
+    revalidatePath("/dashboard/settings/pathway-limits");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update pathway limits:", error);
+    return { success: false, error: "Gagal menyimpan limit Clinical Pathway." };
   }
 }

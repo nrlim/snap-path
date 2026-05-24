@@ -1,17 +1,17 @@
 import { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import DashboardShell from '@/components/dashboard/DashboardShell'
-import { getSession } from '@/lib/auth'
+import { getAuthenticatedUser } from '@/lib/rbac'
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  const session = await getSession()
+  const user = await getAuthenticatedUser()
 
-  if (!session) {
+  if (!user) {
     redirect('/login')
   }
 
   return (
-    <DashboardShell userEmail={typeof session.email === 'string' ? session.email : undefined}>
+    <DashboardShell userEmail={user.email} userRole={user.role}>
       {children}
     </DashboardShell>
   )

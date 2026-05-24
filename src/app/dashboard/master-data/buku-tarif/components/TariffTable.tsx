@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { deactivateTariffEntry } from "../actions";
 import { defaultPageSizes, SortButton, TablePagination, TableSearch, type SortDirection } from "@/components/ui/DataTableControls";
+import { formatTariffCategory, type TariffCategoryOption } from "../categories";
 
 type SortField = "procedure" | "provider" | "category" | "basePrice" | "maxPrice" | "status";
 
@@ -16,7 +17,16 @@ function sortValue(item: any, field: SortField) {
   return String(item.category || "").toLowerCase();
 }
 
-export default function TariffTable({ data, providers }: any) {
+type TariffTableProps = {
+  data: any[]
+  providers: any[]
+  categories: TariffCategoryOption[]
+  total?: number
+  totalPages?: number
+  currentPage?: number
+}
+
+export default function TariffTable({ data, providers, categories }: TariffTableProps) {
   const [search, setSearch] = useState("");
   const [providerFilter, setProviderFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -65,7 +75,7 @@ export default function TariffTable({ data, providers }: any) {
           <option value="all">All Providers</option>{providers.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
         <select className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}>
-          <option value="all">All Categories</option><option value="RAWAT_INAP">Inpatient</option><option value="RAWAT_JALAN">Outpatient</option><option value="IGD">ER</option><option value="OBAT">Pharmacy</option><option value="LAB">Laboratory</option>
+          <option value="all">All Categories</option>{categories.map((category) => <option key={category.value} value={category.value}>{category.label}</option>)}
         </select>
         <select className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="all">All Status</option><option value="active">Active</option><option value="inactive">Inactive</option>
@@ -83,7 +93,7 @@ export default function TariffTable({ data, providers }: any) {
               <tr key={item.id} className="transition-colors hover:bg-surface-elevated/30">
                 <td className="px-4 py-3"><p className="font-medium text-text">{item.procedureCode}</p><p className="text-xs text-text-subtle line-clamp-1">{item.procedureName}</p></td>
                 <td className="px-4 py-3 text-text-subtle">{item.provider?.name || "Unknown"}</td>
-                <td className="px-4 py-3"><span className="inline-flex items-center rounded-md bg-secondary-soft px-2 py-1 text-xs font-medium text-secondary ring-1 ring-inset ring-secondary/20">{item.category}</span></td>
+                <td className="px-4 py-3"><span className="inline-flex items-center rounded-md bg-secondary-soft px-2 py-1 text-xs font-medium text-secondary ring-1 ring-inset ring-secondary/20">{formatTariffCategory(item.category)}</span></td>
                 <td className="px-4 py-3 text-right font-medium text-text">{new Intl.NumberFormat("id-ID", { style: "currency", currency: item.currency }).format(item.basePrice)}</td>
                 <td className="px-4 py-3 text-right font-medium text-text">{new Intl.NumberFormat("id-ID", { style: "currency", currency: item.currency }).format(item.maxPrice)}</td>
                 <td className="px-4 py-3 text-center">{item.isActive ? <span className="rounded-full bg-green-500/10 px-2.5 py-1 text-xs font-bold text-green-700">Active</span> : <span className="rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-bold text-red-700">Inactive</span>}</td>

@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { updateSystemConfig } from '../actions';
+import { updateThresholdConfig } from '../actions';
 import { useUI } from '@/components/providers/UIProvider';
 
 export default function ThresholdForm({ config }: { config: any }) {
@@ -19,7 +19,7 @@ export default function ThresholdForm({ config }: { config: any }) {
       onConfirm: async () => {
         showLoading("Saving configuration...");
         try {
-          const res = await updateSystemConfig(formData);
+          const res = await updateThresholdConfig(formData);
           if (res.success) {
             showNotification({ type: 'success', title: 'Success', message: 'Configuration updated successfully.' });
           } else {
@@ -83,13 +83,6 @@ export default function ThresholdForm({ config }: { config: any }) {
           </div>
         </div>
       </div>
-        {/* Hidden inputs to preserve other fields */}
-        <input type="hidden" name="primaryProvider" value={config.aiProvider} />
-        <input type="hidden" name="gatewayUrl" value={config.aiGatewayUrl} />
-        <input type="hidden" name="aiModel" value={config.aiModel} />
-        <input type="hidden" name="maxTokens" value={config.aiMaxTokens} />
-        <input type="hidden" name="temperature" value={config.aiTemperature} />
-
         <div className="flex items-center justify-end gap-4 pt-6">
           <button type="submit" className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm shadow-primary/30 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">
             Save Thresholds

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { getTariffEntries, getProviders } from "./actions";
+import { getTariffEntries, getProviders, getTariffCategoryOptions } from "./actions";
 import TariffTable from "./components/TariffTable";
 import TariffBulkImport from "./components/TariffBulkImport";
 
@@ -11,8 +11,11 @@ export default async function BukuTarifPage(props: {
   const page = 1;
 
   // Table tools are handled client-side for a consistent search/filter/sort/pagination UX.
-  const data = await getTariffEntries({ page, limit: 1000 });
-  const providers = await getProviders();
+  const [data, providers, categories] = await Promise.all([
+    getTariffEntries({ page, limit: 1000 }),
+    getProviders(),
+    getTariffCategoryOptions(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -43,6 +46,7 @@ export default async function BukuTarifPage(props: {
             totalPages={data.totalPages}
             currentPage={page}
             providers={providers}
+            categories={categories}
           />
         </Suspense>
       </div>
