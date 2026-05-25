@@ -57,10 +57,14 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     } else {
       // 2. Cache miss -> AI-assisted web search / estimate
       try {
-        const { data } = await gateway.searchDrugMarketPrice(med.name);
+        const { data } = await gateway.searchDrugMarketPrice({
+          name: med.name,
+          genericName: med.genericName || null,
+          dosage: med.dosage || null,
+        });
         
         marketPriceMax = data.marketPriceMax || 0;
-        sources = data.sources || ['AI Estimate'];
+        sources = Array.isArray(data.sources) ? data.sources : [];
         
         if (marketPriceMax > 0) {
           // Save to cache

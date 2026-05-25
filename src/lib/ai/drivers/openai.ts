@@ -80,18 +80,41 @@ export class OpenAIDriver implements AIGatewayDriver {
     return { data: object, usage: usage as any };
   }
 
-  async searchDrugMarketPrice(drugName: string): Promise<{ data: any; usage?: { promptTokens: number; completionTokens: number } }> {
+  async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: { promptTokens: number; completionTokens: number } }> {
     const schema = z.object({
-      marketPriceMax: z.number(),
-      marketPriceAvg: z.number().nullable(),
-      sources: z.array(z.string())
+      marketPriceMax: z.number().describe('Highest verified unit price in IDR. Return 0 if no reliable source is available.'),
+      marketPriceAvg: z.number().nullable().describe('Average verified unit price in IDR, or null if fewer than two comparable prices are available.'),
+      sources: z.array(z.string()).describe('Source evidence in the format: provider | product/strength | package | observed price | unit conversion | URL or page title')
     });
+
+    const drugContext = typeof drug === 'string'
+      ? { name: drug, genericName: null, dosage: null }
+      : {
+          name: drug.name,
+          genericName: drug.genericName || null,
+          dosage: drug.dosage || null,
+        };
 
     const { object, usage } = await generateObject({
       model: this.ai(this.defaultModel),
       schema,
-      prompt: `Find the highest and average market price in Indonesian Rupiah (IDR) for the drug: "${drugName}". Only provide factual data from online pharmacies (e.g., Halodoc, Alodokter, K24). If exact data is unavailable, provide a realistic estimate and list the sources used.`,
-      temperature: this.temperature,
+      system: `You are a careful Indonesian pharmacy price verification analyst. You must be conservative and auditable. Do not invent prices, URLs, pharmacies, package sizes, or averages. If you cannot verify reliable public retail prices, return marketPriceMax 0, marketPriceAvg null, and sources [].`,
+      prompt: `Verify Indonesian retail market prices for this medication in IDR:
+${JSON.stringify(drugContext, null, 2)}
+
+Rules:
+1. Match the exact medication as closely as possible by brand/generic name, strength/dosage, dosage form, and package size. If dosage is provided, do not use a different strength unless clearly noted as a fallback.
+2. Use only public Indonesian pharmacy/health commerce sources such as Halodoc, K24Klik, Alodokter, Farmaku, Lifepack, GoApotik, KlikDokter, or official manufacturer/authorized distributor pages.
+3. Prefer current, specific product pages over generic articles, ads, blogs, marketplace resellers, or unsourced snippets.
+4. Convert all package prices to a comparable UNIT price for the smallest dispensed unit when possible (tablet/capsule/ampoule/vial/sachet/bottle/tube). Example: strip 10 tablets Rp25.000 => unit price Rp2.500/tablet.
+5. marketPriceMax must be the highest verified comparable UNIT price, not the box/strip/package total unless the package itself is the claim unit.
+6. marketPriceAvg should be the average of comparable verified UNIT prices. Return null if fewer than two comparable verified prices are available.
+7. sources must include enough evidence to audit the answer: source name, product/strength, package, observed package price, unit conversion, and URL or exact page title.
+8. If exact reliable data is unavailable, do NOT estimate. Return marketPriceMax 0, marketPriceAvg null, and sources [].
+9. If prices vary by location, stock, promo, or consultation fee, ignore promo/fee and use normal retail medicine price.
+
+Return only data that satisfies the schema.`,
+      temperature: 0.1,
     });
 
     return { data: object, usage: usage as any };

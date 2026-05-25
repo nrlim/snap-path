@@ -175,6 +175,14 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
   };
 
   const handleRemoveItem = (field: string, index: number) => {
+    if (field === "documents" && formData.documents?.[index]?.storagePath) {
+      fetch('/api/v1/documents/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storagePath: formData.documents[index].storagePath })
+      }).catch(err => console.error("Failed to delete from storage", err));
+    }
+
     setFormData((prev: any) => {
       const newArr = [...(prev[field] || [])];
       newArr.splice(index, 1);
@@ -393,8 +401,8 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
           </thead>
           <tbody className="divide-y divide-border/60">
             {formData.documents?.map((doc: any, i: number) => (
-              <tr key={i}>
-                <td className="px-4 py-2">
+              <tr key={i} className="align-top">
+                <td className="px-4 py-2 pt-3">
                   <AutocompleteInput
                     value={doc.type || ''}
                     onChange={(value) => updateItem("documents", i, "type", value)}
@@ -402,15 +410,16 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
                     placeholder="Pilih dokumen wajib..."
                   />
                 </td>
-                <td className="px-4 py-2">
+                <td className="px-4 py-2 pt-3">
                   <input type="date" value={doc.date ? doc.date.slice(0,10) : ''} onChange={e => updateItem("documents", i, "date", new Date(e.target.value).toISOString())} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-base sm:text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
                 </td>
-                <td className="px-4 py-2">
+                <td className="px-4 py-2 pt-3">
                   <input type="text" value={doc.conclusion || ''} onChange={e => updateItem("documents", i, "conclusion", e.target.value)} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-base sm:text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Result..." />
                 </td>
-                <td className="px-4 py-2">
-                  <div className="flex flex-col gap-2">
-                    <label className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-md border border-border bg-surface px-3 py-2 text-base sm:text-sm font-medium text-text hover:bg-surface-elevated transition-colors">
+                <td className="px-4 py-2 pt-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="inline-flex cursor-pointer items-center justify-center rounded-md border border-border bg-surface px-2 py-1 text-sm font-medium text-text hover:bg-surface-elevated transition-colors">
+                      <svg className="mr-1.5 h-4 w-4 text-text-subtle" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                       {uploadingDocuments[i] ? 'Mengupload...' : doc.fileName ? 'Ganti file' : 'Upload file'}
                       <input
                         type="file"
@@ -429,7 +438,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
                         {doc.url ? <a href={doc.url} target="_blank" rel="noreferrer" className="text-[11px] font-medium text-primary hover:text-primary-hover hover:underline pl-5 transition-all">Lihat dokumen ↗</a> : null}
                       </div>
                     ) : (
-                      <p className="text-xs text-text-faint">PDF/JPG/PNG/WEBP, maks. 10 MB</p>
+                      <p className="text-[10px] text-text-faint text-center leading-tight">PDF/JPG/PNG/WEBP, maks 10MB</p>
                     )}
                   </div>
                 </td>

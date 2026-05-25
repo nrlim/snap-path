@@ -25,7 +25,7 @@ export interface AIGatewayDriver {
   extractMedicalData(clinicalText: string): Promise<{ data: Record<string, unknown>; usage?: Usage }>;
   
   validateDiagnosisTreatment(payload: any): Promise<{ data: any; usage?: Usage }>;
-  searchDrugMarketPrice(drugName: string): Promise<{ data: any; usage?: Usage }>;
+  searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: Usage }>;
   generateClinicalPathway(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }>;
   validateDocumentCompleteness(payload: any): Promise<{ data: any; usage?: Usage }>;
   mapArbitraryJsonToClaim(rawJson: any): Promise<{ data: any; usage?: Usage }>;
@@ -93,8 +93,8 @@ export class AIGateway {
     return this.track('validateDiagnosisTreatment', () => this.driver.validateDiagnosisTreatment(payload));
   }
 
-  async searchDrugMarketPrice(drugName: string) {
-    return this.track('searchDrugMarketPrice', () => this.driver.searchDrugMarketPrice(drugName));
+  async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }) {
+    return this.track('searchDrugMarketPrice', () => this.driver.searchDrugMarketPrice(drug));
   }
 
   async generateClinicalPathway(diagnosisCode: string, diagnosisName: string) {

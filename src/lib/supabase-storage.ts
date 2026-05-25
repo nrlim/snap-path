@@ -117,3 +117,19 @@ async function createSignedUrl(bucket: string, path: string, expiresIn: number):
 
   return signedPath.startsWith('http') ? signedPath : `${config.supabaseUrl}/storage/v1${signedPath}`;
 }
+
+export async function deleteClaimDocumentFromSupabaseStorage(path: string): Promise<boolean> {
+  const config = getSupabaseStorageConfig();
+  const deleteUrl = `${config.supabaseUrl}/storage/v1/object/${encodeURIComponent(config.bucket)}/${encodeStoragePath(path)}`;
+  const response = await fetch(deleteUrl, {
+    method: 'DELETE',
+    headers: storageHeaders(config.serviceRoleKey),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`Gagal menghapus dokumen dari Supabase Storage: ${errorText}`);
+    return false;
+  }
+  return true;
+}
