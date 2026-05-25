@@ -47,6 +47,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     let marketPriceMax = 0;
     let sources: string[] = [];
     let cachedAt: string | null = null;
+    let resolvedProductName: string | undefined;
+    let dosageForm: string | undefined;
+    let unitBasis: string | undefined;
     let statusSource: "CACHE_HIT" | "NOT_FOUND" | "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" = 'NOT_FOUND';
 
     if (cacheEntry) {
@@ -65,6 +68,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         
         marketPriceMax = data.marketPriceMax || 0;
         sources = Array.isArray(data.sources) ? data.sources : [];
+        resolvedProductName = data.resolvedProductName;
+        dosageForm = data.dosageForm;
+        unitBasis = data.unitBasis;
         
         if (marketPriceMax > 0) {
           // Save to cache
@@ -98,6 +104,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
       items.push({
         name: med.name,
         genericName: med.genericName || null,
+        resolvedProductName,
+        dosageForm,
+        unitBasis,
         quantity: med.quantity,
         claimedUnitPrice,
         claimedTotal,
@@ -132,6 +141,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     items.push({
       name: med.name,
       genericName: med.genericName || null,
+      resolvedProductName,
+      dosageForm,
+      unitBasis,
       quantity: med.quantity,
       claimedUnitPrice,
       claimedTotal,

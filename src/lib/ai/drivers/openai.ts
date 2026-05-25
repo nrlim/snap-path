@@ -82,9 +82,12 @@ export class OpenAIDriver implements AIGatewayDriver {
 
   async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: { promptTokens: number; completionTokens: number } }> {
     const schema = z.object({
-      marketPriceMax: z.number().describe('Highest verified unit price in IDR. Return 0 if no reliable source is available.'),
-      marketPriceAvg: z.number().nullable().describe('Average verified unit price in IDR, or null if fewer than two comparable prices are available.'),
-      sources: z.array(z.string()).describe('Source evidence in the format: provider | product/strength | package | observed price | unit conversion | URL or page title')
+      marketPriceMax: z.number().describe('Highest verified UNIT price in IDR for the smallest dispensable unit. Return 0 if no reliable source is available.'),
+      marketPriceAvg: z.number().nullable().describe('Average verified UNIT price in IDR, or null if fewer than two comparable prices are available.'),
+      sources: z.array(z.string()).describe('Source evidence array. Each entry: "source_name | product_name strength form | package_info | package_price_IDR | unit_conversion_calculation | per_unit_price_IDR | URL_or_page_title"'),
+      resolvedProductName: z.string().describe('The exact product name and specification that was matched, e.g. "Ringer Lactate Infusion 500ml (Generic)" or "Ceftriaxone 1g Injection Vial (Generic)"'),
+      dosageForm: z.string().describe('The dosage form identified: tablet, capsule, syrup, injection_vial, injection_ampoule, infusion_bottle, cream, etc.'),
+      unitBasis: z.string().describe('What constitutes one "unit" for the price: "per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", etc.'),
     });
 
     const drugContext = typeof drug === 'string'
@@ -98,22 +101,72 @@ export class OpenAIDriver implements AIGatewayDriver {
     const { object, usage } = await generateObject({
       model: this.ai(this.defaultModel),
       schema,
-      system: `You are a careful Indonesian pharmacy price verification analyst. You must be conservative and auditable. Do not invent prices, URLs, pharmacies, package sizes, or averages. If you cannot verify reliable public retail prices, return marketPriceMax 0, marketPriceAvg null, and sources [].`,
-      prompt: `Verify Indonesian retail market prices for this medication in IDR:
+      system: `You are a senior Indonesian hospital pharmacist and pricing analyst with deep knowledge of the Indonesian pharmaceutical market (e-Katalog LKPP, HET/HNA regulations, and retail pharmacy pricing).
+
+Your expertise includes:
+- Indonesian generic drug pricing (obat generik berlogo / OGB) vs branded generics vs paten/originator
+- e-Katalog LKPP government procurement prices as baseline references
+- Retail pharmacy pricing from K24, Kimia Farma, Century, Halodoc, Farmaku, Lifepack, GoApotik
+- Hospital markup patterns (typically 10-30% above HNA for most items)
+- Dosage form identification: infusion fluids, injection vials/ampoules, oral tablets/capsules, syrups, etc.
+
+CRITICAL PRICING CONTEXT for Indonesian market (use as sanity check):
+- IV Fluid (Ringer Lactate / NaCl 0.9% 500ml): Rp 10.000 - Rp 30.000 per bottle
+- Paracetamol 500mg tablet (generic): Rp 300 - Rp 1.500 per tablet
+- Paracetamol Syrup 120mg/5ml 60ml: Rp 8.000 - Rp 25.000 per bottle
+- Ceftriaxone 1g injection vial (generic): Rp 25.000 - Rp 80.000 per vial
+- Amoxicillin 500mg capsule (generic): Rp 500 - Rp 2.000 per capsule
+- Omeprazole 20mg capsule (generic): Rp 800 - Rp 3.000 per capsule
+- Ranitidine 150mg tablet (generic): Rp 300 - Rp 1.500 per tablet
+- Metformin 500mg tablet (generic): Rp 300 - Rp 1.200 per tablet
+- Ciprofloxacin 500mg tablet (generic): Rp 500 - Rp 3.000 per tablet
+- Ondansetron 4mg injection ampoule: Rp 5.000 - Rp 25.000 per ampoule
+
+These ranges are GUIDELINES. Your verified sources may show prices within or slightly outside these ranges, which is acceptable. But if your research returns a price that is 3x or more above these ranges, you MUST re-verify and explain why (e.g., originator brand, special formulation, etc).
+
+You must be CONSERVATIVE and AUDITABLE. Never fabricate prices, URLs, or sources.`,
+      prompt: `Perform a deep pharmaceutical price research for this medication in the Indonesian market:
+
 ${JSON.stringify(drugContext, null, 2)}
 
-Rules:
-1. Match the exact medication as closely as possible by brand/generic name, strength/dosage, dosage form, and package size. If dosage is provided, do not use a different strength unless clearly noted as a fallback.
-2. Use only public Indonesian pharmacy/health commerce sources such as Halodoc, K24Klik, Alodokter, Farmaku, Lifepack, GoApotik, KlikDokter, or official manufacturer/authorized distributor pages.
-3. Prefer current, specific product pages over generic articles, ads, blogs, marketplace resellers, or unsourced snippets.
-4. Convert all package prices to a comparable UNIT price for the smallest dispensed unit when possible (tablet/capsule/ampoule/vial/sachet/bottle/tube). Example: strip 10 tablets Rp25.000 => unit price Rp2.500/tablet.
-5. marketPriceMax must be the highest verified comparable UNIT price, not the box/strip/package total unless the package itself is the claim unit.
-6. marketPriceAvg should be the average of comparable verified UNIT prices. Return null if fewer than two comparable verified prices are available.
-7. sources must include enough evidence to audit the answer: source name, product/strength, package, observed package price, unit conversion, and URL or exact page title.
-8. If exact reliable data is unavailable, do NOT estimate. Return marketPriceMax 0, marketPriceAvg null, and sources [].
-9. If prices vary by location, stock, promo, or consultation fee, ignore promo/fee and use normal retail medicine price.
+STEP-BY-STEP ANALYSIS REQUIRED:
 
-Return only data that satisfies the schema.`,
+Step 1: IDENTIFY THE PRODUCT
+- Parse the drug name to identify: active ingredient, strength/concentration, dosage form (tablet, capsule, syrup, injection vial, injection ampoule, IV infusion bottle, etc.)
+- If the name contains "IV Fluid" or "Infusion" → this is an infusion fluid bottle, NOT an injection
+- If the name contains "Injection" or "Inj" → identify if it's a vial or ampoule
+- If the name contains "Tablet" or "Tab" or "Capsule" or "Cap" → oral solid dosage form
+- If the name contains "Syrup" or "Suspension" or "Drops" → oral liquid dosage form
+- Determine if this is likely a generic (OGB), branded generic, or originator/patent drug
+
+Step 2: RESEARCH PRICING
+- Search for the GENERIC version first (most Indonesian hospital claims use generic drugs)
+- Check e-Katalog LKPP pricing as a baseline (government procurement price)
+- Check retail pharmacy prices from: K24Klik, Halodoc, Farmaku, Lifepack, GoApotik, KlikDokter, Alodokter
+- For hospital context, generic drug prices should be the primary reference
+
+Step 3: CALCULATE UNIT PRICE
+- Convert ALL found prices to the same unit basis that matches the claim context:
+  * For tablets/capsules: price per tablet/capsule (NOT per strip or per box)
+  * For injection vials: price per vial
+  * For injection ampoules: price per ampoule
+  * For IV infusion fluids: price per bottle (e.g., per 500ml bottle)
+  * For syrups/suspensions: price per bottle
+- Show the conversion calculation explicitly in sources
+- Example: "Strip 10 tablet @ Rp 15.000 → Rp 1.500/tablet"
+- Example: "Box 25 vial @ Rp 750.000 → Rp 30.000/vial"
+
+Step 4: SANITY CHECK
+- Compare your final unit price against the pricing context provided in the system prompt
+- If the price seems unreasonably high or low, re-examine your sources
+- A hospital claim price for a common generic drug should typically be within the ranges provided
+
+OUTPUT RULES:
+1. marketPriceMax = the highest verified UNIT price found (converted to per-unit basis)
+2. marketPriceAvg = average of verified UNIT prices (null if < 2 sources)
+3. If you cannot find ANY reliable Indonesian pharmacy source, return marketPriceMax: 0, marketPriceAvg: null, sources: []
+4. Do NOT hallucinate or estimate prices without source evidence
+5. Each source entry MUST include: source_name | exact_product_matched | package_info | package_price | unit_conversion | per_unit_price | URL_or_reference`,
       temperature: 0.1,
     });
 

@@ -208,6 +208,9 @@ export interface DrugPriceCheckOutput {
   items: Array<{
     name: string;
     genericName: string | null;
+    resolvedProductName?: string;
+    dosageForm?: string;
+    unitBasis?: string;
     quantity: number;
     claimedUnitPrice: number;
     claimedTotal: number;

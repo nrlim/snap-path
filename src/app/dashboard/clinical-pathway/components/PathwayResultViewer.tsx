@@ -728,6 +728,12 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                             <tr key={i} className={isDrugOver ? "bg-red-500/5" : isDrugNotFound || isDrugUnder ? "bg-yellow-500/5" : ""}>
                               <td className="px-4 py-3">
                                 <p className="font-medium text-text">{item.name || item.medicationName}</p>
+                                {item.resolvedProductName && (
+                                  <p className="text-[10px] text-primary/80 mt-0.5">AI Match: {item.resolvedProductName}</p>
+                                )}
+                                {item.unitBasis && (
+                                  <p className="text-[10px] text-text-subtle/70 mt-0.5">Unit: {item.unitBasis}</p>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-right font-medium text-text-subtle">
                                 {item.quantity || 1}
