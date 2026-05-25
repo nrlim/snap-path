@@ -7,6 +7,7 @@ import prisma from '@/lib/db';
 import { getAuthenticatedUser } from '@/lib/rbac';
 import { countTodayPathwayRequests, getPathwayLimitForRole, getPathwayLimitSettings, PATHWAY_LIMIT_WINDOW_LABEL } from '@/lib/pathway-limits';
 import { claimValidationWorkflow } from '@/workflows/claim-validation';
+import { resolveActualLosDays } from '@/lib/los';
 
 export const runtime = 'nodejs';
 
@@ -37,6 +38,11 @@ export async function POST(request: Request) {
     providerId = payload.providerId || null;
     payload.clientId = clientId;
     payload.providerId = providerId;
+
+    const actualLos = resolveActualLosDays(payload);
+    if (actualLos > 0) {
+      payload.extra = { ...(payload.extra || {}), los: String(actualLos) };
+    }
 
     if (isDashboardUser && dashboardUser) {
       const settings = await getPathwayLimitSettings();

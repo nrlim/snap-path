@@ -5,6 +5,7 @@ import { checkDrugPrices } from '@/lib/ai/validators/drug-price';
 import { generateClinicalPathway } from '@/lib/ai/generators/pathway';
 import { FatalError } from 'workflow';
 import prisma from '@/lib/db';
+import { resolveActualLosDays } from '@/lib/los';
 
 export interface ClaimValidationPayload {
   jobId: string;
@@ -179,7 +180,7 @@ export async function aggregateAndSaveStep(
   const hasUnregisteredTariff = tariffItems.some((item: any) => item.status === 'NOT_FOUND');
   const hasUnregisteredDrug = drugItems.some((item: any) => item.status === 'NOT_FOUND');
   const expectedLos = pathRes?.estimatedLos || 0;
-  const actualLos = input.payload?.extra?.los ? parseInt(input.payload.extra.los, 10) : 0;
+  const actualLos = resolveActualLosDays(input.payload);
   const losMissingActual = expectedLos > 0 && actualLos <= 0;
   const losOverstay = actualLos > 0 && expectedLos > 0 && actualLos > expectedLos;
   const missingDocumentCount = docRes?.details?.missingRequiredDocuments?.length || 0;

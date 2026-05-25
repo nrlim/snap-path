@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import PathwayTimeline from "./PathwayTimeline";
 import { ArrowUp, BrainCircuit, Calculator, CheckCheck, CheckCircle2, ClipboardCheck, Copy, MinusCircle } from 'lucide-react';
+import { resolveActualLosDays } from '@/lib/los';
 
 export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?: number }) {
   const strokeWidth = size * 0.08;
@@ -250,7 +251,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const expectedLOSVal = result.clinicalPathway?.estimatedLos 
     || result.clinicalPathway?.recommendedPathway?.estimatedLos 
     || 0;
-  const actualLOSVal = inputPayload?.extra?.los ? parseInt(inputPayload.extra.los) : 0;
+  const actualLOSVal = resolveActualLosDays(inputPayload);
   
   const losIsMissingActual = expectedLOSVal > 0 && actualLOSVal <= 0;
   const losIsOverstay = actualLOSVal > 0 && expectedLOSVal > 0 && actualLOSVal > expectedLOSVal;

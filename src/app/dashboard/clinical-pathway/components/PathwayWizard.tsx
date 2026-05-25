@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import PathwayImportModal from "./PathwayImportModal";
 import { getTariffEntries } from "../../master-data/buku-tarif/actions";
 import { REQUIRED_CLAIM_DOCUMENTS } from "@/lib/claim-documents";
+import { calculateLosDays } from "@/lib/los";
 
 const STEPS = [
   { num: 1, label: "Identity", subLabel: "Patient Data" },
@@ -278,6 +279,12 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
     setIsSubmitting(true);
     setError(null);
     try {
+      const periodLos = calculateLosDays(formData.encounter?.period?.start, formData.encounter?.period?.end);
+      const normalizedExtra = {
+        ...formData.extra,
+        los: periodLos > 0 ? String(periodLos) : formData.extra.los,
+      };
+
       // Reconstruct payload as expected by API
       const payload = {
         patient: formData.patient,
@@ -295,8 +302,8 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
           totalPrice: med.totalPrice ?? ((med.unitPrice ?? med.price ?? 0) * (med.quantity || 1)),
         })),
         documents: formData.documents,
-        providerId: formData.extra.providerId,
-        extra: formData.extra,
+        providerId: normalizedExtra.providerId,
+        extra: normalizedExtra,
       };
 
       window.dispatchEvent(new CustomEvent("snappath:start-claim-workflow", { detail: { payload } }));
@@ -372,11 +379,21 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
         <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-medium text-text mb-1">Admission Date (Start)</label>
-            <input type="datetime-local" value={(formData.encounter?.period?.start || '').slice(0, 16)} onChange={(e) => setFormData({...formData, encounter: {...formData.encounter, period: {...formData.encounter?.period, start: new Date(e.target.value).toISOString()}}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
+            <input type="datetime-local" value={(formData.encounter?.period?.start || '').slice(0, 16)} onChange={(e) => {
+              const start = e.target.value ? new Date(e.target.value).toISOString() : "";
+              const end = formData.encounter?.period?.end || "";
+              const los = calculateLosDays(start, end);
+              setFormData({...formData, encounter: {...formData.encounter, period: {...formData.encounter?.period, start}}, extra: {...formData.extra, los: los > 0 ? String(los) : formData.extra.los}})
+            }} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
           </div>
           <div>
             <label className="block text-sm font-medium text-text mb-1">Discharge Date (End)</label>
-            <input type="datetime-local" value={(formData.encounter?.period?.end || '').slice(0, 16)} onChange={(e) => setFormData({...formData, encounter: {...formData.encounter, period: {...formData.encounter?.period, end: new Date(e.target.value).toISOString()}}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
+            <input type="datetime-local" value={(formData.encounter?.period?.end || '').slice(0, 16)} onChange={(e) => {
+              const start = formData.encounter?.period?.start || "";
+              const end = e.target.value ? new Date(e.target.value).toISOString() : "";
+              const los = calculateLosDays(start, end);
+              setFormData({...formData, encounter: {...formData.encounter, period: {...formData.encounter?.period, end}}, extra: {...formData.extra, los: los > 0 ? String(los) : formData.extra.los}})
+            }} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
           </div>
         </div>
       </div>
@@ -613,6 +630,9 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-text mb-1">Length of Stay (LOS)</label>
+          {calculateLosDays(formData.encounter?.period?.start, formData.encounter?.period?.end) > 0 && (
+            <p className="mb-2 text-xs text-text-subtle">Dihitung otomatis dari Admission Date dan Discharge Date.</p>
+          )}
           <div className="flex items-center gap-2">
             <input type="number" value={formData.extra.los} onChange={(e) => setFormData({...formData, extra: {...formData.extra, los: e.target.value}})} className="w-24 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Days" />
             <span className="text-sm text-text-subtle">Days</span>
