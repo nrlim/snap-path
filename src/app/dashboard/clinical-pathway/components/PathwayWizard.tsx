@@ -380,7 +380,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       <div className="flex items-center justify-end">
         <button type="button" onClick={handleAddDocument} className="text-sm text-primary hover:text-primary-hover font-medium">+ Add Document</button>
       </div>
-      <div className="border border-border/80 rounded-md overflow-hidden bg-surface">
+      <div className="border border-border/80 rounded-md bg-surface overflow-visible">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle">
             <tr>
@@ -449,7 +449,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       <div className="flex items-center justify-end">
         <button type="button" onClick={handleAddDiagnosis} className="text-sm text-primary hover:text-primary-hover font-medium">+ Add Diagnosis</button>
       </div>
-      <div className="border border-border/80 rounded-md overflow-hidden bg-surface">
+      <div className="border border-border/80 rounded-md bg-surface overflow-visible">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle">
             <tr>
@@ -493,7 +493,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       <div className="flex items-center justify-end">
         <button type="button" onClick={handleAddProcedure} className="text-sm text-primary hover:text-primary-hover font-medium">+ Add Procedure</button>
       </div>
-      <div className="border border-border/80 rounded-md overflow-hidden bg-surface overflow-visible">
+      <div className="border border-border/80 rounded-md bg-surface overflow-visible">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle">
             <tr>
@@ -549,7 +549,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       <div className="flex items-center justify-end">
         <button type="button" onClick={handleAddMedication} className="text-sm text-primary hover:text-primary-hover font-medium">+ Add Medication</button>
       </div>
-      <div className="border border-border/80 rounded-md overflow-hidden bg-surface overflow-visible">
+      <div className="border border-border/80 rounded-md bg-surface overflow-visible">
         <table className="w-full text-left text-sm">
           <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle">
             <tr>
