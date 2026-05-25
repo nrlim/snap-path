@@ -182,13 +182,19 @@ export async function aggregateAndSaveStep(
   const actualLos = input.payload?.extra?.los ? parseInt(input.payload.extra.los, 10) : 0;
   const losMissingActual = expectedLos > 0 && actualLos <= 0;
   const losOverstay = actualLos > 0 && expectedLos > 0 && actualLos > expectedLos;
+  const missingDocumentCount = docRes?.details?.missingRequiredDocuments?.length || 0;
+  const requiredDocumentCount =
+    (docRes?.details?.providedDocuments?.length || 0) + missingDocumentCount || 6;
+  const documentDeduction = missingDocumentCount > 0
+    ? Math.min(10, Math.ceil((missingDocumentCount / requiredDocumentCount) * 10))
+    : 0;
   const scoreBreakdown = {
     baseScore: 100,
     items: [
       { code: 'DIAGNOSIS_TREATMENT', label: 'Diagnosis & tindakan klinis', maxDeduction: 25, deducted: 0, reason: 'Diagnosis dan tindakan sesuai kebutuhan klinis utama.' },
       { code: 'TARIFF', label: 'Tarif tindakan terdaftar', maxDeduction: 20, deducted: 0, reason: 'Item tindakan yang terdaftar berada dalam threshold master fee schedule.' },
       { code: 'DRUG_PRICE', label: 'Harga obat terdaftar', maxDeduction: 20, deducted: 0, reason: 'Item obat yang memiliki referensi harga berada dalam threshold.' },
-      { code: 'DOCUMENT', label: 'Kelengkapan dokumen', maxDeduction: 10, deducted: 0, reason: 'Dokumen medis wajib sudah lengkap.' },
+      { code: 'DOCUMENT', label: 'Kelengkapan dokumen', maxDeduction: 10, deducted: 0, reason: 'Enam dokumen wajib klaim rawat inap sudah lengkap.' },
       { code: 'LOS', label: 'LOS compliance', maxDeduction: 10, deducted: 0, reason: 'LOS aktual sesuai standar pathway.' },
       { code: 'UNREGISTERED_MASTER_DATA', label: 'Kesiapan master data', maxDeduction: 15, deducted: 0, reason: 'Semua tindakan dan obat tersedia pada master data/referensi.' },
     ],
@@ -213,9 +219,9 @@ export async function aggregateAndSaveStep(
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
   if (!docRes.isValid) {
-    overallScore -= 10;
-    scoreBreakdown.items[3].deducted = 10;
-    scoreBreakdown.items[3].reason = 'Dokumen wajib belum lengkap.';
+    overallScore -= documentDeduction;
+    scoreBreakdown.items[3].deducted = documentDeduction;
+    scoreBreakdown.items[3].reason = `Dokumen wajib belum lengkap (${missingDocumentCount}/${requiredDocumentCount} belum tersedia): ${docRes.details?.missingRequiredDocuments?.join(', ') || 'tidak diketahui'}.`;
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
   if (losOverstay || losMissingActual) {

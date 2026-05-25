@@ -150,7 +150,7 @@ Generate a clinically realistic and auditable pathway for Indonesian healthcare 
     const { object, usage } = await generateObject({
       model: this.ai(this.defaultModel),
       schema,
-      prompt: `Analyze the following claim for document completeness:\n\n${JSON.stringify(payload, null, 2)}\n\nDetermine if the provided documents are sufficient based on standard medical claims requirements (e.g. KTP, RESUME_MEDIS, HASIL_LAB, HASIL_RADIOLOGI, LAPORAN_OPERASI). Identify any missing mandatory documents.`,
+      prompt: `Analyze the following claim for document completeness:\n\n${JSON.stringify(payload, null, 2)}\n\nRequired documents are exactly: LMA, KTP, KARTU ASURANSI, SK KAMAR, FORM KRONOLOGIS KECELAKAAN, and SURAT PERNYATAAN RAWAT INAP. Identify any missing required documents from this list only.`,
       temperature: this.temperature,
     });
 
@@ -189,7 +189,7 @@ Generate a clinically realistic and auditable pathway for Indonesian healthcare 
         price: z.number().describe('Unit price in IDR').nullable(),
       })),
       documents: z.array(z.object({
-        type: z.string().describe('e.g. KTP, RESUME_MEDIS, HASIL_LAB, SURAT_RUJUKAN'),
+        type: z.string().describe('e.g. LMA, KTP, KARTU ASURANSI, SK KAMAR, FORM KRONOLOGIS KECELAKAAN, SURAT PERNYATAAN RAWAT INAP'),
         conclusion: z.string().describe('Summary or result of the document').nullable(),
       })),
       extra: z.object({

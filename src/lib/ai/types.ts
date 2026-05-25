@@ -51,7 +51,7 @@ export interface ClaimValidationInput {
   currency?: string;
   notes?: string;
   documents?: Array<{
-    type: string;       // "KTP" | "RESUME_MEDIS" | "HASIL_LAB" | "SURAT_RUJUKAN" dll
+    type: string;       // "LMA" | "KTP" | "KARTU ASURANSI" | "SK KAMAR" | "FORM KRONOLOGIS KECELAKAAN" | "SURAT PERNYATAAN RAWAT INAP"
     url?: string;
     description?: string;
   }>;

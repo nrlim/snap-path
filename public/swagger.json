@@ -334,7 +334,15 @@
         "properties": {
           "type": {
             "type": "string",
-            "example": "RESUME_MEDIS"
+            "example": "KTP",
+            "enum": [
+              "LMA",
+              "KTP",
+              "KARTU ASURANSI",
+              "SK KAMAR",
+              "FORM KRONOLOGIS KECELAKAAN",
+              "SURAT PERNYATAAN RAWAT INAP"
+            ]
           },
           "url": {
             "type": "string",
@@ -715,7 +723,7 @@
                 "parameter": "Kelengkapan dokumen",
                 "maxDeduction": 10,
                 "trigger": "documentValidation.isValid === false",
-                "meaning": "Dokumen mandatory seperti resume medis, hasil lab/radiologi, rujukan, atau laporan operasi belum lengkap."
+                "meaning": "Dokumen mandatory LMA, KTP, Kartu Asuransi, SK Kamar, Form Kronologis Kecelakaan, dan Surat Pernyataan Rawat Inap belum lengkap."
               }
             ]
           }
@@ -853,7 +861,7 @@
           "Clinical Pathway Result Guide"
         ],
         "summary": "Guide: AI Outcome & Validation Summary",
-        "description": "Section ini adalah ringkasan paling atas dari hasil clinical pathway dan validasi klaim.\n\n| Item | Penjelasan |\n| --- | --- |\n| Overall Score | Skor akhir 0-100. Skor awal 100 lalu dikurangi berdasarkan issue validasi. |\n| Status Validasi | Valid, Warning, Review Needed, atau Invalid sebagai indikator risiko review. |\n| Perhitungan Skor | Breakdown pengurangan skor dari diagnosis, tarif tindakan, harga obat, dokumen, LOS compliance, dan master data tidak terdaftar. |\n| Validasi Obat & Tindakan | Persentase item yang sesuai dari total validasi tarif, obat, dan diagnosis-treatment. |\n| Length of Stay (LOS compliance) | Membandingkan LOS compliance aktual dengan standar LOS compliance dari AI pathway. Jika overstay, masuk pengurangan skor. |\n| Kelengkapan Dokumen Medis | Jumlah dokumen tersedia dan dokumen wajib yang hilang. |\n| Catatan Varians & Outcome | Catatan tambahan dari input user untuk menjelaskan variance atau outcome klinis. |\n\n\n\n**Catatan interpretasi**\n\n- `Tarif tindakan terdaftar` dan `Harga obat terdaftar` hanya menilai item yang sudah memiliki referensi harga.\n- Jika tindakan/obat belum punya referensi, deduction masuk ke `Kesiapan master data`, bukan ke price compliance.\n- `LOS compliance` berdiri sendiri dan hanya minus jika LOS aktual melebihi standar pathway.\n\n**Preview section**\n\n```text\nAI Outcome & Validation Summary        [Valid]\n\nScore Count\nAwal 100 | Minus -20 | Akhir 80\n\n- Diagnosis & tindakan klinis   0 / 30\n- Tarif tindakan terdaftar              -20 / 20\n- Harga obat terdaftar                    0 / 20\n- Kelengkapan dokumen           0 / 10\n- LOS compliance                            0 / 10\n- Kesiapan master data    0 / 15\n\nConformance Metrics\n- Validasi Obat & Tindakan: 86% Sesuai\n- LOS compliance: 3 hari aktual - standar AI 3 hari\n- Dokumen: 5 dokumen dilampirkan\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "description": "Section ini adalah ringkasan paling atas dari hasil clinical pathway dan validasi klaim.\n\n| Item | Penjelasan |\n| --- | --- |\n| Overall Score | Skor akhir 0-100. Skor awal 100 lalu dikurangi berdasarkan issue validasi. |\n| Status Validasi | Valid, Warning, Review Needed, atau Invalid sebagai indikator risiko review. |\n| Perhitungan Skor | Breakdown pengurangan skor dari diagnosis, tarif tindakan, harga obat, dokumen, LOS compliance, dan master data tidak terdaftar. |\n| Validasi Obat & Tindakan | Persentase item yang sesuai dari total validasi tarif, obat, dan diagnosis-treatment. |\n| Length of Stay (LOS compliance) | Membandingkan LOS compliance aktual dengan standar LOS compliance dari AI pathway. Jika overstay, masuk pengurangan skor. |\n| Kelengkapan Dokumen Medis | Jumlah dokumen tersedia dan dokumen wajib yang hilang. |\n| Catatan Varians & Outcome | Catatan tambahan dari input user untuk menjelaskan variance atau outcome klinis. |\n\n\n\n**Catatan interpretasi**\n\n- `Tarif tindakan terdaftar` dan `Harga obat terdaftar` hanya menilai item yang sudah memiliki referensi harga.\n- Jika tindakan/obat belum punya referensi, deduction masuk ke `Kesiapan master data`, bukan ke price compliance.\n- `LOS compliance` berdiri sendiri dan hanya minus jika LOS aktual melebihi standar pathway.\n\n**Preview section**\n\n```text\nAI Outcome & Validation Summary        [Valid]\n\nScore Count\nAwal 100 | Minus -20 | Akhir 80\n\n- Diagnosis & tindakan klinis   0 / 30\n- Tarif tindakan terdaftar              -20 / 20\n- Harga obat terdaftar                    0 / 20\n- Kelengkapan dokumen           0 / 10\n- LOS compliance                            0 / 10\n- Kesiapan master data    0 / 15\n\nConformance Metrics\n- Validasi Obat & Tindakan: 86% Sesuai\n- LOS compliance: 3 hari aktual - standar AI 3 hari\n- Dokumen: 6 dokumen wajib dilampirkan\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
         "security": [],
         "responses": {
           "200": {
@@ -913,7 +921,7 @@
           "Clinical Pathway Result Guide"
         ],
         "summary": "Guide: Diagnosis & Docs",
-        "description": "Tab ini menjelaskan validasi kecocokan diagnosis-tindakan dan kelengkapan dokumen.\n\n| Item | Penjelasan |\n| --- | --- |\n| Diagnosis vs Procedure Validation | Menilai apakah tindakan yang diklaim relevan dengan diagnosis. |\n| Matched Procedures | Tindakan yang sesuai dengan diagnosis. |\n| Irrelevant Procedures | Tindakan yang tidak relevan dan perlu review. |\n| Missing Required Procedures | Tindakan wajib/relevan yang belum ada pada klaim. |\n| Suggested Procedures | Rekomendasi AI untuk tindakan tambahan beserta rationale. |\n| Document Completeness Validation | Menilai apakah dokumen mandatory sudah tersedia. |\n| Attached / Missing Documents | Dokumen yang tersedia dan dokumen wajib yang belum dilampirkan. |\n\n**Preview section**\n\n```text\nDiagnosis & Docs\n\nDiagnosis vs Procedure Validation\nDiagnosis: J18.9 Pneumonia\n\nMatched Procedures:\n- RAD-CXR - Chest X-Ray\n\nIrrelevant Procedures:\n- PROC-X - Procedure not related to pneumonia\n\nMissing Required Procedures:\n- LAB-CBC - Complete Blood Count\n\nDocument Completeness Validation\nAttached: RESUME_MEDIS, HASIL_RADIOLOGI\nMissing: HASIL_LAB\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "description": "Tab ini menjelaskan validasi kecocokan diagnosis-tindakan dan kelengkapan dokumen.\n\n| Item | Penjelasan |\n| --- | --- |\n| Diagnosis vs Procedure Validation | Menilai apakah tindakan yang diklaim relevan dengan diagnosis. |\n| Matched Procedures | Tindakan yang sesuai dengan diagnosis. |\n| Irrelevant Procedures | Tindakan yang tidak relevan dan perlu review. |\n| Missing Required Procedures | Tindakan wajib/relevan yang belum ada pada klaim. |\n| Suggested Procedures | Rekomendasi AI untuk tindakan tambahan beserta rationale. |\n| Document Completeness Validation | Menilai apakah dokumen mandatory sudah tersedia. |\n| Attached / Missing Documents | Dokumen yang tersedia dan dokumen wajib yang belum dilampirkan. |\n\n**Preview section**\n\n```text\nDiagnosis & Docs\n\nDiagnosis vs Procedure Validation\nDiagnosis: J18.9 Pneumonia\n\nMatched Procedures:\n- RAD-CXR - Chest X-Ray\n\nIrrelevant Procedures:\n- PROC-X - Procedure not related to pneumonia\n\nMissing Required Procedures:\n- LAB-CBC - Complete Blood Count\n\nDocument Completeness Validation\nAttached: LMA, KTP, KARTU ASURANSI, SK KAMAR\nMissing: FORM KRONOLOGIS KECELAKAAN, SURAT PERNYATAAN RAWAT INAP\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
         "security": [],
         "responses": {
           "200": {

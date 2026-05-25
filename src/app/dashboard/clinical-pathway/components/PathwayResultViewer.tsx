@@ -445,7 +445,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
             />
             <ConformanceRow 
               label="Kelengkapan Dokumen Medis" 
-              value={`${docDetails.providedDocuments?.length || 0} Dokumen Dilampirkan`} 
+              value={docWarnings === 0
+                ? `${docDetails.providedDocuments?.length || 0} dokumen wajib dilampirkan`
+                : `Mandatory document tidak terlampir: ${docDetails.missingRequiredDocuments?.join(', ')}`}
               isSuccess={docWarnings === 0}
               badgeLabel={docWarnings === 0 ? 'Lengkap' : `${docWarnings} Dokumen Hilang`} 
             />
@@ -815,6 +817,12 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               <div>
                 <h3 className="text-lg font-bold text-text mb-4">Document Completeness Validation</h3>
                 <div className="rounded-xl border border-border/80 p-5 bg-surface-elevated/20">
+                  {docDetails.missingRequiredDocuments?.length > 0 && (
+                    <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      <p className="font-semibold text-red-800">Mandatory document tidak terlampir.</p>
+                      <p className="mt-1">Admin perlu melengkapi atau meminta ulang dokumen berikut sebelum klaim diproses lebih lanjut: {docDetails.missingRequiredDocuments.join(', ')}.</p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <p className="text-sm font-medium text-text mb-2">Attached Documents:</p>

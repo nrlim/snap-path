@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import PathwayImportModal from "./PathwayImportModal";
 import { getTariffEntries } from "../../master-data/buku-tarif/actions";
+import { REQUIRED_CLAIM_DOCUMENTS } from "@/lib/claim-documents";
 
 const STEPS = [
   { num: 1, label: "Identity", subLabel: "Patient Data" },
@@ -57,7 +58,7 @@ function AutocompleteInput({
           setIsOpen(true);
         }}
         onFocus={() => setIsOpen(true)}
-        className="w-full rounded-md border border-border bg-surface px-2 py-1 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary"
+        className="w-full rounded-md border border-border bg-surface px-2 py-1 text-base sm:text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary"
         placeholder={placeholder}
       />
       
@@ -90,6 +91,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
   // Submit handling
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingDocuments, setUploadingDocuments] = useState<Record<number, boolean>>({});
 
   // Tariffs state for autocomplete
   const [providerTariffs, setProviderTariffs] = useState<any[]>([]);
@@ -139,6 +141,11 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
     }
   }, [formData.extra.providerId]);
 
+  const documentOptions = REQUIRED_CLAIM_DOCUMENTS.map((documentType) => ({
+    label: documentType,
+    value: documentType,
+  }));
+
   const handleAddDocument = () => {
     setFormData((prev: any) => ({
       ...prev,
@@ -181,6 +188,55 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       newArr[index] = { ...newArr[index], [key]: value };
       return { ...prev, [field]: newArr };
     });
+  };
+
+  const handleDocumentUpload = async (index: number, file: File | null) => {
+    if (!file) return;
+
+    const document = formData.documents?.[index];
+    if (!document?.type) {
+      setError('Pilih tipe dokumen sebelum upload file.');
+      return;
+    }
+
+    setError(null);
+    setUploadingDocuments((prev) => ({ ...prev, [index]: true }));
+
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      uploadFormData.append('documentType', document.type);
+      uploadFormData.append('claimId', formData.extra?.claimId || formData.patient?.identifier?.[0]?.value || 'draft');
+
+      const response = await fetch('/api/v1/documents/upload', {
+        method: 'POST',
+        body: uploadFormData,
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload dokumen gagal.');
+      }
+
+      setFormData((prev: any) => {
+        const newDocuments = [...(prev.documents || [])];
+        newDocuments[index] = {
+          ...newDocuments[index],
+          url: result.document.url,
+          storageBucket: result.document.storageBucket,
+          storagePath: result.document.storagePath,
+          fileName: result.document.fileName,
+          fileSize: result.document.fileSize,
+          mimeType: result.document.mimeType,
+          uploadedAt: result.document.uploadedAt,
+        };
+        return { ...prev, documents: newDocuments };
+      });
+    } catch (uploadError: any) {
+      setError(uploadError.message || 'Upload dokumen gagal.');
+    } finally {
+      setUploadingDocuments((prev) => ({ ...prev, [index]: false }));
+    }
   };
 
   const handleProcedureNameChange = (index: number, value: string, code?: string, price?: number) => {
@@ -329,8 +385,9 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
           <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle">
             <tr>
               <th className="px-4 py-3 w-1/4">Document Type</th>
-              <th className="px-4 py-3 w-1/4">Date</th>
+              <th className="px-4 py-3 w-1/6">Date</th>
               <th className="px-4 py-3">Conclusion / Result</th>
+              <th className="px-4 py-3 w-1/4">Upload File</th>
               <th className="px-4 py-3 w-10"></th>
             </tr>
           </thead>
@@ -338,13 +395,40 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
             {formData.documents?.map((doc: any, i: number) => (
               <tr key={i}>
                 <td className="px-4 py-2">
-                  <input type="text" value={doc.type || ''} onChange={e => updateItem("documents", i, "type", e.target.value)} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Type..." />
+                  <AutocompleteInput
+                    value={doc.type || ''}
+                    onChange={(value) => updateItem("documents", i, "type", value)}
+                    options={documentOptions}
+                    placeholder="Pilih dokumen wajib..."
+                  />
                 </td>
                 <td className="px-4 py-2">
-                  <input type="date" value={doc.date ? doc.date.slice(0,10) : ''} onChange={e => updateItem("documents", i, "date", new Date(e.target.value).toISOString())} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
+                  <input type="date" value={doc.date ? doc.date.slice(0,10) : ''} onChange={e => updateItem("documents", i, "date", new Date(e.target.value).toISOString())} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-base sm:text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
                 </td>
                 <td className="px-4 py-2">
-                  <input type="text" value={doc.conclusion || ''} onChange={e => updateItem("documents", i, "conclusion", e.target.value)} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Result..." />
+                  <input type="text" value={doc.conclusion || ''} onChange={e => updateItem("documents", i, "conclusion", e.target.value)} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-base sm:text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Result..." />
+                </td>
+                <td className="px-4 py-2">
+                  <div className="flex flex-col gap-2">
+                    <label className="inline-flex min-h-10 cursor-pointer items-center justify-center rounded-md border border-border bg-surface px-3 py-2 text-base sm:text-sm font-medium text-text hover:bg-surface-elevated transition-colors">
+                      {uploadingDocuments[i] ? 'Mengupload...' : doc.fileName ? 'Ganti file' : 'Upload file'}
+                      <input
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/png,image/webp"
+                        disabled={uploadingDocuments[i]}
+                        onChange={(event) => handleDocumentUpload(i, event.target.files?.[0] || null)}
+                        className="sr-only"
+                      />
+                    </label>
+                    {doc.fileName ? (
+                      <div className="text-xs text-text-subtle">
+                        <p className="truncate font-medium text-text">{doc.fileName}</p>
+                        {doc.url ? <a href={doc.url} target="_blank" rel="noreferrer" className="text-primary hover:text-primary-hover">Lihat dokumen</a> : null}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-text-faint">PDF/JPG/PNG/WEBP, maks. 10 MB</p>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-2 text-right">
                   <button type="button" onClick={() => handleRemoveItem("documents", i)} className="text-text-faint hover:text-red-500 transition-colors"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
@@ -352,7 +436,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
               </tr>
             ))}
             {(!formData.documents || formData.documents.length === 0) && (
-              <tr><td colSpan={4} className="px-4 py-6 text-center text-text-subtle">No documents imported yet.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-text-subtle">Belum ada dokumen. Dokumen wajib: {REQUIRED_CLAIM_DOCUMENTS.join(', ')}.</td></tr>
             )}
           </tbody>
         </table>
