@@ -44,9 +44,11 @@ async function ensureBucket(): Promise<ReturnType<typeof getSupabaseStorageConfi
 
   if (getBucket.ok) return config;
 
-  if (getBucket.status !== 404) {
-    const errorText = await getBucket.text();
-    throw new Error(`Gagal mengecek bucket Supabase Storage: ${errorText}`);
+  const bucketErrorText = await getBucket.text();
+  const bucketNotFound = getBucket.status === 404 || bucketErrorText.includes('Bucket not found') || bucketErrorText.includes('"statusCode":"404"');
+
+  if (!bucketNotFound) {
+    throw new Error(`Gagal mengecek bucket Supabase Storage: ${bucketErrorText}`);
   }
 
   const createBucket = await fetch(`${config.supabaseUrl}/storage/v1/bucket`, {
