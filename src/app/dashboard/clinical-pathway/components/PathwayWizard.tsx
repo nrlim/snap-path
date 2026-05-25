@@ -421,9 +421,12 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
                       />
                     </label>
                     {doc.fileName ? (
-                      <div className="text-xs text-text-subtle">
-                        <p className="truncate font-medium text-text">{doc.fileName}</p>
-                        {doc.url ? <a href={doc.url} target="_blank" rel="noreferrer" className="text-primary hover:text-primary-hover">Lihat dokumen</a> : null}
+                      <div className="flex flex-col gap-1 rounded-md bg-surface-elevated p-2 border border-border/50">
+                        <div className="flex items-center gap-1.5 overflow-hidden">
+                          <svg className="h-3.5 w-3.5 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                          <p className="truncate text-xs font-medium text-text" title={doc.fileName}>{doc.fileName}</p>
+                        </div>
+                        {doc.url ? <a href={doc.url} target="_blank" rel="noreferrer" className="text-[11px] font-medium text-primary hover:text-primary-hover hover:underline pl-5 transition-all">Lihat dokumen ↗</a> : null}
                       </div>
                     ) : (
                       <p className="text-xs text-text-faint">PDF/JPG/PNG/WEBP, maks. 10 MB</p>
