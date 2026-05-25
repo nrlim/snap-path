@@ -29,6 +29,7 @@ export interface AIGatewayDriver {
   generateClinicalPathway(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }>;
   validateDocumentCompleteness(payload: any): Promise<{ data: any; usage?: Usage }>;
   mapArbitraryJsonToClaim(rawJson: any): Promise<{ data: any; usage?: Usage }>;
+  estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }>;
 }
 
 /**
@@ -107,6 +108,10 @@ export class AIGateway {
 
   async mapArbitraryJsonToClaim(rawJson: any) {
     return this.track('mapArbitraryJsonToClaim', () => this.driver.mapArbitraryJsonToClaim(rawJson));
+  }
+
+  async estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string) {
+    return this.track('estimateDiagnosisLos', () => this.driver.estimateDiagnosisLos(diagnosisCode, diagnosisName));
   }
 }
 

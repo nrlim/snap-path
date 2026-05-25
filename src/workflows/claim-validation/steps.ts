@@ -3,9 +3,9 @@ import { validateDiagnosisTreatment } from '@/lib/ai/validators/diagnosis';
 import { validateTariffPrice } from '@/lib/ai/validators/tariff';
 import { checkDrugPrices } from '@/lib/ai/validators/drug-price';
 import { generateClinicalPathway } from '@/lib/ai/generators/pathway';
+import { validateLos } from '@/lib/ai/validators/los';
 import { FatalError } from 'workflow';
 import prisma from '@/lib/db';
-import { resolveActualLosDays } from '@/lib/los';
 
 export interface ClaimValidationPayload {
   jobId: string;
@@ -158,6 +158,26 @@ export async function generatePathwayStep(input: ClaimValidationPayload) {
 generatePathwayStep.maxRetries = 1;
 
 /**
+ * Step 5.5: Validate Length of Stay against Master Data & AI Research.
+ */
+export async function validateLosStep(input: ClaimValidationPayload) {
+  'use step';
+
+  await updateJobStatusAndDelay(input.jobId, 'LOS_VAL', 1500);
+
+  try {
+    return await validateLos(input.payload, input.jobId);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes('401') || msg.includes('403')) {
+      throw new FatalError(`AI auth gagal (non-retryable): ${msg}`);
+    }
+    throw error;
+  }
+}
+validateLosStep.maxRetries = 1;
+
+/**
  * Step 6: Aggregate all results and persist final output to DB.
  */
 export async function aggregateAndSaveStep(
@@ -167,6 +187,7 @@ export async function aggregateAndSaveStep(
   tariffRes: any,
   drugRes: any,
   pathRes: any,
+  losRes: any,
 ) {
   'use step';
 
@@ -179,10 +200,9 @@ export async function aggregateAndSaveStep(
   const drugItems = drugRes?.items || [];
   const hasUnregisteredTariff = tariffItems.some((item: any) => item.status === 'NOT_FOUND');
   const hasUnregisteredDrug = drugItems.some((item: any) => item.status === 'NOT_FOUND');
-  const expectedLos = pathRes?.estimatedLos || 0;
-  const actualLos = resolveActualLosDays(input.payload);
-  const losMissingActual = expectedLos > 0 && actualLos <= 0;
-  const losOverstay = actualLos > 0 && expectedLos > 0 && actualLos > expectedLos;
+  
+  const losDeduction = losRes?.deduction || 0;
+  
   const missingDocumentCount = docRes?.details?.missingRequiredDocuments?.length || 0;
   const requiredDocumentCount =
     (docRes?.details?.providedDocuments?.length || 0) + missingDocumentCount || 6;
@@ -225,14 +245,15 @@ export async function aggregateAndSaveStep(
     scoreBreakdown.items[3].reason = `Dokumen wajib belum lengkap (${missingDocumentCount}/${requiredDocumentCount} belum tersedia): ${docRes.details?.missingRequiredDocuments?.join(', ') || 'tidak diketahui'}.`;
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
-  if (losOverstay || losMissingActual) {
-    overallScore -= 10;
-    scoreBreakdown.items[4].deducted = 10;
-    scoreBreakdown.items[4].reason = losMissingActual
-      ? `LOS aktual tidak diisi. Standar AI memberi estimasi ${expectedLos} hari, tetapi data input kosong sehingga perlu dilengkapi.`
-      : `LOS aktual ${actualLos} hari melebihi standar pathway ${expectedLos} hari.`;
+  if (losDeduction > 0) {
+    overallScore -= losDeduction;
+    scoreBreakdown.items[4].deducted = losDeduction;
+    scoreBreakdown.items[4].reason = losRes?.reason || 'LOS tidak sesuai standar.';
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
+  } else if (losRes?.reason) {
+    scoreBreakdown.items[4].reason = losRes.reason;
   }
+  
   if (hasUnregisteredTariff || hasUnregisteredDrug) {
     overallScore -= 15;
     scoreBreakdown.items[5].deducted = 15;
@@ -260,6 +281,7 @@ export async function aggregateAndSaveStep(
     diagnosisValidation: diagRes,
     tariffValidation: tariffRes,
     drugPriceValidation: drugRes || { isValid: true, score: 100, items: [] },
+    losValidation: losRes,
     clinicalPathway: pathRes
       ? {
           diagnosisCode: pathRes.diagnosisCode,

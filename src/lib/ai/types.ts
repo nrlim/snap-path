@@ -120,6 +120,7 @@ export interface ClaimValidationOutput {
       notes: string;
     };
   };
+  losValidation?: LosValidationOutput;
   clinicalPathway?: {
     diagnosisCode: string;
     adherenceScore: number;
@@ -314,4 +315,24 @@ export interface JobStatusResponse {
   completedAt: string | null;
   errorMessage: string | null;
   result?: any;
+}
+
+// ==========================================
+//  LOS VALIDATION
+// ==========================================
+
+export interface LosValidationOutput {
+  jobId: string;
+  source: "MASTER_DATA" | "AI_ESTIMATE" | "NOT_AVAILABLE";
+  expectedLos: number;
+  minLos?: number;
+  maxLos?: number;
+  actualLos: number;
+  status: "COMPLIANT" | "OVERSTAY" | "UNDERSTAY" | "MISSING_ACTUAL" | "NO_REFERENCE";
+  varianceDays: number;
+  variancePct: number;
+  deduction: number;
+  reason: string;
+  aiJustification?: string | null;
+  references?: string[];
 }

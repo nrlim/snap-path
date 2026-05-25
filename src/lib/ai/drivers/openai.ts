@@ -244,5 +244,33 @@ Rules:
 
     return { data: object, usage: usage as any };
   }
+
+  async estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: { promptTokens: number; completionTokens: number } }> {
+    const schema = z.object({
+      estimatedLos: z.number().describe('The standard expected length of stay in days.'),
+      minLos: z.number().describe('The minimum length of stay typically expected for mild cases.'),
+      maxLos: z.number().describe('The maximum length of stay typically expected before complications are considered.'),
+      justification: z.string().describe('Clinical justification for this LOS based on standard Indonesian or international medical guidelines.'),
+      references: z.array(z.string()).describe('Sources or guidelines used for this estimation (e.g. Kemenkes, WHO).')
+    });
+
+    const { object, usage } = await generateObject({
+      model: this.ai(this.defaultModel),
+      schema,
+      system: `You are an expert clinical coding and pathway analyst specializing in the Indonesian healthcare system (JKN/BPJS). Your task is to provide a highly accurate estimation of the Length of Stay (LOS) for a given diagnosis.`,
+      prompt: `Perform a deep clinical research for the expected Length of Stay (LOS) for the following diagnosis:
+Diagnosis Code: ${diagnosisCode}
+Diagnosis Name: ${diagnosisName}
+
+Rules:
+1. Provide the standard expected LOS in days for an inpatient admission. If this diagnosis is typically outpatient, estimate the LOS if an admission was deemed medically necessary.
+2. Provide the typical minimum and maximum LOS bounds.
+3. Provide a clear clinical justification based on standard treatment protocols, focusing on why this duration is needed (e.g., IV antibiotics duration, observation periods).
+4. List the medical guidelines or references used (e.g., Kemenkes PNPK, WHO guidelines, or general clinical consensus).`,
+      temperature: 0.2,
+    });
+
+    return { data: object, usage: usage as any };
+  }
 }
 

@@ -1,0 +1,120 @@
+{
+  "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9",
+  "claimId": "CLM-MK-2026-0004",
+  "patient": {
+    "name": "Budi Santoso",
+    "identifier": [
+      {
+        "value": "PAT-MK-10042"
+      }
+    ],
+    "birthDate": "1990-05-15",
+    "gender": "male"
+  },
+  "encounter": {
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-05-10T08:00:00Z",
+      "end": "2026-05-13T10:00:00Z"
+    },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "A01.0",
+      "name": "Typhoid fever",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "RUAA010006",
+      "name": "Ruang Rawat - Kelas I",
+      "quantity": 3,
+      "unitPrice": 1100000,
+      "totalPrice": 3300000
+    },
+    {
+      "code": "LABA100200",
+      "name": "Darah Rutin",
+      "quantity": 2,
+      "unitPrice": 360000,
+      "totalPrice": 720000
+    },
+    {
+      "code": "IGDJ000078",
+      "name": "Injeksi IM/ IV",
+      "quantity": 6,
+      "unitPrice": 78000,
+      "totalPrice": 468000
+    }
+  ],
+  "medications": [
+    {
+      "name": "IV Fluid Ringer Lactate 500ml",
+      "quantity": 6,
+      "unitPrice": 25000,
+      "totalPrice": 150000
+    },
+    {
+      "name": "Paracetamol 500mg tablet",
+      "quantity": 10,
+      "unitPrice": 1500,
+      "totalPrice": 15000
+    },
+    {
+      "name": "Ceftriaxone 1g Injection",
+      "quantity": 6,
+      "unitPrice": 55000,
+      "totalPrice": 330000
+    }
+  ],
+  "documents": [
+    {
+      "type": "LMA",
+      "date": "2026-05-10T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: Demam tifoid, rawat inap."
+    },
+    {
+      "type": "KTP",
+      "date": "2026-05-10T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-10T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-10T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat (Kelas I)."
+    },
+    {
+      "type": "HASIL LAB",
+      "date": "2026-05-10T08:43:06.874Z",
+      "conclusion": "Widal O positif 1/320."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-10T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
+    }
+  ],
+  "extra": {
+    "nik": "3275034567890124",
+    "phone": "081122334466",
+    "insuranceType": "BPJS",
+    "insuranceNumber": "0009876543211",
+    "los": "3",
+    "losJustification": "LOS 3 hari, observasi demam dan pemberian antibiotik IV. Pasien stabil.",
+    "outcomeNotes": "Pasien pulang perbaikan, bebas demam 24 jam.",
+    "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9"
+  }
+}

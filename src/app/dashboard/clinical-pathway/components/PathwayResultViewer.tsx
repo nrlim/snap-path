@@ -248,14 +248,14 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
   // Extract LOS details — fix: data is in inputPayload not inputData
   const inputPayload = job.inputPayload as any;
-  const expectedLOSVal = result.clinicalPathway?.estimatedLos 
-    || result.clinicalPathway?.recommendedPathway?.estimatedLos 
-    || 0;
-  const actualLOSVal = resolveActualLosDays(inputPayload);
+  const losValidation = result.losValidation;
+  const expectedLOSVal = losValidation?.expectedLos || result.clinicalPathway?.estimatedLos || result.clinicalPathway?.recommendedPathway?.estimatedLos || 0;
+  const actualLOSVal = losValidation?.actualLos ?? resolveActualLosDays(inputPayload);
   
-  const losIsMissingActual = expectedLOSVal > 0 && actualLOSVal <= 0;
-  const losIsOverstay = actualLOSVal > 0 && expectedLOSVal > 0 && actualLOSVal > expectedLOSVal;
-  const losHasDeduction = losIsOverstay || losIsMissingActual;
+  const losIsMissingActual = losValidation?.status === "MISSING_ACTUAL" || (!losValidation && expectedLOSVal > 0 && actualLOSVal <= 0);
+  const losIsOverstay = losValidation?.status === "OVERSTAY" || (!losValidation && actualLOSVal > 0 && expectedLOSVal > 0 && actualLOSVal > expectedLOSVal);
+  const losIsUnderstay = losValidation?.status === "UNDERSTAY";
+  const losHasDeduction = (losValidation?.deduction ?? 0) > 0 || (!losValidation && (losIsOverstay || losIsMissingActual));
   const varianceText = inputPayload?.extra?.outcomeNotes || "Tidak ada catatan varians";
   const diagnosisHasDeduction = result.diagnosisValidation ? !result.diagnosisValidation.isValid : false;
   const tariffHasDeduction = ["WARNING", "INVALID"].includes(result.tariffValidation?.status);
@@ -299,12 +299,12 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     {
       label: "LOS compliance",
       maxDeduction: 10,
-      deducted: losHasDeduction ? 10 : 0,
-      reason: losIsMissingActual
+      deducted: losValidation?.deduction ?? (losHasDeduction ? 10 : 0),
+      reason: losValidation?.reason || (losIsMissingActual
         ? `LOS aktual tidak diisi. Standar AI memberi estimasi ${expectedLOSVal} hari, tetapi data input kosong sehingga perlu dilengkapi.`
         : losIsOverstay
           ? `LOS aktual ${actualLOSVal} hari melebihi standar pathway ${expectedLOSVal} hari.`
-          : "LOS aktual sesuai standar pathway.",
+          : "LOS aktual sesuai standar pathway."),
     },
     {
       label: "Kesiapan master data",
@@ -430,15 +430,26 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
             <ConformanceRow 
               label="Length of Stay (LOS)"
               value={
-                actualLOSVal > 0 && expectedLOSVal > 0
+                losValidation ? (
+                  losValidation.status === "NO_REFERENCE" ? `${actualLOSVal} Hari (Tanpa standar)`
+                  : `${actualLOSVal} Hari Aktual — Standar ${losValidation.source === 'MASTER_DATA' ? 'Master' : 'AI'}: ${expectedLOSVal} Hari`
+                )
+                : actualLOSVal > 0 && expectedLOSVal > 0
                   ? `${actualLOSVal} Hari Aktual — Standar AI: ${expectedLOSVal} Hari`
                   : actualLOSVal > 0 ? `${actualLOSVal} Hari (AI pathway belum dijalankan)`
                   : expectedLOSVal > 0 ? `Standar AI: ${expectedLOSVal} Hari (LOS aktual tidak diisi)`
                   : 'Data LOS tidak tersedia'
               }
-              isSuccess={!losHasDeduction && (actualLOSVal > 0 || expectedLOSVal > 0)}
-              isWarning={false}
+              isSuccess={!losHasDeduction && (actualLOSVal > 0 || expectedLOSVal > 0) && !losIsUnderstay}
+              isWarning={losIsUnderstay || (losHasDeduction && !losIsOverstay && !losIsMissingActual)}
               badgeLabel={
+                losValidation ? (
+                  losValidation.status === "COMPLIANT" ? "Efisiensi Baik" :
+                  losValidation.status === "OVERSTAY" ? `Overstay +${losValidation.varianceDays} hari` :
+                  losValidation.status === "UNDERSTAY" ? `Understay ${losValidation.varianceDays} hari` :
+                  losValidation.status === "MISSING_ACTUAL" ? "Data Kurang" :
+                  "Tanpa Standar"
+                ) :
                 actualLOSVal > 0 && expectedLOSVal > 0
                   ? (losIsOverstay ? `Overstay +${actualLOSVal - expectedLOSVal} hari` : 'Efisiensi Baik')
                   : losIsMissingActual ? 'Data Kurang' : 'Data Kurang'
@@ -460,9 +471,26 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               badgeLabel={workflowLatencyMs > 0 ? 'Tercatat Real-time' : 'Tidak Tercatat'}
             />
             
-            <div className="mt-4 p-4 bg-surface-elevated/40 rounded-lg border border-border/40">
-              <span className="text-xs font-bold text-text-subtle uppercase tracking-wider block mb-1">Catatan Varians & Outcome</span>
-              <p className="text-sm text-text font-medium italic">{varianceText}</p>
+            <div className="mt-4 p-4 bg-surface-elevated/40 rounded-lg border border-border/40 space-y-4">
+              <div>
+                <span className="text-xs font-bold text-text-subtle uppercase tracking-wider block mb-1">Catatan Varians & Outcome</span>
+                <p className="text-sm text-text font-medium italic">{varianceText}</p>
+              </div>
+              {losValidation?.aiJustification && (
+                <div className="border-t border-border/40 pt-3">
+                  <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">Konteks Medis LOS (AI Analysis)</span>
+                  <p className="text-sm text-text-subtle">{losValidation.aiJustification}</p>
+                  {losValidation.references && losValidation.references.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {losValidation.references.map((ref: string, idx: number) => (
+                        <span key={idx} className="inline-flex text-[10px] bg-surface border border-border px-1.5 py-0.5 rounded text-text-subtle">
+                          {ref}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

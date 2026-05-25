@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { calculateLosDays } from "@/lib/los";
 
 type Stage = "upload" | "processing" | "preview" | "error"; 
 type ImportMode = "ai" | "direct";
@@ -66,6 +67,14 @@ export default function PathwayImportModal({
     const procedures = Array.isArray(source?.procedures) ? source.procedures : [];
     const medications = Array.isArray(source?.medications) ? source.medications : [];
 
+    const start = source?.encounter?.period?.start;
+    const end = source?.encounter?.period?.end;
+    let computedLos = source?.extra?.los;
+    if (start && end) {
+      const calc = calculateLosDays(start, end);
+      if (calc > 0) computedLos = String(calc);
+    }
+
     return {
       patient: source?.patient || {},
       encounter: source?.encounter || {},
@@ -87,7 +96,7 @@ export default function PathwayImportModal({
         totalPrice: med.totalPrice ?? med.claimedTotal ?? ((med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0) * (med.quantity || 1)),
       })),
       documents: Array.isArray(source?.documents) ? source.documents : [],
-      extra: source?.extra || {},
+      extra: { ...(source?.extra || {}), los: computedLos },
       _mappingNotes: "Struktur SnapPath terdeteksi. AI mapping dilewati dan data dibaca langsung dari key standar: patient, encounter, diagnoses, procedures, medications, documents, dan extra.",
     };
   };
