@@ -3,13 +3,22 @@
   "claimId": "CLM-MK-2026-0004",
   "patient": {
     "name": "Sdr. Andi Susanto",
-    "identifier": [{ "value": "PAT-MK-10032" }],
+    "identifier": [
+      {
+        "value": "PAT-MK-10032"
+      }
+    ],
     "birthDate": "1995-12-10",
     "gender": "male"
   },
   "encounter": {
-    "class": { "code": "IMP" },
-    "period": { "start": "2026-05-01T10:00:00Z", "end": "2026-05-15T12:00:00Z" },
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-05-01T10:00:00Z",
+      "end": "2026-05-15T12:00:00Z"
+    },
     "facility": {
       "id": "MITRA_KELUARGA_BEKASI_TIMUR",
       "name": "Mitra Keluarga Bekasi Timur",
@@ -62,9 +71,34 @@
   ],
   "documents": [
     {
-      "type": "RESUME_MEDIS",
-      "date": "2026-05-15T11:00:00Z",
-      "conclusion": "Pasien demam tifoid. Dirawat 14 hari dengan pemberian antibiotik dosis tinggi. Pasien juga mengeluh pusing sehingga dilakukan MRI kepala."
+      "type": "LMA",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: Sesuai kondisi pasien."
+    },
+    {
+      "type": "KTP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kronologi kejadian jelas."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
     }
   ],
   "extra": {

@@ -3,13 +3,22 @@
   "claimId": "CLM-MK-2026-0002",
   "patient": {
     "name": "Ibu Kartini",
-    "identifier": [{ "value": "PAT-MK-10030" }],
+    "identifier": [
+      {
+        "value": "PAT-MK-10030"
+      }
+    ],
     "birthDate": "1994-11-20",
     "gender": "female"
   },
   "encounter": {
-    "class": { "code": "IMP" },
-    "period": { "start": "2026-03-01T08:00:00Z", "end": "2026-03-08T10:00:00Z" },
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-03-01T08:00:00Z",
+      "end": "2026-03-08T10:00:00Z"
+    },
     "facility": {
       "id": "MITRA_KELUARGA_BEKASI_TIMUR",
       "name": "Mitra Keluarga Bekasi Timur",
@@ -62,14 +71,34 @@
   ],
   "documents": [
     {
-      "type": "RESUME_MEDIS",
-      "date": "2026-03-08T10:00:00Z",
-      "conclusion": "Pasien Sectio Caesaria. Ditagihkan dengan harga yang melebihi standar master data. Terdapat penambahan tindakan Kardioversi tanpa indikasi, obat antibiotik dan vitamin yang berlebih, serta hari rawat (LOS) yang mencapai 7 hari (jauh di atas rata-rata normal)."
+      "type": "LMA",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: Sesuai kondisi pasien."
     },
     {
-      "type": "LAPORAN_OPERASI",
-      "date": "2026-03-01T11:00:00Z",
-      "conclusion": "Operasi Sectio Caesaria dilakukan. Adanya komplikasi pendarahan dan detak jantung tidak stabil (diklaim perlu kardioversi)."
+      "type": "KTP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kronologi kejadian jelas."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
     }
   ],
   "extra": {

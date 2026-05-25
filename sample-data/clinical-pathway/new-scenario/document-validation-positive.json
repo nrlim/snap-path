@@ -1,0 +1,89 @@
+{
+  "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9",
+  "claimId": "CLM-DOC-POS-0001",
+  "patient": {
+    "name": "Budi Santoso",
+    "identifier": [
+      {
+        "value": "PAT-DOC-001"
+      }
+    ],
+    "birthDate": "1990-01-01",
+    "gender": "male"
+  },
+  "encounter": {
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-05-01T08:00:00Z",
+      "end": "2026-05-05T10:00:00Z"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "S82",
+      "name": "Fracture of lower leg, including ankle",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "RUAA010008",
+      "name": "Ruang Rawat - Kelas I",
+      "quantity": 4,
+      "unitPrice": 950000,
+      "totalPrice": 3800000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Paracetamol 500mg",
+      "quantity": 10,
+      "unitPrice": 5000,
+      "totalPrice": 50000
+    }
+  ],
+  "documents": [
+    {
+      "type": "LMA",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: Sesuai kondisi pasien."
+    },
+    {
+      "type": "KTP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kronologi kejadian jelas."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
+    }
+  ],
+  "extra": {
+    "nik": "3275010101900001",
+    "phone": "081234567890",
+    "insuranceType": "Swasta",
+    "insuranceNumber": "INS-12345",
+    "los": "4",
+    "losJustification": "Perawatan pasca operasi fraktur dan observasi.",
+    "outcomeNotes": "Pasien stabil dan diperbolehkan pulang rawat jalan.",
+    "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9"
+  }
+}

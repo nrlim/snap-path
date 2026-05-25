@@ -3,13 +3,22 @@
   "claimId": "CLM-MK-2026-0006",
   "patient": {
     "name": "Bapak Anton Wibowo",
-    "identifier": [{ "value": "PAT-MK-10034" }],
+    "identifier": [
+      {
+        "value": "PAT-MK-10034"
+      }
+    ],
     "birthDate": "1982-10-05",
     "gender": "male"
   },
   "encounter": {
-    "class": { "code": "IMP" },
-    "period": { "start": "2026-07-02T10:00:00Z", "end": "2026-07-05T13:00:00Z" },
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-07-02T10:00:00Z",
+      "end": "2026-07-05T13:00:00Z"
+    },
     "facility": {
       "id": "MITRA_KELUARGA_BEKASI_TIMUR",
       "name": "Mitra Keluarga Bekasi Timur",
@@ -55,14 +64,34 @@
   ],
   "documents": [
     {
-      "type": "RESUME_MEDIS",
-      "date": "2026-07-05T12:00:00Z",
-      "conclusion": "Pasien menderita usus buntu akut. Tindakan operasi berjalan normal tanpa penyulit, recovery sesuai panduan."
+      "type": "LMA",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: Sesuai kondisi pasien."
     },
     {
-      "type": "LAPORAN_OPERASI",
-      "date": "2026-07-02T14:00:00Z",
-      "conclusion": "Operasi pengangkatan usus buntu lancar, pendarahan minim."
+      "type": "KTP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kronologi kejadian jelas."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
     }
   ],
   "extra": {

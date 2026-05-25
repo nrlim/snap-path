@@ -3,13 +3,22 @@
   "claimId": "CLM-MK-2026-0001",
   "patient": {
     "name": "Ibu Rahmawati",
-    "identifier": [{ "value": "PAT-MK-10029" }],
+    "identifier": [
+      {
+        "value": "PAT-MK-10029"
+      }
+    ],
     "birthDate": "1992-05-14",
     "gender": "female"
   },
   "encounter": {
-    "class": { "code": "IMP" },
-    "period": { "start": "2026-02-10T08:00:00Z", "end": "2026-02-13T10:00:00Z" },
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-02-10T08:00:00Z",
+      "end": "2026-02-13T10:00:00Z"
+    },
     "facility": {
       "id": "MITRA_KELUARGA_BEKASI_TIMUR",
       "name": "Mitra Keluarga Bekasi Timur",
@@ -55,14 +64,34 @@
   ],
   "documents": [
     {
-      "type": "RESUME_MEDIS",
-      "date": "2026-02-13T10:00:00Z",
-      "conclusion": "Pasien hamil aterm dengan indikasi panggul sempit. Dilakukan Sectio Caesaria yang berjalan lancar tanpa komplikasi."
+      "type": "LMA",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: Sesuai kondisi pasien."
     },
     {
-      "type": "LAPORAN_OPERASI",
-      "date": "2026-02-10T11:00:00Z",
-      "conclusion": "Operasi berjalan lancar, pendarahan minimal."
+      "type": "KTP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kronologi kejadian jelas."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
     }
   ],
   "extra": {

@@ -3,13 +3,22 @@
   "claimId": "CLM-MK-2026-0003",
   "patient": {
     "name": "Anak Kevin Wijaya",
-    "identifier": [{ "value": "PAT-MK-10031" }],
+    "identifier": [
+      {
+        "value": "PAT-MK-10031"
+      }
+    ],
     "birthDate": "2015-11-03",
     "gender": "male"
   },
   "encounter": {
-    "class": { "code": "IMP" },
-    "period": { "start": "2026-04-01T08:00:00Z", "end": "2026-04-05T10:00:00Z" },
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-04-01T08:00:00Z",
+      "end": "2026-04-05T10:00:00Z"
+    },
     "facility": {
       "id": "MITRA_KELUARGA_BEKASI_TIMUR",
       "name": "Mitra Keluarga Bekasi Timur",
@@ -62,14 +71,34 @@
   ],
   "documents": [
     {
-      "type": "RESUME_MEDIS",
-      "date": "2026-04-05T09:00:00Z",
-      "conclusion": "Pasien demam berdarah dengue grade II. Masuk dengan trombosit 60.000, pulang dengan trombosit naik menjadi 120.000 dan bebas demam > 24 jam. Rehidrasi cairan berhasil baik."
+      "type": "LMA",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: Sesuai kondisi pasien."
     },
     {
-      "type": "HASIL_LABORATORIUM",
-      "date": "2026-04-01T09:30:00Z",
-      "conclusion": "NS1 Positif, Trombosit 60.000, Ht 42%"
+      "type": "KTP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kronologi kejadian jelas."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
     }
   ],
   "extra": {
