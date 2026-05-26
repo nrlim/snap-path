@@ -137,6 +137,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const [job, setJob] = useState(initialJob);
   const [activeTab, setActiveTab] = useState("pathway");
   const [copied, setCopied] = useState(false);
+  const [copiedInput, setCopiedInput] = useState(false);
+  const [loadingInput, setLoadingInput] = useState(false);
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -361,6 +363,22 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCopySanitizedInput = async () => {
+    setLoadingInput(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/api/v1/jobs/${job.id}/sanitized-input`);
+      if (!res.ok) throw new Error('Failed to fetch sanitized input');
+      const data = await res.json();
+      await navigator.clipboard.writeText(JSON.stringify(data.sanitizedInput, null, 2));
+      setCopiedInput(true);
+      setTimeout(() => setCopiedInput(false), 2000);
+    } catch (e) {
+      console.error('Copy sanitized input error:', e);
+    } finally {
+      setLoadingInput(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <button
@@ -411,13 +429,25 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
           <div className="space-y-4 w-full max-w-4xl">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-xs font-bold text-text-subtle uppercase tracking-wider">Perhitungan Skor & Metrik Kepatuhan</h3>
-              <button
-                onClick={handleCopyJSON}
-                className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text sm:min-h-0 sm:py-1.5"
-              >
-                {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'Copied!' : 'Export JSON'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopySanitizedInput}
+                  disabled={loadingInput}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text sm:min-h-0 sm:py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Copy input JSON yang dikirim ke AI (sudah disanitasi PII)"
+                >
+                  {copiedInput ? <CheckCheck className="w-3.5 h-3.5 text-green-500" /> : loadingInput ? <span className="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin inline-block" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedInput ? 'Copied!' : 'Copy AI Input'}
+                </button>
+                <button
+                  onClick={handleCopyJSON}
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text sm:min-h-0 sm:py-1.5"
+                  title="Copy hasil output JSON dari AI"
+                >
+                  {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? 'Copied!' : 'Export JSON'}
+                </button>
+              </div>
             </div>
             <ScoreBreakdownPanel score={validationScore} items={scoreBreakdown} />
             <ConformanceRow 
