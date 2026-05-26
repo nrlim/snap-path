@@ -438,22 +438,41 @@ Rules:
 /**
  * Normalizes a raw AI-generated clinical pathway object to match our camelCase schema.
  * Models sometimes return snake_case variants (phase_id, day_range, discharge_gate, etc.)
- * This remaps them before Zod validation.
+ * or plain string arrays instead of object arrays for assessments/treatments/medications/nursing.
+ * This remaps and coerces them before Zod validation.
  */
 function normalizePathwayPhases(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
   const obj = raw as Record<string, unknown>;
 
   function coerceKey(record: Record<string, unknown>, snake: string, camel: string) {
-    if (camel in record) return; // already camelCase, nothing to do
+    if (camel in record) return;
     if (snake in record) record[camel] = record[snake];
   }
 
   // Top-level key aliases
   coerceKey(obj, 'estimated_los', 'estimatedLos');
 
+  // Handle top-level nested wrapper e.g. { "clinical_pathway": { "estimated_los": ..., "phases": [...] } }
+  if (!obj['phases'] && !obj['phase_list']) {
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (val && typeof val === 'object' && !Array.isArray(val) && (val as Record<string, unknown>)['phases']) {
+        const nested = val as Record<string, unknown>;
+        obj['phases'] = nested['phases'];
+        if (nested['estimatedLos'] != null) obj['estimatedLos'] = nested['estimatedLos'];
+        else if (nested['estimated_los'] != null) obj['estimatedLos'] = nested['estimated_los'];
+        break;
+      }
+    }
+  }
+
   const phases = (obj['phases'] ?? obj['phase_list'] ?? []) as Array<Record<string, unknown>>;
   obj['phases'] = phases.map((phase, idx) => {
+    // Guard: if AI returned a non-object phase, replace with minimal stub
+    if (!phase || typeof phase !== 'object') {
+      return { phaseId: `phase-${idx + 1}`, phaseName: 'Phase', dayRange: 'Day 1' };
+    }
     coerceKey(phase, 'phase_id', 'phaseId');
     coerceKey(phase, 'phase_name', 'phaseName');
     coerceKey(phase, 'day_range', 'dayRange');
@@ -477,39 +496,75 @@ function normalizePathwayPhases(raw: unknown): unknown {
       if (!nObj['diet']) nObj['diet'] = nObj['dietary_plan'] ?? nObj['dietary_recommendation'] ?? 'Diet sesuai kondisi';
     }
 
-    // Normalize assessments
+    // Normalize assessments — AI may return strings or objects
     if (Array.isArray(phase['assessments'])) {
-      phase['assessments'] = (phase['assessments'] as Array<Record<string, unknown>>).map((a) => {
-        coerceKey(a, 'assessment_name', 'name');
-        coerceKey(a, 'is_mandatory', 'mandatory');
-        return a;
+      phase['assessments'] = (phase['assessments'] as Array<unknown>).map((a) => {
+        if (typeof a === 'string') return { name: a, frequency: 'As needed', mandatory: false };
+        if (!a || typeof a !== 'object') return { name: String(a ?? ''), frequency: 'As needed', mandatory: false };
+        const item = a as Record<string, unknown>;
+        coerceKey(item, 'assessment_name', 'name');
+        coerceKey(item, 'is_mandatory', 'mandatory');
+        return item;
       });
     }
 
-    // Normalize treatments
+    // Normalize treatments — AI may return strings or objects
     if (Array.isArray(phase['treatments'])) {
-      phase['treatments'] = (phase['treatments'] as Array<Record<string, unknown>>).map((t) => {
-        coerceKey(t, 'treatment_name', 'name');
-        coerceKey(t, 'is_mandatory', 'mandatory');
-        return t;
+      phase['treatments'] = (phase['treatments'] as Array<unknown>).map((t) => {
+        if (typeof t === 'string') return { name: t, route: null, mandatory: false };
+        if (!t || typeof t !== 'object') return { name: String(t ?? ''), route: null, mandatory: false };
+        const item = t as Record<string, unknown>;
+        coerceKey(item, 'treatment_name', 'name');
+        coerceKey(item, 'is_mandatory', 'mandatory');
+        return item;
       });
     }
 
-    // Normalize medications
+    // Normalize medications — AI may return strings or objects
     if (Array.isArray(phase['medications'])) {
-      phase['medications'] = (phase['medications'] as Array<Record<string, unknown>>).map((m) => {
-        coerceKey(m, 'medication_name', 'name');
-        coerceKey(m, 'is_mandatory', 'mandatory');
-        return m;
+      phase['medications'] = (phase['medications'] as Array<unknown>).map((m) => {
+        if (typeof m === 'string') return { name: m, dosage: '-', frequency: '-', route: 'oral', duration: '-', mandatory: false };
+        if (!m || typeof m !== 'object') return { name: String(m ?? ''), dosage: '-', frequency: '-', route: 'oral', duration: '-', mandatory: false };
+        const item = m as Record<string, unknown>;
+        coerceKey(item, 'medication_name', 'name');
+        coerceKey(item, 'is_mandatory', 'mandatory');
+        return item;
       });
     }
 
-    // Normalize nursing
+    // Normalize nursing — AI may return strings or objects
     if (Array.isArray(phase['nursing'])) {
-      phase['nursing'] = (phase['nursing'] as Array<Record<string, unknown>>).map((n) => {
-        coerceKey(n, 'nursing_activity', 'activity');
-        coerceKey(n, 'nursing_action', 'activity');
-        return n;
+      phase['nursing'] = (phase['nursing'] as Array<unknown>).map((n) => {
+        if (typeof n === 'string') return { activity: n, frequency: 'As needed' };
+        if (!n || typeof n !== 'object') return { activity: String(n ?? ''), frequency: 'As needed' };
+        const item = n as Record<string, unknown>;
+        coerceKey(item, 'nursing_activity', 'activity');
+        coerceKey(item, 'nursing_action', 'activity');
+        return item;
+      });
+    }
+
+    // Normalize education — AI may return objects instead of plain strings
+    if (Array.isArray(phase['education'])) {
+      phase['education'] = (phase['education'] as Array<unknown>).map((e) => {
+        if (typeof e === 'string') return e;
+        if (e && typeof e === 'object') {
+          const eObj = e as Record<string, unknown>;
+          return String(eObj['topic'] ?? eObj['content'] ?? eObj['name'] ?? eObj['description'] ?? JSON.stringify(e));
+        }
+        return String(e ?? '');
+      });
+    }
+
+    // Normalize objectives — AI may return objects instead of plain strings
+    if (Array.isArray(phase['objectives'])) {
+      phase['objectives'] = (phase['objectives'] as Array<unknown>).map((o) => {
+        if (typeof o === 'string') return o;
+        if (o && typeof o === 'object') {
+          const oObj = o as Record<string, unknown>;
+          return String(oObj['objective'] ?? oObj['goal'] ?? oObj['description'] ?? oObj['name'] ?? JSON.stringify(o));
+        }
+        return String(o ?? '');
       });
     }
 
