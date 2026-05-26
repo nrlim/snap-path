@@ -78,32 +78,41 @@ export class SumoPodAIDriver implements AIGatewayDriver {
 
   async validateDiagnosisTreatment(payload: any): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
-      isValid: z.boolean(),
-      score: z.number().min(0).max(100),
+      isValid: z.boolean().optional().default(false),
+      score: z.number().min(0).max(100).optional().default(50),
       details: z.array(z.object({
-        diagnosisCode: z.string(),
-        diagnosisName: z.string(),
-        clinicalSummary: z.string(),
-        matchedProcedures: z.array(z.string()),
-        unmatchedProcedures: z.array(z.string()),
-        missingRequiredProcedures: z.array(z.string()),
-        suggestedProcedures: z.array(z.object({ code: z.string(), name: z.string(), rationale: z.string() })),
-        notes: z.string(),
-      })),
+        diagnosisCode: z.string().optional().default(''),
+        diagnosisName: z.string().optional().default(''),
+        clinicalSummary: z.string().optional().default(''),
+        matchedProcedures: z.array(z.string()).optional().default([]),
+        unmatchedProcedures: z.array(z.string()).optional().default([]),
+        missingRequiredProcedures: z.array(z.string()).optional().default([]),
+        suggestedProcedures: z.array(z.object({ code: z.string().optional().default(''), name: z.string().optional().default(''), rationale: z.string().optional().default('') })).optional().default([]),
+        notes: z.string().optional().default(''),
+      })).optional().default([]),
     });
 
-    const result = await this.completeJson(schema, `You are a clinical pathway validation expert for Indonesian healthcare (JKN/BPJS context). Analyze the following claim for medical necessity and diagnosis-treatment appropriateness:\n\n${JSON.stringify(payload, null, 2)}\n\nFor each diagnosis:\n1. Assess if the claimed procedures and medications are appropriate.\n2. Identify mismatched or irrelevant procedures.\n3. Suggest additional procedures that are clinically relevant but NOT yet claimed (for admision review).\n4. Provide a brief clinical summary of the condition for admision context.\nBase your analysis on standard Indonesian medical guidelines and clinical pathways.`);
+    const normalizer = (raw: unknown) => {
+      if (!raw || typeof raw !== 'object') return raw;
+      let target = raw as Record<string, unknown>;
+      if (target['data'] && typeof target['data'] === 'object') target = target['data'] as Record<string, unknown>;
+      if ('is_valid' in target && !('isValid' in target)) target['isValid'] = target['is_valid'];
+      return target;
+    };
+
+    const result = await this.completeJson(schema, `You are a clinical pathway validation expert for Indonesian healthcare (JKN/BPJS context). Analyze the following claim for medical necessity and diagnosis-treatment appropriateness:\n\n${JSON.stringify(payload, null, 2)}\n\nFor each diagnosis:\n1. Assess if the claimed procedures and medications are appropriate.\n2. Identify mismatched or irrelevant procedures.\n3. Suggest additional procedures that are clinically relevant but NOT yet claimed (for admision review).\n4. Provide a brief clinical summary of the condition for admision context.\nBase your analysis on standard Indonesian medical guidelines and clinical pathways.`, undefined, {}, normalizer);
     return { data: result.data, usage: result.usage };
   }
 
   async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: Usage }> {
+    const drugNameStr = typeof drug === 'string' ? drug : drug.name;
     const schema = z.object({
-      marketPriceMax: z.number(),
-      marketPriceAvg: z.number().nullable(),
-      sources: z.array(z.string()),
-      resolvedProductName: z.string(),
-      dosageForm: z.string(),
-      unitBasis: z.string(),
+      marketPriceMax: z.number().optional().default(0),
+      marketPriceAvg: z.number().nullable().optional().default(null),
+      sources: z.array(z.string()).optional().default([]),
+      resolvedProductName: z.string().optional().default(drugNameStr),
+      dosageForm: z.string().optional().default('unknown'),
+      unitBasis: z.string().optional().default('unit'),
     });
     const drugContext = typeof drug === 'string'
       ? { name: drug, genericName: null, dosage: null }
@@ -176,7 +185,26 @@ OUTPUT RULES:
 4. Do NOT hallucinate or estimate prices without source evidence
 5. Each source entry MUST include: source_name | exact_product_matched | package_info | package_price | unit_conversion | per_unit_price | URL_or_reference`;
 
-    const result = await this.completeJson(schema, prompt, system, { temperature: 0.1 });
+    const normalizer = (raw: unknown) => {
+      if (!raw || typeof raw !== 'object') return raw;
+      let target = raw as Record<string, unknown>;
+      if (target['data'] && typeof target['data'] === 'object') target = target['data'] as Record<string, unknown>;
+      
+      const coerceKey = (obj: Record<string, unknown>, snake: string, camel: string) => {
+        if (camel in obj) return;
+        if (snake in obj) obj[camel] = obj[snake];
+      };
+      
+      coerceKey(target, 'market_price_max', 'marketPriceMax');
+      coerceKey(target, 'market_price_avg', 'marketPriceAvg');
+      coerceKey(target, 'resolved_product_name', 'resolvedProductName');
+      coerceKey(target, 'dosage_form', 'dosageForm');
+      coerceKey(target, 'unit_basis', 'unitBasis');
+      
+      return target;
+    };
+
+    const result = await this.completeJson(schema, prompt, system, { temperature: 0.1 }, normalizer);
     return { data: result.data, usage: result.usage };
   }
 
@@ -250,29 +278,37 @@ Generate a clinically realistic and auditable pathway for Indonesian healthcare 
 
   async validateDocumentCompleteness(payload: any): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
-      isValid: z.boolean(),
-      score: z.number(),
+      isValid: z.boolean().optional().default(false),
+      score: z.number().optional().default(0),
       details: z.object({
-        providedDocuments: z.array(z.string()),
-        missingRequiredDocuments: z.array(z.string()),
-        notes: z.string(),
-      }),
+        providedDocuments: z.array(z.string()).optional().default([]),
+        missingRequiredDocuments: z.array(z.string()).optional().default([]),
+        notes: z.string().optional().default(''),
+      }).optional().default({ providedDocuments: [], missingRequiredDocuments: [], notes: '' }),
     });
 
-    const result = await this.completeJson(schema, `Analyze the following claim for document completeness:\n\n${JSON.stringify(payload, null, 2)}\n\nRequired documents are exactly: LMA, KTP, KARTU ASURANSI, SK KAMAR, FORM KRONOLOGIS KECELAKAAN, and SURAT PERNYATAAN RAWAT INAP. Identify any missing required documents from this list only.`);
+    const normalizer = (raw: unknown) => {
+      if (!raw || typeof raw !== 'object') return raw;
+      let target = raw as Record<string, unknown>;
+      if (target['data'] && typeof target['data'] === 'object') target = target['data'] as Record<string, unknown>;
+      if ('is_valid' in target && !('isValid' in target)) target['isValid'] = target['is_valid'];
+      return target;
+    };
+
+    const result = await this.completeJson(schema, `Analyze the following claim for document completeness:\n\n${JSON.stringify(payload, null, 2)}\n\nRequired documents are exactly: LMA, KTP, KARTU ASURANSI, SK KAMAR, FORM KRONOLOGIS KECELAKAAN, and SURAT PERNYATAAN RAWAT INAP. Identify any missing required documents from this list only.`, undefined, {}, normalizer);
     return { data: result.data, usage: result.usage };
   }
 
   async mapArbitraryJsonToClaim(rawJson: any): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
-      patient: z.object({ name: z.string(), birthDate: z.string().nullable(), gender: z.enum(['male', 'female', 'M', 'F', 'L', 'P', 'Laki-Laki', 'Perempuan', '']).nullable(), identifier: z.array(z.object({ value: z.string() })) }),
-      encounter: z.object({ class: z.object({ code: z.string() }), period: z.object({ start: z.string().nullable(), end: z.string().nullable() }) }),
-      diagnoses: z.array(z.object({ code: z.string().nullable(), name: z.string(), type: z.enum(['primary', 'secondary', 'complication']) })),
-      procedures: z.array(z.object({ code: z.string().nullable(), name: z.string(), quantity: z.number().nullable(), price: z.number().nullable() })),
-      medications: z.array(z.object({ name: z.string(), quantity: z.number().nullable(), price: z.number().nullable() })),
-      documents: z.array(z.object({ type: z.string(), conclusion: z.string().nullable() })),
-      extra: z.object({ insuranceNumber: z.string().nullable(), los: z.string().nullable(), nik: z.string().nullable(), insuranceType: z.string().nullable() }),
-      _mappingNotes: z.string(),
+      patient: z.object({ name: z.string().optional().default('Unknown'), birthDate: z.string().nullable().optional().default(null), gender: z.enum(['male', 'female', 'M', 'F', 'L', 'P', 'Laki-Laki', 'Perempuan', '']).nullable().optional().default(null), identifier: z.array(z.object({ value: z.string().optional().default('') })).optional().default([]) }).optional().default({ name: 'Unknown', birthDate: null, gender: null, identifier: [] }),
+      encounter: z.object({ class: z.object({ code: z.string().optional().default('') }).optional().default({ code: '' }), period: z.object({ start: z.string().nullable().optional().default(null), end: z.string().nullable().optional().default(null) }).optional().default({ start: null, end: null }) }).optional().default({ class: { code: '' }, period: { start: null, end: null } }),
+      diagnoses: z.array(z.object({ code: z.string().nullable().optional().default(null), name: z.string().optional().default(''), type: z.enum(['primary', 'secondary', 'complication']).optional().default('primary') })).optional().default([]),
+      procedures: z.array(z.object({ code: z.string().nullable().optional().default(null), name: z.string().optional().default(''), quantity: z.number().nullable().optional().default(1), price: z.number().nullable().optional().default(null) })).optional().default([]),
+      medications: z.array(z.object({ name: z.string().optional().default(''), quantity: z.number().nullable().optional().default(1), price: z.number().nullable().optional().default(null) })).optional().default([]),
+      documents: z.array(z.object({ type: z.string().optional().default(''), conclusion: z.string().nullable().optional().default(null) })).optional().default([]),
+      extra: z.object({ insuranceNumber: z.string().nullable().optional().default(null), los: z.string().nullable().optional().default(null), nik: z.string().nullable().optional().default(null), insuranceType: z.string().nullable().optional().default(null) }).optional().default({ insuranceNumber: null, los: null, nik: null, insuranceType: null }),
+      _mappingNotes: z.string().optional().default(''),
     });
 
     const system = `You are a medical data integration expert specializing in Indonesian healthcare (JKN/BPJS).
@@ -290,11 +326,11 @@ Rules:
 
   async estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
-      estimatedLos: z.number(),
-      minLos: z.number(),
-      maxLos: z.number(),
-      justification: z.string(),
-      references: z.array(z.string()),
+      estimatedLos: z.number().optional().default(3),
+      minLos: z.number().optional().default(1),
+      maxLos: z.number().optional().default(7),
+      justification: z.string().optional().default('Standard general admission length of stay.'),
+      references: z.array(z.string()).optional().default([]),
     });
 
     const system = `You are an expert clinical coding and pathway analyst specializing in the Indonesian healthcare system (JKN/BPJS). Your task is to provide a highly accurate estimation of the Length of Stay (LOS) for a given diagnosis.`;
@@ -307,7 +343,25 @@ Rules:
 2. Provide the typical minimum and maximum LOS bounds.
 3. Provide a clear clinical justification based on standard treatment protocols, focusing on why this duration is needed (e.g., IV antibiotics duration, observation periods).
 4. List the medical guidelines or references used (e.g., Kemenkes PNPK, WHO guidelines, or general clinical consensus).`;
-    const result = await this.completeJson(schema, prompt, system, { temperature: 0.2 });
+    const normalizer = (raw: unknown) => {
+      if (!raw || typeof raw !== 'object') return raw;
+      let target = raw as Record<string, unknown>;
+      if (target['data'] && typeof target['data'] === 'object') target = target['data'] as Record<string, unknown>;
+      if (target['los'] && typeof target['los'] === 'object') target = target['los'] as Record<string, unknown>;
+      
+      const coerceKey = (obj: Record<string, unknown>, snake: string, camel: string) => {
+        if (camel in obj) return;
+        if (snake in obj) obj[camel] = obj[snake];
+      };
+      
+      coerceKey(target, 'estimated_los', 'estimatedLos');
+      coerceKey(target, 'min_los', 'minLos');
+      coerceKey(target, 'max_los', 'maxLos');
+      
+      return target;
+    };
+
+    const result = await this.completeJson(schema, prompt, system, { temperature: 0.2 }, normalizer);
     return { data: result.data, usage: result.usage };
   }
 
