@@ -300,11 +300,11 @@ Rules:
 
   async estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: { promptTokens: number; completionTokens: number } }> {
     const schema = z.object({
-      estimatedLos: z.number().optional().default(3).describe('The standard expected length of stay in days.'),
-      minLos: z.number().optional().default(1).describe('The minimum length of stay typically expected for mild cases.'),
-      maxLos: z.number().optional().default(7).describe('The maximum length of stay typically expected before complications are considered.'),
-      justification: z.string().optional().default('Standard general admission length of stay.').describe('Clinical justification for this LOS based on standard Indonesian or international medical guidelines.'),
-      references: z.array(z.string()).optional().default([]).describe('Sources or guidelines used for this estimation (e.g. Kemenkes, WHO).')
+      estimatedLos: z.number().describe('The standard expected length of stay in days.'),
+      minLos: z.number().describe('The minimum length of stay typically expected for mild cases.'),
+      maxLos: z.number().describe('The maximum length of stay typically expected before complications are considered.'),
+      justification: z.string().describe('Clinical justification for this LOS based on standard Indonesian or international medical guidelines.'),
+      references: z.array(z.string()).describe('Sources or guidelines used for this estimation (e.g. Kemenkes, WHO).')
     });
 
     const { object, usage } = await generateObject({
