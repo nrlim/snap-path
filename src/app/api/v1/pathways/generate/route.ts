@@ -31,6 +31,14 @@ export async function POST(request: Request) {
         
         const result = await generateClinicalPathway(payload, claimJob.id);
 
+        if (!result) {
+          await prisma.claimJob.update({
+            where: { id: claimJob.id },
+            data: { status: "FAILED", errorMessage: "AI pathway generation failed. Check server logs for the underlying cause." }
+          });
+          return;
+        }
+
         await prisma.claimJob.update({
           where: { id: claimJob.id },
           data: { status: "COMPLETED", outputResult: result as any, completedAt: new Date() }

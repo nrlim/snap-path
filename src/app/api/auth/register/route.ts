@@ -6,9 +6,16 @@ export async function POST(request: Request) {
   try {
     const { email, password, name } = await request.json()
 
-    if (!email || !password || password.length < 8) {
+    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
-        { error: 'Invalid input. Email is required and password must be at least 8 characters.' },
+        { error: 'Invalid email format.' },
+        { status: 400 }
+      )
+    }
+
+    if (!password || typeof password !== 'string' || password.length < 8 || password.length > 64) {
+      return NextResponse.json(
+        { error: 'Password must be between 8 and 64 characters.' },
         { status: 400 }
       )
     }

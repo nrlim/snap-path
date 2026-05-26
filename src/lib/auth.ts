@@ -2,8 +2,13 @@ import { SignJWT, jwtVerify, type JWTPayload } from 'jose'
 import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
 
+const defaultSecret = 'default_super_secure_secret_key_change_me_in_production';
+if (!process.env.JWT_SECRET) {
+  console.warn('WARNING: JWT_SECRET environment variable is not set. Using default insecure key. Please configure this in production.');
+}
+
 const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'default_super_secure_secret_key_change_me_in_production'
+  process.env.JWT_SECRET || defaultSecret
 )
 
 export async function hashPassword(password: string): Promise<string> {

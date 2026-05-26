@@ -32,7 +32,7 @@ function ensurePhasesCoverLos(phases: ClinicalPathwayPhase[], estimatedLos: numb
   });
 }
 
-export async function generateClinicalPathway(input: ClinicalPathwayInput, jobId: string): Promise<ClinicalPathwayOutput> {
+export async function generateClinicalPathway(input: ClinicalPathwayInput, jobId: string): Promise<ClinicalPathwayOutput | null> {
   const { diagnosisCode, diagnosisName, providerType } = input;
 
   // 1. Check for existing template in DB
@@ -106,7 +106,10 @@ export async function generateClinicalPathway(input: ClinicalPathwayInput, jobId
     };
 
   } catch (error) {
-    console.error(`Failed to generate clinical pathway for ${diagnosisCode}:`, error);
-    throw new Error(`Unable to generate clinical pathway for diagnosis: ${diagnosisCode}`);
+    // Log the real underlying cause (Zod validation error, network error, model error, etc.)
+    const cause = error instanceof Error ? error : new Error(String(error));
+    console.error(`[generateClinicalPathway] Failed to generate pathway for ${diagnosisCode}. Cause:`, cause.message, cause);
+    // Return null — the workflow step will handle this gracefully
+    return null;
   }
 }

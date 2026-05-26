@@ -149,10 +149,14 @@ export async function generatePathwayStep(input: ClaimValidationPayload) {
     );
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    // Auth failures are permanent, do not retry
     if (msg.includes('401') || msg.includes('403')) {
       throw new FatalError(`AI auth gagal (non-retryable): ${msg}`);
     }
-    throw error;
+    // AI generation failures (schema validation, timeout, model errors) are
+    // non-critical — the workflow should still complete with partial results.
+    console.error(`[generatePathwayStep] Pathway generation failed for ${primaryDiag.code}, continuing without pathway:`, error);
+    return null;
   }
 }
 generatePathwayStep.maxRetries = 1;

@@ -12,6 +12,23 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
   try {
     const payload = await request.json();
 
+    if (!payload.providerId || !payload.procedureCode || !payload.procedureName || !payload.category || typeof payload.basePrice !== 'number' || typeof payload.maxPrice !== 'number') {
+      return NextResponse.json({ error: "Missing or invalid required fields (providerId, procedureCode, procedureName, category, basePrice, maxPrice)." }, { status: 400 });
+    }
+
+    const existingEntry = await prisma.tariffEntry.findUnique({
+      where: { id: params.id },
+      include: { provider: { select: { clientId: true } } }
+    });
+
+    if (!existingEntry) {
+      return NextResponse.json({ error: "Tariff entry not found" }, { status: 404 });
+    }
+
+    if (auth.clientId && existingEntry.provider.clientId !== auth.clientId) {
+      return NextResponse.json({ error: "Forbidden. Entry does not belong to your client." }, { status: 403 });
+    }
+
     const updatedEntry = await prisma.tariffEntry.update({
       where: { id: params.id },
       data: {
@@ -57,6 +74,19 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
   if (!auth.authenticated) return auth.response;
 
   try {
+    const existingEntry = await prisma.tariffEntry.findUnique({
+      where: { id: params.id },
+      include: { provider: { select: { clientId: true } } }
+    });
+
+    if (!existingEntry) {
+      return NextResponse.json({ error: "Tariff entry not found" }, { status: 404 });
+    }
+
+    if (auth.clientId && existingEntry.provider.clientId !== auth.clientId) {
+      return NextResponse.json({ error: "Forbidden. Entry does not belong to your client." }, { status: 403 });
+    }
+
     // Soft delete
     const deletedEntry = await prisma.tariffEntry.update({
       where: { id: params.id },

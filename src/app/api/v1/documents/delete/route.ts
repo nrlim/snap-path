@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { deleteClaimDocumentFromSupabaseStorage } from '@/lib/supabase-storage';
 
+function sanitizePathSegment(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || 'user';
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
@@ -11,8 +20,16 @@ export async function POST(req: NextRequest) {
 
     const { storagePath } = await req.json();
 
-    if (!storagePath) {
+    if (!storagePath || typeof storagePath !== 'string') {
       return NextResponse.json({ error: 'storagePath wajib disertakan' }, { status: 400 });
+    }
+
+    const userId = sanitizePathSegment(String(session.sub || session.email || 'user'));
+    
+    // Ownership validation: verify the storagePath includes the user's ID directory
+    // Expected structure: claims/[claimId]/[userId]/[filename]
+    if (!storagePath.includes(`/${userId}/`)) {
+       return NextResponse.json({ error: 'Forbidden. You do not have permission to delete this document.' }, { status: 403 });
     }
 
     const success = await deleteClaimDocumentFromSupabaseStorage(storagePath);
@@ -24,7 +41,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('[document-delete] Error:', error);
     return NextResponse.json(
-      { error: error.message || 'Terjadi kesalahan saat menghapus dokumen' },
+      { error: 'Terjadi kesalahan saat menghapus dokumen. Silakan coba lagi.' },
       { status: 500 },
     );
   }

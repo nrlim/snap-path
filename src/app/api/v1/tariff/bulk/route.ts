@@ -20,7 +20,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Maximum 500 entries per bulk request allowed" }, { status: 400 });
     }
 
-    const dataToInsert = payload.entries.map((entry: any) => ({
+    const validEntries = payload.entries.filter((entry: any) => 
+      entry &&
+      typeof entry.providerId === 'string' &&
+      typeof entry.procedureCode === 'string' &&
+      typeof entry.procedureName === 'string' &&
+      typeof entry.category === 'string' &&
+      typeof entry.basePrice === 'number' &&
+      typeof entry.maxPrice === 'number' &&
+      entry.effectiveFrom
+    );
+
+    if (validEntries.length === 0) {
+      return NextResponse.json({ error: "No valid entries provided in bulk payload." }, { status: 400 });
+    }
+
+    const dataToInsert = validEntries.map((entry: any) => ({
       providerId: entry.providerId,
       procedureCode: entry.procedureCode,
       procedureName: entry.procedureName,

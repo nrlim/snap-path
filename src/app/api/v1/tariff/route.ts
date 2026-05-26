@@ -15,14 +15,15 @@ export async function GET(request: Request) {
     const isActive = searchParams.get("isActive");
     
     // Server-side pagination
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+    const limitParam = parseInt(searchParams.get("limit") || "50");
+    const limit = Math.min(200, Math.max(1, limitParam));
     const skip = (page - 1) * limit;
 
     const whereClause: any = {};
     if (providerId) whereClause.providerId = providerId;
     if (category) whereClause.category = category;
-    if (isActive !== null) whereClause.isActive = isActive === "true";
+    if (isActive !== null && isActive !== "") whereClause.isActive = isActive === "true";
 
     const [entries, total] = await Promise.all([
       prisma.tariffEntry.findMany({
@@ -65,6 +66,10 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json();
+
+    if (!payload.providerId || !payload.procedureCode || !payload.procedureName || !payload.category || typeof payload.basePrice !== 'number' || typeof payload.maxPrice !== 'number' || !payload.effectiveFrom) {
+      return NextResponse.json({ error: "Missing or invalid required fields (providerId, procedureCode, procedureName, category, basePrice, maxPrice, effectiveFrom)." }, { status: 400 });
+    }
 
     const newEntry = await prisma.tariffEntry.create({
       data: {
