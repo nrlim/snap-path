@@ -10,36 +10,22 @@ export default function Navbar() {
           </Link>
           <nav className="hidden md:flex gap-6">
             <Link href="#features" className="text-sm font-medium text-text-subtle hover:text-primary transition-colors">
-              Capabilities
+              Kapabilitas
             </Link>
             <Link href="#core-engine" className="text-sm font-medium text-text-subtle hover:text-secondary transition-colors">
-              Core Engine
+              Mesin Inti
             </Link>
             <Link href="#technology" className="text-sm font-medium text-text-subtle hover:text-accent transition-colors">
-              Technology
+              Teknologi
             </Link>
           </nav>
         </div>
         <Link
           href="/login"
-          aria-label="Sign in"
-          title="Sign in"
-          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-primary/20 bg-primary-soft/70 text-primary transition-colors hover:bg-primary-soft hover:text-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          aria-label="Masuk"
+          className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-4 text-xs font-medium text-white shadow-sm shadow-primary/30 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
         >
-          <svg
-            aria-hidden="true"
-            className="h-5 w-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-            <path d="M10 17l5-5-5-5" />
-            <path d="M15 12H3" />
-          </svg>
+          Masuk
         </Link>
       </div>
     </header>

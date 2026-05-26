@@ -114,3 +114,31 @@ export async function updatePathwayLimitConfig(formData: FormData) {
     return { success: false, error: "Gagal menyimpan limit Clinical Pathway." };
   }
 }
+
+export async function updatePrivacyConfig(redactPatterns: string[], safeContexts: string[]) {
+  if (!(await getCurrentUserPermission("AI_ENGINE_CONFIG"))) {
+    return { success: false, error: "Anda tidak memiliki akses untuk mengubah konfigurasi AI." };
+  }
+
+  try {
+    const data = {
+      piiRedactPatterns: redactPatterns,
+      piiSafeContexts: safeContexts,
+    };
+
+    await prisma.systemConfig.upsert({
+      where: { id: "GLOBAL_CONFIG" },
+      update: data,
+      create: {
+        id: "GLOBAL_CONFIG",
+        ...data,
+      },
+    });
+
+    revalidatePath("/dashboard/settings/privacy-config");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update privacy config:", error);
+    return { success: false, error: "Gagal menyimpan konfigurasi privasi & PII." };
+  }
+}

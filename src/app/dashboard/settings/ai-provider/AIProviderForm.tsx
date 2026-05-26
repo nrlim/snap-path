@@ -12,8 +12,8 @@ export default function AIProviderForm({ config }: { config: any }) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
-    // Auto-fill gatewayUrl if not custom
-    if (provider === "vercel-ai-gateway") {
+    // Auto-fill gatewayUrl if provider uses its managed/default endpoint.
+    if (provider === "vercel-ai-gateway" || provider === "sumopod") {
       formData.set("gatewayUrl", "");
     }
     
@@ -65,6 +65,7 @@ export default function AIProviderForm({ config }: { config: any }) {
                   className="block w-full appearance-none rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="vercel-ai-gateway">Vercel AI Gateway</option>
+                  <option value="sumopod">SumoPod AI Gateway</option>
                   <option value="custom">Custom Gateway</option>
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-text-subtle">
@@ -84,9 +85,9 @@ export default function AIProviderForm({ config }: { config: any }) {
               <div>
                 <label className="block text-sm font-medium text-text">Base URL (Gateway URL)</label>
                 <div className="mt-2 relative">
-                  <input type="text" disabled value="Managed by Vercel AI SDK" className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text-subtle bg-surface-elevated/50 cursor-not-allowed" />
+                  <input type="text" disabled value={provider === "sumopod" ? "Managed by SUMOPOD_BASE_URL" : "Managed by Vercel AI SDK"} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text-subtle bg-surface-elevated/50 cursor-not-allowed" />
                 </div>
-                <p className="mt-2 text-xs text-text-faint">Managed automatically by provider.</p>
+                <p className="mt-2 text-xs text-text-faint">Managed automatically by provider. API key remains in server environment.</p>
               </div>
             )}
 
@@ -95,7 +96,7 @@ export default function AIProviderForm({ config }: { config: any }) {
               <div className="mt-2 relative">
                 <input id="aiModel" name="aiModel" type="text" defaultValue={config.aiModel} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
-              <p className="mt-2 text-xs leading-5 text-text-faint">E.g., gpt-4o-mini, gpt-4o, claude-3-haiku</p>
+              <p className="mt-2 text-xs leading-5 text-text-faint">E.g., gpt-4o-mini, gpt-4o, claude-3-haiku, kimi-k2.6</p>
             </div>
 
             <div>

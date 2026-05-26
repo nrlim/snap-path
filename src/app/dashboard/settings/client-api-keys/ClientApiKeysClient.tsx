@@ -169,7 +169,7 @@ export default function ClientApiKeysClient({ clients, canManageClients }: { cli
           </select>
           {canManageClients && (
             <select value={gatewayFilter} onChange={(event) => { setGatewayFilter(event.target.value); setPage(1); }} className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">
-              <option value="all">Semua gateway</option><option value="global">Global config</option><option value="vercel-ai-gateway">Vercel AI Gateway</option><option value="custom">Custom</option>
+              <option value="all">Semua gateway</option><option value="global">Global config</option><option value="vercel-ai-gateway">Vercel AI Gateway</option><option value="sumopod">SumoPod</option><option value="custom">Custom</option>
             </select>
           )}
           <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">
@@ -283,6 +283,7 @@ function ClientModal({ client, isPending, onClose, onSubmit }: { client: Client 
             <select name="aiProvider" value={aiProvider} onChange={(event) => setAiProvider(event.target.value)} className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">
               <option value="">Ikuti global config</option>
               <option value="vercel-ai-gateway">Override: Vercel AI Gateway</option>
+              <option value="sumopod">Override: SumoPod AI Gateway</option>
               <option value="custom">Override: Custom Gateway</option>
             </select>
             {usesGlobalConfig && (

@@ -992,7 +992,7 @@
           "Claim Workflows"
         ],
         "summary": "Full Claim Validation",
-        "description": "Menjalankan workflow asynchronous: document validation, diagnosis-treatment validation, tariff validation, drug price check, dan clinical pathway generation untuk diagnosis primer.",
+        "description": "Menjalankan workflow asynchronous: document validation, diagnosis-treatment validation, tariff validation, drug price check, LOS validation, dan clinical pathway generation untuk diagnosis primer.",
         "requestBody": {
           "required": true,
           "content": {

@@ -92,7 +92,7 @@ model Client {
   code              String   @unique // e.g., "RS_SILOAM", "KLINIK_ABC"
   name              String
   isActive          Boolean  @default(true)
-  aiProvider        String?  // override: "vercel-ai-gateway" | "custom"
+  aiProvider        String?  // override: "vercel-ai-gateway" | "sumopod" | "custom"
   aiGatewayUrl      String?
   aiModel           String?
   aiMaxTokens       Int?
@@ -266,7 +266,7 @@ model ClinicalPathway {
 
 model SystemConfig {
   id              String   @id @default("GLOBAL_CONFIG")
-  aiProvider      String   @default("vercel-ai-gateway") // "vercel-ai-gateway" | "custom"
+  aiProvider      String   @default("vercel-ai-gateway") // "vercel-ai-gateway" | "sumopod" | "custom"
   aiGatewayUrl    String   @default("")
   aiModel         String   @default("gpt-4o-mini")
   aiMaxTokens     Int      @default(1500)
@@ -279,6 +279,8 @@ model SystemConfig {
   pathwayDailyLimitClientAdmin Int @default(25)
   pathwayDailyLimitAdmin Int @default(0) // 0 means unlimited
   pathwayDailyLimitSuperAdmin Int @default(0) // 0 means unlimited
+  piiRedactPatterns String[] @default(["name", "nama", "pasien", "patient", "fullname", "nik", "id", "ktp", "ssn", "identifier", "address", "alamat", "phone", "telepon", "nohp", "mobile", "email", "dob", "dateofbirth", "tanggallahir", "asuransi", "insurance", "bpjs"])
+  piiSafeContexts   String[] @default(["diagnosis", "procedure", "medication", "drug", "facility", "hospital", "clinic", "encounter", "class", "code", "type"])
   updatedAt       DateTime @updatedAt
 }
 

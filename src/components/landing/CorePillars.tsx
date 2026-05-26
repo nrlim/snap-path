@@ -4,10 +4,10 @@ export default function CorePillars() {
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center mb-16">
           <h2 className="text-3xl font-bold tracking-tight text-text sm:text-4xl">
-            Three Pillars of Certainty
+            Mesin inti SnapPath
           </h2>
           <p className="mt-4 text-lg text-text-subtle">
-            The foundation of our medical data processing engine.
+            Dibangun untuk kebutuhan operasional klaim dan pathway klinis di lingkungan healthcare Indonesia.
           </p>
         </div>
 
@@ -18,10 +18,10 @@ export default function CorePillars() {
               <span className="text-2xl font-bold">1</span>
             </div>
             <h3 className="text-lg font-semibold text-text mb-3">
-              Intelligent Summarization
+              Clinical Pathway Generator
             </h3>
             <p className="text-sm text-text-subtle leading-relaxed">
-              Condenses dense medical records into highly scannable, standardized clinical pathways optimized for physician review.
+              Menghasilkan pathway klinis dengan estimasi LOS, fase perawatan, asesmen, terapi, obat, edukasi, dan kriteria discharge.
             </p>
           </div>
 
@@ -31,10 +31,10 @@ export default function CorePillars() {
               <span className="text-2xl font-bold">2</span>
             </div>
             <h3 className="text-lg font-semibold text-text mb-3">
-              Cross-Validation Engine
+              Claim Validation Engine
             </h3>
             <p className="text-sm text-text-subtle leading-relaxed">
-              Continuously verifies consistency between historical patient comorbidities and active treatment trajectories.
+              Memvalidasi diagnosis-tindakan, tarif, obat, dokumen, dan LOS dengan status item yang eksplisit seperti over threshold, under priced, atau not found.
             </p>
           </div>
 
@@ -44,10 +44,10 @@ export default function CorePillars() {
               <span className="text-2xl font-bold">3</span>
             </div>
             <h3 className="text-lg font-semibold text-text mb-3">
-              Deterministic Workflows
+              Tenant-ready API & Usage Logs
             </h3>
             <p className="text-sm text-text-subtle leading-relaxed">
-              Guarantees strict data compliance across all pre-processing and post-processing stages via isolated state management.
+              Mendukung client/provider, API key per environment, workflow background, serta log token AI untuk kontrol biaya dan audit operasional.
             </p>
           </div>
         </div>

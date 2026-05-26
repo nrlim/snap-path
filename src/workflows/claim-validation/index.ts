@@ -17,9 +17,9 @@ import {
  *   2. validateDiagnosisStep    — AI + rule-based diagnosis validation
  *   3. validateTariffStep       — Master tariff book price check
  *   4. checkDrugPricesStep      — AI-assisted drug market price check
- *   5. generatePathwayStep      — Generate clinical pathway (AI or template)
- *   5.5 validateLosStep         — Validate LOS against Master Data & AI Research
- *   6. aggregateAndSaveStep     — Aggregate scores and persist to DB
+ *   5. validateLosStep          — Validate LOS against Master Data & AI Research
+ *   6. generatePathwayStep      — Generate clinical pathway (AI or template)
+ *   7. aggregateAndSaveStep     — Aggregate scores and persist to DB
  *
  * Called via `start()` from the API route (fire-and-forget).
  * The client polls `/api/v1/claims/status?runId=...` to check progress.
@@ -39,12 +39,12 @@ export async function claimValidationWorkflow(input: ClaimValidationPayload): Pr
   // Step 4: Drug price check (AI + cache)
   const drugRes = await checkDrugPricesStep(input);
 
-  // Step 5: Clinical pathway generation
-  const pathRes = await generatePathwayStep(input);
-
-  // Step 5.5: LOS validation
+  // Step 5: LOS validation
   const losRes = await validateLosStep(input);
 
-  // Step 6: Aggregate and save final result
+  // Step 6: Clinical pathway generation
+  const pathRes = await generatePathwayStep(input);
+
+  // Step 7: Aggregate and save final result
   await aggregateAndSaveStep(input, docRes, diagRes, tariffRes, drugRes, pathRes, losRes);
 }

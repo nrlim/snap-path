@@ -3,6 +3,8 @@ export interface AIMessage {
   content: string;
 }
 
+import { sanitizeClinicalText, sanitizeClaimValidationInput, sanitizeArbitraryJson } from './sanitizer';
+
 export interface Usage {
   promptTokens?: number;
   completionTokens?: number;
@@ -39,10 +41,14 @@ export interface AIGatewayDriver {
 export class AIGateway {
   private driver: AIGatewayDriver;
   private context: AIGatewayContext;
+  private piiRedactPatterns: string[];
+  private piiSafeContexts: string[];
 
-  constructor(driver: AIGatewayDriver, context: AIGatewayContext = {}) {
+  constructor(driver: AIGatewayDriver, context: AIGatewayContext = {}, piiRedactPatterns?: string[], piiSafeContexts?: string[]) {
     this.driver = driver;
     this.context = context;
+    this.piiRedactPatterns = piiRedactPatterns || [];
+    this.piiSafeContexts = piiSafeContexts || [];
   }
 
   private async track<T extends { usage?: Usage }>(operation: string, action: () => Promise<T>): Promise<T> {
@@ -82,16 +88,16 @@ export class AIGateway {
   async summarizePathway(clinicalText: string) {
     return this.track('summarizePathway', () => this.driver.generateText(
       "Ringkas teks rekam medis berikut menjadi pathway deterministik yang jelas.",
-      [{ role: "user", content: clinicalText }]
+      [{ role: "user", content: sanitizeClinicalText(clinicalText) }]
     ));
   }
 
   async extractEntities(clinicalText: string) {
-    return this.track('extractMedicalData', () => this.driver.extractMedicalData(clinicalText));
+    return this.track('extractMedicalData', () => this.driver.extractMedicalData(sanitizeClinicalText(clinicalText)));
   }
 
   async validateDiagnosisTreatment(payload: any) {
-    return this.track('validateDiagnosisTreatment', () => this.driver.validateDiagnosisTreatment(payload));
+    return this.track('validateDiagnosisTreatment', () => this.driver.validateDiagnosisTreatment(sanitizeClaimValidationInput(payload)));
   }
 
   async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }) {
@@ -107,7 +113,7 @@ export class AIGateway {
   }
 
   async mapArbitraryJsonToClaim(rawJson: any) {
-    return this.track('mapArbitraryJsonToClaim', () => this.driver.mapArbitraryJsonToClaim(rawJson));
+    return this.track('mapArbitraryJsonToClaim', () => this.driver.mapArbitraryJsonToClaim(sanitizeArbitraryJson(rawJson, this.piiRedactPatterns, this.piiSafeContexts)));
   }
 
   async estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string) {
@@ -117,6 +123,7 @@ export class AIGateway {
 
 // Singleton helper to get default configured gateway
 import { VercelAIDriver } from './drivers/vercel';
+import { SumoPodAIDriver } from './drivers/sumopod';
 
 import prisma from '../db';
 import { recordApiUsage } from '../api-key';
@@ -131,16 +138,20 @@ export async function getAIGateway(context: AIGatewayContext = {}): Promise<AIGa
   ]);
 
   const providerName = providerConfig?.aiProvider || config?.aiProvider || "vercel-ai-gateway";
-  let apiKey = process.env.AI_GATEWAY_API_KEY || "";
   let baseURL = providerConfig?.aiGatewayUrl || config?.aiGatewayUrl || "";
-
-  if (providerName === "vercel-ai-gateway") {
-    if (!baseURL) baseURL = "https://ai-gateway.vercel.sh/v1";
-  }
-  const model = providerConfig?.aiModel || config?.aiModel || "gpt-4o-mini";
+  const model = providerConfig?.aiModel || config?.aiModel || (providerName === "sumopod" ? process.env.SUMOPOD_MODEL : null) || "gpt-4o-mini";
   const maxTokens = providerConfig?.aiMaxTokens || config?.aiMaxTokens || 1500;
   const temperature = providerConfig?.aiTemperature ?? config?.aiTemperature ?? 0.7;
-  
-  const driver = new VercelAIDriver(apiKey, baseURL, model, maxTokens, temperature);
-  return new AIGateway(driver, { ...context, aiProvider: providerName, aiModel: model });
+
+  const driver = providerName === "sumopod"
+    ? new SumoPodAIDriver(process.env.SUMOPOD_API_KEY, baseURL || process.env.SUMOPOD_BASE_URL, model, maxTokens, temperature)
+    : new VercelAIDriver(
+      process.env.AI_GATEWAY_API_KEY || "",
+      providerName === "vercel-ai-gateway" ? (baseURL || "https://ai-gateway.vercel.sh/v1") : baseURL,
+      model,
+      maxTokens,
+      temperature,
+    );
+
+  return new AIGateway(driver, { ...context, aiProvider: providerName, aiModel: model }, config?.piiRedactPatterns, config?.piiSafeContexts);
 }

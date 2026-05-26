@@ -22,7 +22,7 @@
 ```text
 PathwayWizard
   -> /api/v1/claims/validate
-  -> claim-validation workflow steps
+  -> claim-validation workflow steps (termasuk LOS_VAL)
   -> validators/generators
   -> aggregateAndSaveStep
   -> ClaimJob.outputResult

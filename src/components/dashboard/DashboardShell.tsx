@@ -106,6 +106,12 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
         subtitle: 'Validate claims and generate pathways using AI Brain.',
       }
     }
+    if (pathname.startsWith('/dashboard/settings/privacy-config')) {
+      return {
+        title: 'Konfigurasi Privasi & PII AI',
+        subtitle: 'Atur pola data sensitif pasien yang disembunyikan sebelum dikirim ke AI.',
+      }
+    }
     if (pathname.startsWith('/dashboard/settings/ai-provider')) {
       return {
         title: 'AI Provider Configuration',
@@ -216,6 +222,7 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
                   {openMenus['Configuration'] && (
                     <div className="mt-0.5 space-y-0.5 pl-3">
                       {canSeeCoreAI && <Link href="/dashboard/settings/ai-provider" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-provider') || pathname === '/dashboard/settings' ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Integrations</Link>}
+                      {canSeeCoreAI && <Link href="/dashboard/settings/privacy-config" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/privacy-config') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Privasi & PII AI</Link>}
                       {canSeeCoreAI && <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Usage Logs</Link>}
                       {canSeeClientConfig && <Link href="/dashboard/settings/client-api-keys" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/client-api-keys') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Client API Keys</Link>}
                       {canSeeClientConfig && <Link href="/dashboard/settings/user-management" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/user-management') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>User Management</Link>}

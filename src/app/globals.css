@@ -167,4 +167,13 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     @apply bg-zinc-600;
   }
+  
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
 }

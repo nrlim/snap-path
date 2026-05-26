@@ -34,6 +34,7 @@ const WORKFLOW_STEPS: WorkflowStepResult[] = [
   { stepId: "diag-val", label: "Validasi Diagnosis", description: "Menganalisis kesesuaian diagnosis dan tindakan medis (ICD-10)...", status: "waiting", timestamp: "" },
   { stepId: "tariff-val", label: "Validasi Tarif", description: "Mengecek kewajaran harga tindakan medis...", status: "waiting", timestamp: "" },
   { stepId: "drug-val", label: "Cek Harga Obat", description: "Memvalidasi kesesuaian harga obat dengan HET...", status: "waiting", timestamp: "" },
+  { stepId: "los-val", label: "Validasi Lama Rawat (LOS)", description: "Memvalidasi kesesuaian Length of Stay berdasarkan diagnosis...", status: "waiting", timestamp: "" },
   { stepId: "pathway-gen", label: "Generate Clinical Pathway", description: "Menyusun standard clinical pathway berdasarkan diagnosis...", status: "waiting", timestamp: "" },
   { stepId: "aggregate", label: "Agregasi Hasil", description: "Menyelesaikan validasi dan menghitung skor akhir...", status: "waiting", timestamp: "" },
 ];
@@ -65,9 +66,13 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
     DIAG_VAL: 2,
     TARIFF_VAL: 3,
     DRUG_VAL: 4,
-    PATHWAY_GEN: 5,
-    AGGREGATE: 6,
-    PROCESSING: 1,
+    LOS_VAL: 5,
+    PATHWAY_GEN: 6,
+    AGGREGATE: 7,
+    // PRE_PROCESSING / POST_PROCESSING are generic — keep wherever we are
+    PRE_PROCESSING: -1,
+    POST_PROCESSING: -1,
+    PROCESSING: -1,
   };
 
   function clearStoredWorkflow() {
@@ -134,7 +139,9 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
           const data = await pollRes.json();
 
           if (data.status === "running") {
-            const stepIdx = jobStatusToStepIdx[data.jobStatus ?? "PROCESSING"] ?? 1;
+            const mappedIdx = jobStatusToStepIdx[data.jobStatus ?? "PROCESSING"];
+            // -1 means unknown/generic status — preserve the current step index
+            const stepIdx = (mappedIdx === undefined || mappedIdx === -1) ? currentStepIdx : mappedIdx;
             markStepsProgress(stepIdx);
           } else if (data.status === "completed") {
             clearInterval(intervalRef.current!);
