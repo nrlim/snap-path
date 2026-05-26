@@ -11,8 +11,8 @@ export default async function AIProviderPage() {
   const config = await prisma.systemConfig.findUnique({
     where: { id: "GLOBAL_CONFIG" }
   }) || {
-    aiProvider: "sumopod",
-    aiGatewayUrl: "https://api.sumopod.com/v1",
+    aiProvider: "vercel-ai-gateway",
+    aiGatewayUrl: "",
     aiModel: "gpt-4o-mini",
     aiMaxTokens: 1500,
     aiTemperature: 0.7

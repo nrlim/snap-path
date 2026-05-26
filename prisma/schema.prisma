@@ -92,7 +92,7 @@ model Client {
   code              String   @unique // e.g., "RS_SILOAM", "KLINIK_ABC"
   name              String
   isActive          Boolean  @default(true)
-  aiProvider        String?  // override: "sumopod" | "vercel-ai-sdk" | "custom"
+  aiProvider        String?  // override: "vercel-ai-gateway" | "custom"
   aiGatewayUrl      String?
   aiModel           String?
   aiMaxTokens       Int?
@@ -266,8 +266,8 @@ model ClinicalPathway {
 
 model SystemConfig {
   id              String   @id @default("GLOBAL_CONFIG")
-  aiProvider      String   @default("sumopod") // "sumopod" | "vercel-ai-sdk" | "custom"
-  aiGatewayUrl    String   @default("https://api.sumopod.com/v1")
+  aiProvider      String   @default("vercel-ai-gateway") // "vercel-ai-gateway" | "custom"
+  aiGatewayUrl    String   @default("")
   aiModel         String   @default("gpt-4o-mini")
   aiMaxTokens     Int      @default(1500)
   aiTemperature   Float    @default(0.7)

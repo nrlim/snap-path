@@ -88,10 +88,16 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
 
   // Dynamic header based on route
   const getHeaderInfo = () => {
+    if (pathname.startsWith('/dashboard/master-data/obat')) {
+      return {
+        title: 'Master Obat',
+        subtitle: 'Pantau cache referensi harga obat untuk validasi klaim.',
+      }
+    }
     if (pathname.startsWith('/dashboard/master-data/buku-tarif')) {
       return {
-        title: 'Fee Schedules Master Data',
-        subtitle: 'Manage fee reference data from various insurance providers.',
+        title: 'Master Buku Tarif',
+        subtitle: 'Kelola data referensi tarif dari berbagai provider.',
       }
     }
     if (pathname.startsWith('/dashboard/clinical-pathway')) {
@@ -175,7 +181,8 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
                 </button>
                 {openMenus['Reference Data'] && (
                   <div className="mt-0.5 space-y-0.5 pl-3">
-                    <Link href="/dashboard/master-data/buku-tarif" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/buku-tarif') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Fee Schedules</Link>
+                    <Link href="/dashboard/master-data/buku-tarif" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/buku-tarif') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Master Buku Tarif</Link>
+                    <Link href="/dashboard/master-data/obat" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/obat') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Master Obat</Link>
                   </div>
                 )}
               </div>
@@ -371,7 +378,14 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
                     <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-surface border border-primary/10 shadow-sm group-hover:bg-white group-hover:shadow-md transition-all text-secondary">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path></svg>
                     </div>
-                    <span className="text-[10px] font-medium text-center leading-tight">Fee Schedules</span>
+                    <span className="text-[10px] font-medium text-center leading-tight">Buku Tarif</span>
+                  </Link>
+
+                  <Link href="/dashboard/master-data/obat" className="group flex flex-col items-center justify-start gap-2 rounded-2xl p-2 transition-colors hover:bg-secondary-soft text-text">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-surface border border-primary/10 shadow-sm group-hover:bg-white group-hover:shadow-md transition-all text-secondary">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 21.5a4 4 0 0 1-5.66-5.66l11.5-11.5a4 4 0 1 1 5.66 5.66Z"></path><path d="m14 8 2 2"></path><path d="m8 14 2 2"></path></svg>
+                    </div>
+                    <span className="text-[10px] font-medium text-center leading-tight">Obat</span>
                   </Link>
 
                   <Link href="/dashboard/clinical-pathway" className="group flex flex-col items-center justify-start gap-2 rounded-2xl p-2 transition-colors hover:bg-secondary-soft text-text">

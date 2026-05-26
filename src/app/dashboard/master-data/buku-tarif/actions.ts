@@ -13,7 +13,7 @@ export async function getTariffEntries(params: { providerId?: string, category?:
   if (params.providerId) whereClause.providerId = params.providerId;
   if (params.category) whereClause.category = params.category;
 
-  const [entries, total] = await Promise.all([
+  const [entries, total, active, inactive] = await Promise.all([
     prisma.tariffEntry.findMany({
       where: whereClause,
       include: { provider: { select: { name: true } } },
@@ -21,10 +21,12 @@ export async function getTariffEntries(params: { providerId?: string, category?:
       take: limit,
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.tariffEntry.count({ where: whereClause })
+    prisma.tariffEntry.count({ where: whereClause }),
+    prisma.tariffEntry.count({ where: { ...whereClause, isActive: true } }),
+    prisma.tariffEntry.count({ where: { ...whereClause, isActive: false } })
   ]);
 
-  return { entries, total, totalPages: Math.ceil(total / limit) };
+  return { entries, total, totalPages: Math.ceil(total / limit), summary: { active, inactive } };
 }
 
 export async function getProviders() {

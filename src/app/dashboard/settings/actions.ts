@@ -28,8 +28,8 @@ export async function updateSystemConfig(formData: FormData) {
     const thresholdLosDays = parseInt(formData.get("thresholdLosDays") as string, 10);
 
     const updateData = {
-      aiProvider: aiProvider || "sumopod",
-      aiGatewayUrl: aiGatewayUrl || (aiProvider === "vercel-ai-sdk" ? "https://ai-gateway.vercel.sh/v1" : "https://api.sumopod.com/v1"),
+      aiProvider: aiProvider || "vercel-ai-gateway",
+      aiGatewayUrl: aiGatewayUrl || "",
       aiModel: aiModel || "gpt-4o-mini",
       aiMaxTokens: isNaN(aiMaxTokens) ? 1500 : aiMaxTokens,
       aiTemperature: isNaN(aiTemperature) ? 0.7 : aiTemperature,

@@ -33,7 +33,7 @@ export interface AIGatewayDriver {
 }
 
 /**
- * AIGateway is a decoupled abstraction over specific AI models (Sumopod, Vercel AI SDK, etc.).
+ * AIGateway is a decoupled abstraction over specific AI models (Vercel AI SDK, Custom Gateway, etc.).
  * It ensures the business logic is agnostic to the underlying AI provider.
  */
 export class AIGateway {
@@ -116,7 +116,7 @@ export class AIGateway {
 }
 
 // Singleton helper to get default configured gateway
-import { OpenAIDriver } from './drivers/openai';
+import { VercelAIDriver } from './drivers/vercel';
 
 import prisma from '../db';
 import { recordApiUsage } from '../api-key';
@@ -130,25 +130,17 @@ export async function getAIGateway(context: AIGatewayContext = {}): Promise<AIGa
       : Promise.resolve(null),
   ]);
 
-  const providerName = providerConfig?.aiProvider || config?.aiProvider || "sumopod";
-  let apiKey = "";
+  const providerName = providerConfig?.aiProvider || config?.aiProvider || "vercel-ai-gateway";
+  let apiKey = process.env.AI_GATEWAY_API_KEY || "";
   let baseURL = providerConfig?.aiGatewayUrl || config?.aiGatewayUrl || "";
 
-  if (providerName === "sumopod") {
-    apiKey = process.env.SUMOPOD_API_KEY || process.env.AI_GATEWAY_API_KEY || "";
-    if (!baseURL) baseURL = "https://api.sumopod.com/v1";
-  } else if (providerName === "vercel-ai-sdk") {
-    apiKey = process.env.AI_SDK_API_KEY || process.env.OPENAI_API_KEY || "";
+  if (providerName === "vercel-ai-gateway") {
     if (!baseURL) baseURL = "https://ai-gateway.vercel.sh/v1";
-  } else {
-    // Custom / Default
-    apiKey = process.env.OPENAI_API_KEY || process.env.AI_SDK_API_KEY || "";
-    if (!baseURL) baseURL = "https://api.openai.com/v1"; // Custom can fallback to standard OpenAI
   }
   const model = providerConfig?.aiModel || config?.aiModel || "gpt-4o-mini";
   const maxTokens = providerConfig?.aiMaxTokens || config?.aiMaxTokens || 1500;
   const temperature = providerConfig?.aiTemperature ?? config?.aiTemperature ?? 0.7;
   
-  const driver = new OpenAIDriver(apiKey, baseURL, model, maxTokens, temperature);
+  const driver = new VercelAIDriver(apiKey, baseURL, model, maxTokens, temperature);
   return new AIGateway(driver, { ...context, aiProvider: providerName, aiModel: model });
 }

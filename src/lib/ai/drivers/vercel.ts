@@ -3,17 +3,17 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
 import { AIGatewayDriver, AIMessage } from '../gateway';
 
-export class OpenAIDriver implements AIGatewayDriver {
+export class VercelAIDriver implements AIGatewayDriver {
   private ai: ReturnType<typeof createOpenAI>;
   private defaultModel: string;
   private maxTokens: number;
   private temperature: number;
 
   constructor(apiKey: string, baseURL?: string, model?: string, maxTokens?: number, temperature?: number) {
-    // This allows connecting to Vercel AI Gateway, Sumopod, or direct OpenAI
+    // This connects via the Vercel AI SDK which supports Vercel AI Gateway and direct OpenAI
     this.ai = createOpenAI({
       apiKey,
-      baseURL: baseURL || 'https://api.openai.com/v1',
+      baseURL: baseURL || 'https://ai-gateway.vercel.sh/v1',
     });
     this.defaultModel = model || 'gpt-4o-mini';
     this.maxTokens = maxTokens || 1500;
@@ -49,7 +49,7 @@ export class OpenAIDriver implements AIGatewayDriver {
 
     return { data: object, usage: usage as any };
   }
-  
+
   async validateDiagnosisTreatment(payload: any): Promise<{ data: any; usage?: { promptTokens: number; completionTokens: number } }> {
     const schema = z.object({
       isValid: z.boolean(),
@@ -93,10 +93,10 @@ export class OpenAIDriver implements AIGatewayDriver {
     const drugContext = typeof drug === 'string'
       ? { name: drug, genericName: null, dosage: null }
       : {
-          name: drug.name,
-          genericName: drug.genericName || null,
-          dosage: drug.dosage || null,
-        };
+        name: drug.name,
+        genericName: drug.genericName || null,
+        dosage: drug.dosage || null,
+      };
 
     const { object, usage } = await generateObject({
       model: this.ai(this.defaultModel),

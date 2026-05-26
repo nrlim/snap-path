@@ -13,7 +13,7 @@ export default function AIArchitecture() {
             <ul className="mt-8 space-y-4 text-sm text-text-subtle">
               <li className="flex gap-x-3 items-center">
                 <div className="h-2 w-2 rounded-full bg-primary"></div>
-                Native support for Vercel AI SDK and Sumopod.
+                Powered by Vercel AI Gateway SDK with multi-provider extensibility.
               </li>
               <li className="flex gap-x-3 items-center">
                 <div className="h-2 w-2 rounded-full bg-secondary"></div>
