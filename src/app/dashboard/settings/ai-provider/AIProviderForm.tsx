@@ -6,16 +6,32 @@ import { useUI } from '@/components/providers/UIProvider';
 
 export default function AIProviderForm({ config }: { config: any }) {
   const { showLoading, hideLoading, showNotification, showConfirm } = useUI();
+  
+  const getInitialGatewayUrl = () => {
+    if (config.aiGatewayUrl) return config.aiGatewayUrl;
+    if (config.aiProvider === "sumopod") return "https://ai.sumopod.com/v1";
+    if (config.aiProvider === "vercel-ai-gateway" || !config.aiProvider) return "https://ai-gateway.vercel.sh/v1";
+    return "";
+  };
+
   const [provider, setProvider] = React.useState(config.aiProvider || "vercel-ai-gateway");
+  const [gatewayUrl, setGatewayUrl] = React.useState(getInitialGatewayUrl());
+
+  const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newProvider = e.target.value;
+    setProvider(newProvider);
+    if (newProvider === "vercel-ai-gateway") {
+      setGatewayUrl("https://ai-gateway.vercel.sh/v1");
+    } else if (newProvider === "sumopod") {
+      setGatewayUrl("https://ai.sumopod.com/v1");
+    } else if (newProvider === "custom" && provider !== "custom") {
+      setGatewayUrl(config.aiGatewayUrl || "");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
-    // Auto-fill gatewayUrl if provider uses its managed/default endpoint.
-    if (provider === "vercel-ai-gateway" || provider === "sumopod") {
-      formData.set("gatewayUrl", "");
-    }
     
     showConfirm({
       title: "Save Configuration",
@@ -61,7 +77,7 @@ export default function AIProviderForm({ config }: { config: any }) {
                 <select
                   id="primaryProvider" name="primaryProvider" 
                   value={provider}
-                  onChange={(e) => setProvider(e.target.value)}
+                  onChange={handleProviderChange}
                   className="block w-full appearance-none rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="vercel-ai-gateway">Vercel AI Gateway</option>
@@ -74,22 +90,24 @@ export default function AIProviderForm({ config }: { config: any }) {
               </div>
             </div>
 
-            {provider === "custom" ? (
-              <div>
-                <label htmlFor="gatewayUrl" className="block text-sm font-medium text-text">Base URL (Gateway URL)</label>
-                <div className="mt-2 relative">
-                  <input id="gatewayUrl" name="gatewayUrl" type="url" defaultValue={config.aiGatewayUrl} required className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                </div>
+            <div>
+              <label htmlFor="gatewayUrl" className="block text-sm font-medium text-text">Base URL (Gateway URL)</label>
+              <div className="mt-2 relative">
+                <input 
+                  id="gatewayUrl" 
+                  name="gatewayUrl" 
+                  type="url" 
+                  value={gatewayUrl} 
+                  onChange={(e) => setGatewayUrl(e.target.value)}
+                  readOnly={provider !== "custom"}
+                  required 
+                  className={`block w-full rounded-md border border-border px-3 py-2.5 text-base sm:text-sm transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary ${provider !== 'custom' ? 'bg-surface-elevated/50 text-text-subtle cursor-not-allowed' : 'bg-surface text-text'}`}
+                />
               </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-medium text-text">Base URL (Gateway URL)</label>
-                <div className="mt-2 relative">
-                  <input type="text" disabled value={provider === "sumopod" ? "Managed by SUMOPOD_BASE_URL" : "Managed by Vercel AI SDK"} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text-subtle bg-surface-elevated/50 cursor-not-allowed" />
-                </div>
-                <p className="mt-2 text-xs text-text-faint">Managed automatically by provider. API key remains in server environment.</p>
-              </div>
-            )}
+              <p className="mt-2 text-xs text-text-faint">
+                {provider === "custom" ? "Enter your custom gateway URL." : "Auto-filled based on selected provider. API key remains in server environment."}
+              </p>
+            </div>
 
             <div>
               <label htmlFor="aiModel" className="block text-sm font-medium text-text">AI Model</label>
