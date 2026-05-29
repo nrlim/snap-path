@@ -2,32 +2,32 @@ import fs from "fs";
 import path from "path";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getAuthenticatedUser } from "@/lib/rbac";
 import { ScalarDocs } from "./ScalarDocs";
 
 export const dynamic = "force-dynamic";
 
 export default async function ApiDocsPage() {
-  const session = await getSession();
+  const user = await getAuthenticatedUser();
 
-  if (!session) {
+  if (!user) {
     redirect("/login?next=/api-docs");
   }
 
-  const role = typeof session.role === "string" ? session.role : "";
-  const hasClientAccess = typeof session.clientId === "string" && session.clientId.length > 0;
+  const role = user.role;
+  const hasClientAccess = user.clientId !== null;
   const hasAdminAccess = ["SUPER_ADMIN", "ADMIN"].includes(role);
 
   if (!hasClientAccess && !hasAdminAccess) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-slate-950 px-4 text-slate-100">
-        <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-center shadow-xl">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Restricted API Docs</p>
+      <main className="flex min-h-dvh items-center justify-center bg-background px-4 text-text">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 text-center shadow-xl shadow-primary/10">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-text-faint">Restricted API Docs</p>
           <h1 className="mt-3 text-xl font-bold">Akses API Docs belum aktif</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
+          <p className="mt-2 text-sm leading-6 text-text-subtle">
             Akun Anda harus terhubung ke client yang sudah terdaftar atau memiliki role admin untuk membuka dokumentasi API SnapPath.
           </p>
-          <Link href="/dashboard" className="mt-5 inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 text-sm font-semibold text-slate-950 hover:bg-slate-200">
+          <Link href="/dashboard" className="mt-5 inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-hover">
             Kembali ke Dashboard
           </Link>
         </div>
@@ -63,7 +63,7 @@ export default async function ApiDocsPage() {
   });
 
   return (
-    <div className="w-full min-h-screen bg-[#09090b]">
+    <div className="w-full min-h-screen bg-background">
       <ScalarDocs spec={spec} />
     </div>
   );

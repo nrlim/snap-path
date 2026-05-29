@@ -4,9 +4,27 @@ import prisma from '@/lib/db';
 const KEY_PREFIX = 'sp_';
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 
-function getEncryptionKey() {
-  const source = process.env.API_CREDENTIAL_ENCRYPTION_KEY || process.env.JWT_SECRET || 'default_super_secure_secret_key_change_me_in_production';
+function getEncryptionKey(): Buffer {
+  const source = process.env.API_CREDENTIAL_ENCRYPTION_KEY || process.env.JWT_SECRET;
+  if (!source) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('API_CREDENTIAL_ENCRYPTION_KEY or JWT_SECRET is required in production');
+    }
+    return crypto.createHash('sha256').update('snap-path-dev-encryption-key-do-not-use-in-prod').digest();
+  }
   return crypto.createHash('sha256').update(source).digest();
+}
+
+/** Timing-safe string comparison to prevent timing attacks */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) {
+    // Still do a comparison to keep timing constant
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(a); // intentionally same
+    crypto.timingSafeEqual(bufA, bufB);
+    return false;
+  }
+  return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 }
 
 export function encryptCredential(value: string): string {
@@ -27,8 +45,9 @@ export function decryptCredential(cipherText: string | null | undefined): string
     const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, getEncryptionKey(), Buffer.from(ivValue, 'base64'));
     decipher.setAuthTag(Buffer.from(tagValue, 'base64'));
     return Buffer.concat([decipher.update(Buffer.from(encryptedValue, 'base64')), decipher.final()]).toString('utf8');
-  } catch (error) {
-    console.error('Failed to decrypt API credential:', error);
+  } catch {
+    // Cipher can be unreadable when credentials were created with an older encryption key.
+    // Return null so the dashboard can show "not available" without surfacing crypto errors.
     return null;
   }
 }
@@ -67,7 +86,8 @@ export async function validateApiKey(key: string | null, secret?: string | null)
     include: { client: true },
   });
 
-  if (!apiKeyRecord) {
+  // Use timing-safe comparison for key hash validation
+  if (!apiKeyRecord || !timingSafeEqual(hash, apiKeyRecord.keyHash)) {
     return { valid: false, error: 'API key not found' };
   }
 
@@ -81,7 +101,7 @@ export async function validateApiKey(key: string | null, secret?: string | null)
     }
 
     const secretHash = hashApiKey(secret);
-    if (secretHash !== apiKeyRecord.secretHash) {
+    if (!timingSafeEqual(secretHash, apiKeyRecord.secretHash)) {
       return { valid: false, error: 'Invalid API secret' };
     }
   }

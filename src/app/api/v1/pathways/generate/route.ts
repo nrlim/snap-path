@@ -3,6 +3,7 @@ import { authenticateApiRequest } from "@/lib/middleware/auth-api";
 import { recordApiUsage } from "@/lib/api-key";
 import prisma from "@/lib/db";
 import { generateClinicalPathway } from "@/lib/ai/generators/pathway";
+import { sanitizeClaimValidationInput } from "@/lib/ai/sanitizer";
 
 export async function POST(request: Request) {
   const startTime = Date.now();
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
       data: {
         jobType: "PATHWAY_GEN",
         status: "QUEUED",
-        inputPayload: payload,
+        inputPayload: sanitizeClaimValidationInput(payload) as any,
         clientId: payload.clientId,
         providerId: payload.providerId,
       }
@@ -49,16 +50,18 @@ export async function POST(request: Request) {
       }
     }, 1000);
 
-    await recordApiUsage({
-      apiKeyId: auth.apiKeyId!,
-      clientId: payload.clientId,
-      providerId: payload.providerId,
-      jobId: claimJob.id,
-      endpoint: "/api/v1/pathways/generate",
-      method: "POST",
-      statusCode: 202,
-      durationMs: Date.now() - startTime
-    });
+    if (auth.apiKeyId) {
+      await recordApiUsage({
+        apiKeyId: auth.apiKeyId,
+        clientId: payload.clientId,
+        providerId: payload.providerId,
+        jobId: claimJob.id,
+        endpoint: "/api/v1/pathways/generate",
+        method: "POST",
+        statusCode: 202,
+        durationMs: Date.now() - startTime
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -68,6 +71,7 @@ export async function POST(request: Request) {
     }, { status: 202 });
 
   } catch (error) {
+    console.error('[pathways/generate]', { message: error instanceof Error ? error.message : 'Unknown' });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

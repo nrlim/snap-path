@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PathwayTimeline from "./PathwayTimeline";
-import { ArrowUp, BrainCircuit, Calculator, CheckCheck, CheckCircle2, ClipboardCheck, Copy, MinusCircle } from 'lucide-react';
+import { ArrowUp, BrainCircuit, Calculator, CheckCheck, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MinusCircle } from 'lucide-react';
 import { resolveActualLosDays } from '@/lib/los';
 
 export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?: number }) {
@@ -59,10 +59,15 @@ function ConformanceRow({ label, value, badgeLabel, isSuccess, isWarning }: { la
   );
 }
 
+type ScoreBreakdownStatus = 'PASS' | 'PARTIAL' | 'NEEDS_REVIEW';
+
 type ScoreBreakdownItem = {
   label: string;
   maxDeduction: number;
+  maxScore?: number;
+  score?: number;
   deducted: number;
+  status?: ScoreBreakdownStatus;
   reason: string;
 };
 
@@ -74,13 +79,22 @@ type LooseValidationItem = {
 type PersistedScoreBreakdownItem = {
   label: string;
   maxDeduction: number;
+  maxScore?: number;
+  score?: number;
   deducted: number;
+  status?: ScoreBreakdownStatus;
   reason: string;
 };
 
 function ScoreBreakdownPanel({ score, items }: { score: number; items: ScoreBreakdownItem[] }) {
-  const totalDeduction = items.reduce((total, item) => total + item.deducted, 0);
-  const calculatedScore = Math.max(0, 100 - totalDeduction);
+  const totalMaxScore = items.reduce((total, item) => total + (item.maxScore ?? item.maxDeduction), 0);
+  const totalEarnedScore = items.reduce((total, item) => {
+    const maxScore = item.maxScore ?? item.maxDeduction;
+    const earnedScore = typeof item.score === 'number' ? item.score : Math.max(0, maxScore - item.deducted);
+    return total + earnedScore;
+  }, 0);
+  const totalFindings = Math.max(0, totalMaxScore - totalEarnedScore);
+  const calculatedScore = Math.max(0, Math.round(totalEarnedScore));
 
   return (
     <div className="rounded-xl border border-border/70 bg-surface/95 p-4">
@@ -88,41 +102,45 @@ function ScoreBreakdownPanel({ score, items }: { score: number; items: ScoreBrea
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-subtle">
             <Calculator className="h-4 w-4 text-primary" />
-            Perhitungan Skor
+            Skor per Aspek
           </div>
-          <p className="mt-1 text-sm text-text-subtle">Skor awal 100, dikurangi sesuai temuan validasi.</p>
+          <p className="mt-1 text-sm text-text-subtle">Setiap aspek menampilkan poin yang diperoleh dari bobot maksimum, sehingga hasil lebih mudah dibaca.</p>
         </div>
-        <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-border/60 bg-surface-elevated/30 text-center sm:min-w-[260px]">
+        <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-border/60 bg-surface-elevated/30 text-center sm:min-w-[300px]">
           <div className="px-3 py-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Awal</p>
-            <p className="text-lg font-extrabold text-text">100</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Maksimum</p>
+            <p className="text-lg font-extrabold text-text">{totalMaxScore}</p>
           </div>
           <div className="border-x border-border/60 px-3 py-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Minus</p>
-            <p className="text-lg font-extrabold text-red-600">-{totalDeduction}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Diperoleh</p>
+            <p className="text-lg font-extrabold text-primary">{Number.isFinite(score) ? score : calculatedScore}</p>
           </div>
           <div className="px-3 py-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Akhir</p>
-            <p className="text-lg font-extrabold text-primary">{Number.isFinite(score) ? score : calculatedScore}</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Temuan</p>
+            <p className="text-lg font-extrabold text-amber-600">{totalFindings}</p>
           </div>
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
         {items.map((item) => {
+          const maxScore = item.maxScore ?? item.maxDeduction;
+          const earnedScore = typeof item.score === 'number' ? item.score : Math.max(0, maxScore - item.deducted);
           const hasDeduction = item.deducted > 0;
+          const isPartial = hasDeduction && earnedScore > 0;
           return (
-            <div key={item.label} className={`rounded-lg border p-3 ${hasDeduction ? 'border-red-500/20 bg-red-500/5' : 'border-green-500/20 bg-green-500/5'}`}>
+            <div key={item.label} className={`rounded-lg border p-3 ${hasDeduction ? (isPartial ? 'border-amber-500/20 bg-amber-500/5' : 'border-red-500/20 bg-red-500/5') : 'border-green-500/20 bg-green-500/5'}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2">
-                  {hasDeduction ? <MinusCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />}
+                  {hasDeduction ? <MinusCircle className={`mt-0.5 h-4 w-4 shrink-0 ${isPartial ? 'text-amber-600' : 'text-red-600'}`} /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />}
                   <div>
                     <p className="text-sm font-bold text-text">{item.label}</p>
                     <p className="mt-0.5 text-xs leading-5 text-text-subtle">{item.reason}</p>
+                    {hasDeduction && <p className="mt-1 text-[11px] font-medium text-text-subtle">Pengurang: {item.deducted} poin</p>}
                   </div>
                 </div>
-                <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-extrabold ${hasDeduction ? 'bg-red-500/10 text-red-700' : 'bg-green-500/10 text-green-700'}`}>
-                  {hasDeduction ? `-${item.deducted}` : '0'} / {item.maxDeduction}
+                <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-extrabold ${hasDeduction ? (isPartial ? 'bg-amber-500/10 text-amber-700' : 'bg-red-500/10 text-red-700') : 'bg-green-500/10 text-green-700'}`}>
+                  {earnedScore} / {maxScore}
                 </span>
               </div>
             </div>
@@ -139,10 +157,17 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const [copied, setCopied] = useState(false);
   const [copiedInput, setCopiedInput] = useState(false);
   const [loadingInput, setLoadingInput] = useState(false);
+  const [expandedDiagnosisDetails, setExpandedDiagnosisDetails] = useState<Record<string, boolean>>({});
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  const toggleDiagnosisDetail = (key: string) => {
+    setExpandedDiagnosisDetails((current) => ({ ...current, [key]: !(current[key] ?? false) }));
+  };
+
+  const isDiagnosisDetailExpanded = (key: string) => expandedDiagnosisDetails[key] ?? false;
 
   // Polling logic
   useEffect(() => {
@@ -222,6 +247,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   }[result.status as string] || { color: "neutral", label: "Unknown" };
 
   // Calculate some metrics for the cards
+  const inputPayload = job.inputPayload as any;
   const tariffItems = result.tariffValidation?.items || result.tariffValidations || [];
   const tariffOver = tariffItems.filter((t: any) => t.status === "OVER_THRESHOLD").length;
   
@@ -231,7 +257,29 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const docDetails = result.documentValidation?.details || result.documentValidations || {};
   const docWarnings = docDetails.missingRequiredDocuments?.length || 0;
 
-  const drugItems = result.drugPriceValidation?.items || result.drugPriceValidations || [];
+  const inputMedications = Array.isArray(inputPayload?.medications) ? inputPayload.medications : [];
+  const persistedDrugItems = result.drugPriceValidation?.items || result.drugPriceValidations || [];
+  const drugItems = persistedDrugItems.length > 0
+    ? persistedDrugItems
+    : inputMedications.map((med: any) => {
+      const quantity = Number(med.quantity || 1);
+      const claimedUnitPrice = Number(med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0);
+      const claimedTotal = Number(med.totalPrice ?? med.claimedTotal ?? (claimedUnitPrice * quantity));
+      return {
+        name: med.name || med.medicationName || 'Obat',
+        genericName: med.genericName || null,
+        quantity,
+        claimedUnitPrice,
+        claimedTotal,
+        marketPriceMax: 0,
+        marketPriceMaxWithThreshold: 0,
+        expectedTotal: 0,
+        status: 'NOT_FOUND',
+        variancePct: 0,
+        sources: [],
+        cachedAt: null,
+      };
+    });
   const drugIssues = (drugItems as LooseValidationItem[]).filter((d) => d.status && d.status !== "WITHIN_RANGE").length;
   const tariffIssues = (tariffItems as LooseValidationItem[]).filter((t) => t.status && t.status !== "WITHIN_RANGE").length;
   const unmatchedProcedures = (diagDetails as LooseValidationItem[]).reduce((acc, d) => acc + (d.unmatchedProcedures?.length || 0), 0);
@@ -249,7 +297,6 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const aiPassRate = totalItems > 0 ? Math.round((passedItems / totalItems) * 100) : 100;
 
   // Extract LOS details — fix: data is in inputPayload not inputData
-  const inputPayload = job.inputPayload as any;
   const losValidation = result.losValidation;
   const expectedLOSVal = losValidation?.expectedLos || result.clinicalPathway?.estimatedLos || result.clinicalPathway?.recommendedPathway?.estimatedLos || 0;
   const actualLOSVal = losValidation?.actualLos ?? resolveActualLosDays(inputPayload);
@@ -259,20 +306,30 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const losIsUnderstay = losValidation?.status === "UNDERSTAY";
   const losHasDeduction = (losValidation?.deduction ?? 0) > 0 || (!losValidation && (losIsOverstay || losIsMissingActual));
   const varianceText = inputPayload?.extra?.outcomeNotes || "Tidak ada catatan varians";
-  const diagnosisHasDeduction = result.diagnosisValidation ? !result.diagnosisValidation.isValid : false;
+  const diagnosisMissingRequiredCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.missingRequiredProcedures?.length || 0), 0);
+  const diagnosisReviewRelevanceCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.irrelevantProcedures?.length || detail.unmatchedProcedures?.length || 0), 0);
+  const diagnosisMedicationReviewCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'REVIEW_NEEDED').length || 0), 0);
+  const diagnosisMedicationInappropriateCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'INAPPROPRIATE').length || 0), 0);
+  const diagnosisMedicationIssueCount = diagnosisMedicationReviewCount + diagnosisMedicationInappropriateCount;
+  const diagnosisHasDeduction = result.diagnosisValidation
+    ? (!result.diagnosisValidation.isValid || diagnosisMissingRequiredCount > 0 || diagnosisReviewRelevanceCount > 0 || diagnosisMedicationIssueCount > 0)
+    : false;
+  const fallbackDiagnosisDeduction = diagnosisHasDeduction
+    ? Math.min(25, Math.max(1, Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisReviewRelevanceCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3))))
+    : 0;
   const tariffHasDeduction = ["WARNING", "INVALID"].includes(result.tariffValidation?.status);
   const drugHasDeduction = ["WARNING", "INVALID"].includes(result.drugPriceValidation?.status);
   const documentHasDeduction = result.documentValidation ? !result.documentValidation.isValid : false;
   const hasUnregisteredTariff = (tariffItems as LooseValidationItem[]).some((item) => item.status === "NOT_FOUND");
-  const hasUnregisteredDrug = (drugItems as LooseValidationItem[]).some((item) => item.status === "NOT_FOUND");
+  const hasDrugReferenceUnavailable = (drugItems as LooseValidationItem[]).some((item) => item.status === "NOT_FOUND");
   const fallbackScoreBreakdown: ScoreBreakdownItem[] = [
     {
-      label: "Diagnosis & tindakan klinis",
+      label: "Diagnosis, tindakan & obat klinis",
       maxDeduction: 25,
-      deducted: diagnosisHasDeduction ? 25 : 0,
+      deducted: fallbackDiagnosisDeduction,
       reason: diagnosisHasDeduction
-        ? `${diagWarnings} prosedur wajib belum ada, ${unmatchedProcedures} prosedur tidak sesuai pathway.`
-        : "Diagnosis dan tindakan sesuai kebutuhan klinis utama.",
+        ? `Perlu review klinis: ${diagnosisMissingRequiredCount || diagWarnings} prosedur wajib belum diklaim, ${diagnosisReviewRelevanceCount || unmatchedProcedures} tindakan perlu review relevansi, dan ${diagnosisMedicationIssueCount} obat perlu review kesesuaian terhadap diagnosis.`
+        : "Diagnosis, tindakan, dan obat sesuai kebutuhan klinis utama.",
     },
     {
       label: "Tarif tindakan terdaftar",
@@ -283,12 +340,12 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         : "Item tindakan yang terdaftar berada dalam threshold master fee schedule.",
     },
     {
-      label: "Harga obat terdaftar",
+      label: "Harga obat referensi internet",
       maxDeduction: 20,
       deducted: drugHasDeduction ? 20 : 0,
       reason: drugHasDeduction
-        ? `${drugIssues} item obat terdaftar melewati threshold atau perlu review.`
-        : "Item obat yang memiliki referensi harga berada dalam threshold."
+        ? (hasDrugReferenceUnavailable ? `${drugIssues} item obat belum memiliki referensi harga internet yang dapat diverifikasi.` : `${drugIssues} item obat melewati threshold atau jauh di bawah referensi.`)
+        : "Item obat yang memiliki referensi harga internet berada dalam threshold."
     },
     {
       label: "Kelengkapan dokumen",
@@ -311,21 +368,36 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     {
       label: "Kesiapan master data",
       maxDeduction: 15,
-      deducted: hasUnregisteredTariff || hasUnregisteredDrug ? 15 : 0,
-      reason: hasUnregisteredTariff || hasUnregisteredDrug
-        ? `${hasUnregisteredTariff ? "Ada tindakan yang belum tersedia di master tarif, sehingga belum bisa divalidasi harga. " : ""}${hasUnregisteredDrug ? "Ada obat yang belum ditemukan pada referensi harga, sehingga belum bisa divalidasi harga." : ""}`.trim()
-        : "Semua tindakan dan obat tersedia pada master data/referensi.",
+      deducted: hasUnregisteredTariff ? 15 : 0,
+      reason: hasUnregisteredTariff
+        ? "Ada tindakan yang belum tersedia di master tarif, sehingga belum bisa divalidasi harga."
+        : "Semua tindakan tersedia pada master data tarif."
     },
   ];
   const persistedScoreItems = result.scoreBreakdown?.items as PersistedScoreBreakdownItem[] | undefined;
+  const normalizeScoreItem = (item: ScoreBreakdownItem): ScoreBreakdownItem => {
+    const maxScore = item.maxScore ?? item.maxDeduction;
+    const deducted = Math.max(0, item.deducted || 0);
+    const earnedScore = typeof item.score === 'number' ? item.score : Math.max(0, maxScore - deducted);
+    return {
+      ...item,
+      maxScore,
+      deducted,
+      score: earnedScore,
+      status: item.status ?? (deducted === 0 ? 'PASS' : earnedScore > 0 ? 'PARTIAL' : 'NEEDS_REVIEW'),
+    };
+  };
   const scoreBreakdown: ScoreBreakdownItem[] = Array.isArray(persistedScoreItems) && persistedScoreItems.length > 0
-    ? persistedScoreItems.map((item) => ({
+    ? persistedScoreItems.map((item) => normalizeScoreItem({
         label: item.label,
         maxDeduction: item.maxDeduction,
+        maxScore: item.maxScore,
+        score: item.score,
         deducted: item.deducted,
+        status: item.status,
         reason: item.reason,
       }))
-    : fallbackScoreBreakdown;
+    : fallbackScoreBreakdown.map(normalizeScoreItem);
 
   const findClaimedProcedure = (item: any) => {
     const code = item.code || item.procedureCode;
@@ -474,14 +546,15 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               isWarning={losIsUnderstay || (losHasDeduction && !losIsOverstay && !losIsMissingActual)}
               badgeLabel={
                 losValidation ? (
-                  losValidation.status === "COMPLIANT" ? "Efisiensi Baik" :
                   losValidation.status === "OVERSTAY" ? `Overstay +${losValidation.varianceDays} hari` :
-                  losValidation.status === "UNDERSTAY" ? `Understay ${losValidation.varianceDays} hari` :
+                  losValidation.status === "UNDERSTAY" ? `Understay ${Math.abs(losValidation.varianceDays)} hari` :
+                  losValidation.status === "COMPLIANT" && losValidation.varianceDays < 0 ? `Understay ${Math.abs(losValidation.varianceDays)} hari` :
+                  losValidation.status === "COMPLIANT" ? "Sesuai Standar" :
                   losValidation.status === "MISSING_ACTUAL" ? "Data Kurang" :
                   "Tanpa Standar"
                 ) :
                 actualLOSVal > 0 && expectedLOSVal > 0
-                  ? (losIsOverstay ? `Overstay +${actualLOSVal - expectedLOSVal} hari` : 'Efisiensi Baik')
+                  ? (losIsOverstay ? `Overstay +${actualLOSVal - expectedLOSVal} hari` : actualLOSVal < expectedLOSVal ? `Understay ${expectedLOSVal - actualLOSVal} hari` : 'Sesuai Standar')
                   : losIsMissingActual ? 'Data Kurang' : 'Data Kurang'
               }
             />
@@ -531,9 +604,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         {/* Tabs */}
         <div className="flex border-b border-border/80 overflow-x-auto bg-surface-elevated/20 hide-scrollbar">
           {[
-            { id: "pathway", label: "Clinical Pathway" },
-            { id: "tariff", label: "Fees & Drugs" },
-            { id: "diagnosis", label: "Diagnosis & Docs" },
+            { id: "pathway", label: "Pathway Klinis" },
+            { id: "tariff", label: "Biaya & Obat" },
+            { id: "diagnosis", label: "Diagnosis & Dokumen" },
           ].map(tab => (
             <button
               key={tab.id}
@@ -559,36 +632,36 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               {inputPayload && (
                 <div className="rounded-lg border border-border/80 bg-surface-elevated/20 overflow-hidden">
                   <div className="px-5 py-3.5 border-b border-border/60 bg-surface-elevated/40">
-                    <h3 className="text-sm font-bold text-text">Patient Clinical Summary</h3>
+                    <h3 className="text-sm font-bold text-text">Ringkasan Klinis Pasien</h3>
                   </div>
                   <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
                     {/* Identitas */}
                     <div className="space-y-2">
-                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Patient Identity</p>
+                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Identitas Pasien</p>
                       <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1 text-sm">
-                        <span className="text-text-subtle font-medium">Name</span>
+                        <span className="text-text-subtle font-medium">Nama</span>
                         <span className="text-text font-semibold">{inputPayload.patient?.name || '—'}</span>
-                        <span className="text-text-subtle font-medium">Gender/DOB</span>
+                        <span className="text-text-subtle font-medium">Gender/Tgl Lahir</span>
                         <span className="text-text">{inputPayload.patient?.gender || '—'} · {inputPayload.patient?.birthDate ? new Date(inputPayload.patient.birthDate).toLocaleDateString('id-ID') : '—'}</span>
                         <span className="text-text-subtle font-medium">MRN</span>
                         <span className="text-text">{inputPayload.patient?.identifier?.[0]?.value || '—'}</span>
-                        <span className="text-text-subtle font-medium">Insurance</span>
+                        <span className="text-text-subtle font-medium">Asuransi</span>
                         <span className="text-text">{inputPayload.extra?.insuranceNumber || '—'}</span>
                       </div>
                     </div>
                     {/* Episode */}
                     <div className="space-y-3">
-                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Admission Episode</p>
+                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Episode Perawatan</p>
                       <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1 text-sm">
-                        <span className="text-text-subtle font-medium">Type</span>
+                        <span className="text-text-subtle font-medium">Jenis</span>
                         <span className="text-text">{inputPayload.encounter?.class?.code || '—'}</span>
-                        <span className="text-text-subtle font-medium">Admission</span>
+                        <span className="text-text-subtle font-medium">Masuk</span>
                         <span className="text-text">{inputPayload.encounter?.period?.start ? new Date(inputPayload.encounter.period.start).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
-                        <span className="text-text-subtle font-medium">Discharge</span>
+                        <span className="text-text-subtle font-medium">Pulang</span>
                         <span className="text-text">{inputPayload.encounter?.period?.end ? new Date(inputPayload.encounter.period.end).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
                         <span className="text-text-subtle font-medium">LOS</span>
                         {actualLOSVal > 0 ? (
-                          <span className="text-text font-semibold">{actualLOSVal} Days <span className="text-text-subtle font-normal">{expectedLOSVal > 0 ? `(AI Standard: ${expectedLOSVal} days)` : ''}</span></span>
+                          <span className="text-text font-semibold">{actualLOSVal} Hari <span className="text-text-subtle font-normal">{expectedLOSVal > 0 ? `(Standar AI: ${expectedLOSVal} hari)` : ''}</span></span>
                         ) : (
                           <span className="text-text">—</span>
                         )}
@@ -597,7 +670,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                     {/* Diagnoses */}
                     {inputPayload.diagnoses?.length > 0 && (
                       <div className="space-y-2 md:col-span-2">
-                        <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Diagnoses</p>
+                        <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Diagnosis</p>
                         <div className="flex flex-wrap gap-2">
                           {inputPayload.diagnoses.map((d: any, i: number) => (
                             <span key={i} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${
@@ -612,7 +685,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         {/* AI Clinical Summary */}
                         {result.diagnosisValidation?.details?.[0]?.clinicalSummary && (
                           <div className="mt-2 p-3 bg-primary/5 border border-primary/10 rounded-md">
-                            <p className="text-xs font-bold text-primary mb-1">AI Clinical Context</p>
+                            <p className="text-xs font-bold text-primary mb-1">Konteks Klinis AI</p>
                             <p className="text-sm text-text-subtle italic">{result.diagnosisValidation.details[0].clinicalSummary}</p>
                           </div>
                         )}
@@ -620,21 +693,21 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                     )}
                     {/* Procedures & Medications summary */}
                     <div className="space-y-2">
-                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Procedures Claimed ({inputPayload.procedures?.length || 0})</p>
+                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Tindakan Diklaim ({inputPayload.procedures?.length || 0})</p>
                       <ul className="space-y-0.5">
                         {(inputPayload.procedures || []).slice(0, 5).map((p: any, i: number) => (
                           <li key={i} className="text-xs text-text-subtle">• <span className="font-mono">{p.code}</span>{p.name ? ` — ${p.name}` : ''}</li>
                         ))}
-                        {inputPayload.procedures?.length > 5 && <li className="text-xs text-text-faint">+ {inputPayload.procedures.length - 5} more...</li>}
+                        {inputPayload.procedures?.length > 5 && <li className="text-xs text-text-faint">+ {inputPayload.procedures.length - 5} lainnya...</li>}
                       </ul>
                     </div>
                     <div className="space-y-2">
-                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Medications Claimed ({inputPayload.medications?.length || 0})</p>
+                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Obat Diklaim ({inputPayload.medications?.length || 0})</p>
                       <ul className="space-y-0.5">
                         {(inputPayload.medications || []).slice(0, 5).map((m: any, i: number) => (
                           <li key={i} className="text-xs text-text-subtle">• {m.name}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</li>
                         ))}
-                        {inputPayload.medications?.length > 5 && <li className="text-xs text-text-faint">+ {inputPayload.medications.length - 5} more...</li>}
+                        {inputPayload.medications?.length > 5 && <li className="text-xs text-text-faint">+ {inputPayload.medications.length - 5} lainnya...</li>}
                       </ul>
                     </div>
                   </div>
@@ -643,10 +716,10 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
               <div>
                 <h3 className="text-base font-bold text-text mb-4 flex items-center gap-2">
-                  Recommended Treatment Pathway (AI)
+                  Rekomendasi Pathway Terapi (AI)
                   {expectedLOSVal > 0 && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-primary/10 text-primary border border-primary/20">
-                      Day 1{expectedLOSVal > 1 ? ` - ${expectedLOSVal}` : ''}
+                      Hari 1{expectedLOSVal > 1 ? ` - ${expectedLOSVal}` : ''}
                     </span>
                   )}
                 </h3>
@@ -764,6 +837,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 {item.unitBasis && (
                                   <p className="text-[10px] text-text-subtle/70 mt-0.5">Unit: {item.unitBasis}</p>
                                 )}
+                                {Array.isArray(item.sources) && item.sources.length > 0 && (
+                                  <p className="text-[10px] text-text-subtle/70 mt-0.5">Referensi internet: {item.sources.length} sumber</p>
+                                )}
                               </td>
                               <td className="px-4 py-3 text-right font-medium text-text-subtle">
                                 {item.quantity || 1}
@@ -793,7 +869,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 ) : isDrugUnder ? (
                                   <span className="inline-flex items-center rounded-md bg-yellow-500/10 px-2 py-1 text-xs font-bold text-yellow-600 ring-1 ring-inset ring-yellow-500/20">↓ Undercharge</span>
                                 ) : isDrugNotFound ? (
-                                  <span className="inline-flex items-center rounded-md bg-orange-500/10 px-2 py-1 text-xs font-bold text-orange-600 ring-1 ring-inset ring-orange-500/20">⚡ Unregistered</span>
+                                  <span className="inline-flex items-center rounded-md bg-orange-500/10 px-2 py-1 text-xs font-bold text-orange-600 ring-1 ring-inset ring-orange-500/20">Referensi belum tersedia</span>
                                 ) : (
                                   <span className="inline-flex items-center rounded-md bg-green-500/10 px-2 py-1 text-xs font-medium text-green-600 ring-1 ring-inset ring-green-500/20">✓ Compliant</span>
                                 )}
@@ -815,49 +891,137 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               <div>
                               <h3 className="text-lg font-bold text-text mb-4">Diagnosis vs Procedure Validation</h3>
                 <div className="space-y-4">
-                  {diagDetails.map((diag: any, i: number) => (
-                    <div key={i} className="rounded-xl border border-border/80 overflow-hidden">
+                  {diagDetails.map((diag: any, i: number) => {
+                    const diagnosisKey = `${diag.diagnosisCode || 'diagnosis'}-${i}`;
+                    const isExpanded = isDiagnosisDetailExpanded(diagnosisKey);
+
+                    return (
+                    <div key={diagnosisKey} className="rounded-xl border border-border/80 overflow-hidden">
                       {/* Diag header */}
-                      <div className="flex items-start justify-between px-5 py-3.5 bg-surface-elevated/40 border-b border-border/60">
+                      <div className="flex flex-col gap-3 px-5 py-3.5 bg-surface-elevated/40 border-b border-border/60 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{diag.diagnosisCode}</span>
                             <h4 className="font-semibold text-text text-sm">{diag.diagnosisName || diag.diagnosisCode}</h4>
                           </div>
-                          {diag.clinicalSummary && (
+                          {diag.clinicalSummary && isExpanded && (
                             <p className="text-xs text-text-subtle mt-1.5 italic max-w-xl">{diag.clinicalSummary}</p>
                           )}
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => toggleDiagnosisDetail(diagnosisKey)}
+                          aria-expanded={isExpanded}
+                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs font-semibold text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        >
+                          {isExpanded ? 'Sembunyikan detail' : 'Tampilkan detail'}
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                        </button>
                       </div>
                       
-                      <div className="p-5 space-y-3">
+                      {isExpanded && <div className="p-5 space-y-3">
                         {diag.missingRequiredProcedures && diag.missingRequiredProcedures.length > 0 && (
                           <div className="p-3 bg-orange-500/5 border border-orange-500/20 rounded-md">
-                            <p className="text-xs font-bold text-orange-600 mb-1.5">Missing Required Procedures ({diag.missingRequiredProcedures.length})</p>
-                            <ul className="space-y-0.5">
-                              {diag.missingRequiredProcedures.map((p: string, j: number) => <li key={j} className="text-sm text-orange-700/80">• {p}</li>)}
+                            <p className="text-xs font-bold text-orange-600 mb-1.5">Prosedur wajib belum diklaim ({diag.missingRequiredProcedures.length})</p>
+                            <p className="mb-2 text-xs leading-5 text-orange-700/80">Daftar ini hanya untuk prosedur yang dianggap wajib oleh mapping/pathway. Setiap item perlu dicek terhadap konteks klinis pasien.</p>
+                            <ul className="space-y-2">
+                              {diag.missingRequiredProcedures.map((p: string, j: number) => {
+                                const detail = diag.missingRequiredProcedureDetails?.find((item: any) => p.includes(item.code) || item.code === p);
+                                return (
+                                  <li key={j} className="rounded-md bg-surface/70 p-2 text-sm text-orange-800">
+                                    <p className="font-semibold">{detail ? `${detail.code} — ${detail.name}` : p}</p>
+                                    {detail?.reason && <p className="mt-1 text-xs leading-5 text-orange-700/80">Alasan: {detail.reason}</p>}
+                                  </li>
+                                );
+                              })}
                             </ul>
                           </div>
                         )}
                         
-                        {diag.unmatchedProcedures && diag.unmatchedProcedures.length > 0 && (
+                        {diag.procedureFindings && diag.procedureFindings.length > 0 && (
+                          <div className="p-3 bg-slate-500/5 border border-border/60 rounded-md">
+                            <p className="text-xs font-bold text-text mb-1.5">Kesesuaian tindakan terhadap diagnosis ({diag.procedureFindings.length})</p>
+                            <p className="mb-2 text-xs leading-5 text-text-subtle">Bagian ini menjelaskan apakah tindakan yang diklaim sesuai, perlu konteks tambahan, atau tidak sesuai terhadap diagnosis.</p>
+                            <ul className="space-y-2">
+                              {diag.procedureFindings.map((p: any, j: number) => {
+                                const isIssue = p.status === 'REVIEW_NEEDED' || p.status === 'INAPPROPRIATE';
+                                return (
+                                  <li key={j} className={`rounded-md bg-surface/70 p-2 text-sm ${isIssue ? 'text-amber-800' : 'text-green-800'}`}>
+                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                      <p className="font-semibold">{p.procedureCode} — {p.procedureName}</p>
+                                      <span className={`w-fit rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${p.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : p.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                                        {p.status === 'APPROPRIATE' ? 'Sesuai' : p.status === 'INAPPROPRIATE' ? 'Tidak sesuai' : 'Perlu review'}
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-xs leading-5 opacity-80">Alasan: {p.reason}</p>
+                                    <p className="mt-1 text-[11px] opacity-70">Dinilai terhadap: {p.againstDiagnosis || diag.diagnosisCode} · Keyakinan: {p.confidence === 'HIGH' ? 'Tinggi' : p.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</p>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
+
+                        {((diag.irrelevantProcedures && diag.irrelevantProcedures.length > 0) || (diag.unmatchedProcedures && diag.unmatchedProcedures.length > 0)) && (
                           <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-md">
-                            <p className="text-xs font-bold text-red-600 mb-1.5">Irrelevant Procedures for this Diagnosis ({diag.unmatchedProcedures.length})</p>
-                            <ul className="space-y-0.5">
-                              {diag.unmatchedProcedures.map((p: string, j: number) => <li key={j} className="text-sm text-red-700/80">• {p}</li>)}
+                            <p className="text-xs font-bold text-red-600 mb-1.5">Tindakan perlu review relevansi ({(diag.irrelevantProcedures?.length || diag.unmatchedProcedures?.length || 0)})</p>
+                            <p className="mb-2 text-xs leading-5 text-red-700/80">Tindakan di bawah ini hanya ditandai jika AI memberi alasan klinis spesifik. Tidak relevan berarti tidak ada hubungan jelas terhadap diagnosis yang dinilai.</p>
+                            <ul className="space-y-2">
+                              {(diag.irrelevantProcedures?.length ? diag.irrelevantProcedures : diag.unmatchedProcedures).map((item: any, j: number) => {
+                                const isDetailed = typeof item === 'object' && item !== null;
+                                return (
+                                  <li key={j} className="rounded-md bg-surface/70 p-2 text-sm text-red-800">
+                                    <p className="font-semibold">{isDetailed ? `${item.procedureCode} — ${item.procedureName}` : String(item).split(':')[0]}</p>
+                                    {isDetailed ? (
+                                      <div className="mt-1 space-y-1 text-xs leading-5 text-red-700/80">
+                                        <p>Alasan: {item.reason}</p>
+                                        <p>Dinilai terhadap: {item.againstDiagnosis || diag.diagnosisCode}</p>
+                                        <p>Keyakinan AI: {item.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</p>
+                                      </div>
+                                    ) : String(item).includes(':') ? (
+                                      <p className="mt-1 text-xs leading-5 text-red-700/80">Alasan: {String(item).split(':').slice(1).join(':').trim()}</p>
+                                    ) : null}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
+
+                        {diag.medicationFindings && diag.medicationFindings.length > 0 && (
+                          <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-md">
+                            <p className="text-xs font-bold text-blue-700 mb-1.5">Kesesuaian obat terhadap diagnosis ({diag.medicationFindings.length})</p>
+                            <p className="mb-2 text-xs leading-5 text-blue-700/80">Bagian ini menilai apakah obat yang diklaim selaras dengan diagnosis, termasuk terapi utama, suportif, simptomatik, antibiotik, cairan, atau obat komorbid.</p>
+                            <ul className="space-y-2">
+                              {diag.medicationFindings.map((m: any, j: number) => {
+                                const isIssue = m.status === 'REVIEW_NEEDED' || m.status === 'INAPPROPRIATE';
+                                return (
+                                  <li key={j} className={`rounded-md bg-surface/70 p-2 text-sm ${isIssue ? 'text-amber-800' : 'text-green-800'}`}>
+                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                      <p className="font-semibold">{m.medicationName}{m.genericName ? ` (${m.genericName})` : ''}</p>
+                                      <span className={`w-fit rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${m.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : m.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                                        {m.status === 'APPROPRIATE' ? 'Sesuai' : m.status === 'INAPPROPRIATE' ? 'Tidak sesuai' : 'Perlu review'}
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-xs leading-5 opacity-80">Alasan: {m.reason}</p>
+                                    <p className="mt-1 text-[11px] opacity-70">Dinilai terhadap: {m.againstDiagnosis || diag.diagnosisCode} · Keyakinan AI: {m.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</p>
+                                  </li>
+                                );
+                              })}
                             </ul>
                           </div>
                         )}
 
                         {diag.suggestedProcedures && diag.suggestedProcedures.length > 0 && (
                           <div className="p-3 bg-primary/5 border border-primary/10 rounded-md">
-                            <p className="text-xs font-bold text-primary mb-1.5">AI Suggested Procedures (Not Yet Claimed)</p>
-                            <ul className="space-y-1.5">
+                            <p className="text-xs font-bold text-primary mb-1.5">Saran tindakan tambahan AI, belum diklaim</p>
+                            <p className="mb-2 text-xs leading-5 text-primary/75">Saran ini bersifat pendukung/advisory, bukan otomatis wajib. Gunakan untuk review apakah tindakan tambahan memang diperlukan.</p>
+                            <ul className="space-y-2">
                               {diag.suggestedProcedures.map((s: any, j: number) => (
-                                <li key={j} className="text-sm">
-                                  <span className="font-mono font-bold text-primary mr-1.5">{s.code}</span>
-                                  <span className="text-primary">{s.name}</span>
-                                  {s.rationale && <p className="text-xs text-primary/70 mt-0.5 ml-0">↳ {s.rationale}</p>}
+                                <li key={j} className="rounded-md bg-surface/70 p-2 text-sm">
+                                  <p><span className="font-mono font-bold text-primary mr-1.5">{s.code}</span><span className="font-semibold text-primary">{s.name}</span></p>
+                                  {s.rationale && <p className="mt-1 text-xs leading-5 text-primary/70">Alasan saran: {s.rationale}</p>}
+                                  {s.evidenceLevel && <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-primary/60">Level: {s.evidenceLevel === 'COMMON' ? 'Umum pada pathway' : 'Opsional sesuai indikasi'}</p>}
                                 </li>
                               ))}
                             </ul>
@@ -873,9 +1037,10 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         {diag.notes && (
                           <p className="text-xs text-text-subtle italic border-t border-border/40 pt-2 mt-2">AI Note: {diag.notes}</p>
                         )}
-                      </div>
+                      </div>}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

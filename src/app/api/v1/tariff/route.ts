@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     const limit = Math.min(200, Math.max(1, limitParam));
     const skip = (page - 1) * limit;
 
-    const whereClause: any = {};
+    const whereClause: Record<string, unknown> = {};
     if (providerId) whereClause.providerId = providerId;
     if (category) whereClause.category = category;
     if (isActive !== null && isActive !== "") whereClause.isActive = isActive === "true";
@@ -35,13 +35,15 @@ export async function GET(request: Request) {
       prisma.tariffEntry.count({ where: whereClause })
     ]);
 
-    await recordApiUsage({
-      apiKeyId: auth.apiKeyId!,
-      endpoint: "/api/v1/tariff",
-      method: "GET",
-      statusCode: 200,
-      durationMs: Date.now() - startTime
-    });
+    if (auth.apiKeyId) {
+      await recordApiUsage({
+        apiKeyId: auth.apiKeyId,
+        endpoint: "/api/v1/tariff",
+        method: "GET",
+        statusCode: 200,
+        durationMs: Date.now() - startTime
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -54,7 +56,7 @@ export async function GET(request: Request) {
       }
     });
   } catch (error) {
-    console.error("Failed to fetch tariff entries:", error);
+    console.error("[tariff] GET error:", { message: error instanceof Error ? error.message : 'Unknown' });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
@@ -92,20 +94,22 @@ export async function POST(request: Request) {
       }
     });
 
-    await recordApiUsage({
-      apiKeyId: auth.apiKeyId!,
-      endpoint: "/api/v1/tariff",
-      method: "POST",
-      statusCode: 201,
-      durationMs: Date.now() - startTime
-    });
+    if (auth.apiKeyId) {
+      await recordApiUsage({
+        apiKeyId: auth.apiKeyId,
+        endpoint: "/api/v1/tariff",
+        method: "POST",
+        statusCode: 201,
+        durationMs: Date.now() - startTime
+      });
+    }
 
     return NextResponse.json({
       success: true,
       data: newEntry
     }, { status: 201 });
   } catch (error) {
-    console.error("Failed to create tariff entry:", error);
+    console.error("[tariff] POST error:", { message: error instanceof Error ? error.message : 'Unknown' });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

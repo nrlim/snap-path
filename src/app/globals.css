@@ -48,97 +48,98 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* Legacy snap-path variables adapted for Dark Mode contrast */
+  /* SnapPath healthcare light palette */
   --color-surface: var(--background);
   --color-surface-elevated: var(--card);
   --color-surface-muted: var(--muted);
   --color-text: var(--foreground);
   --color-text-subtle: var(--muted-foreground);
-  --color-text-faint: var(--muted-foreground);
+  --color-text-faint: color-mix(in srgb, var(--muted-foreground) 72%, white);
   
-  /* Buttons & Highlights (Blue like snaptext) */
-  --color-primary: #3b82f6;
-  --color-primary-hover: #2563eb;
-  --color-primary-soft: color-mix(in srgb, #3b82f6 20%, transparent);
+  /* Recovery-oriented healthcare primary: teal */
+  --color-primary: #0f766e;
+  --color-primary-hover: #0d5f59;
+  --color-primary-soft: color-mix(in srgb, #0f766e 13%, white);
   
-  /* Secondary items */
-  --color-secondary: var(--foreground);
-  --color-secondary-soft: var(--muted);
+  /* Trust and clarity secondary: clinical sky */
+  --color-secondary: #0369a1;
+  --color-secondary-soft: color-mix(in srgb, #e0f2fe 82%, white);
   
-  /* Accents */
-  --color-accent: #8b5cf6;
-  --color-accent-soft: color-mix(in srgb, #8b5cf6 20%, transparent);
-  --color-surface-accent: var(--muted);
-  --color-code: var(--foreground);
+  /* Positive outcome accent: healing emerald */
+  --color-accent: #16a34a;
+  --color-accent-soft: color-mix(in srgb, #dcfce7 82%, white);
+  --color-surface-accent: #ecfdf5;
+  --color-code: #0f766e;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --background: #f7fcfb;
+  --foreground: #12312f;
+  --card: #ffffff;
+  --card-foreground: #12312f;
+  --popover: #ffffff;
+  --popover-foreground: #12312f;
+  --primary: #0f766e;
+  --primary-foreground: #ffffff;
+  --secondary: #e0f2fe;
+  --secondary-foreground: #075985;
+  --muted: #eef8f6;
+  --muted-foreground: #5b7672;
+  --accent: #dcfce7;
+  --accent-foreground: #166534;
+  --destructive: #dc2626;
+  --border: #cfe8e3;
+  --input: #cfe8e3;
+  --ring: #14b8a6;
+  --chart-1: #0f766e;
+  --chart-2: #0284c7;
+  --chart-3: #16a34a;
+  --chart-4: #65a30d;
+  --chart-5: #0891b2;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #ffffff;
+  --sidebar-foreground: #12312f;
+  --sidebar-primary: #0f766e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ecfdf5;
+  --sidebar-accent-foreground: #0f766e;
+  --sidebar-border: #cfe8e3;
+  --sidebar-ring: #14b8a6;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Keep dark class light as a safe fallback while SnapPath uses a healthcare light theme. */
+  --background: #f7fcfb;
+  --foreground: #12312f;
+  --card: #ffffff;
+  --card-foreground: #12312f;
+  --popover: #ffffff;
+  --popover-foreground: #12312f;
+  --primary: #0f766e;
+  --primary-foreground: #ffffff;
+  --secondary: #e0f2fe;
+  --secondary-foreground: #075985;
+  --muted: #eef8f6;
+  --muted-foreground: #5b7672;
+  --accent: #dcfce7;
+  --accent-foreground: #166534;
+  --destructive: #dc2626;
+  --border: #cfe8e3;
+  --input: #cfe8e3;
+  --ring: #14b8a6;
+  --chart-1: #0f766e;
+  --chart-2: #0284c7;
+  --chart-3: #16a34a;
+  --chart-4: #65a30d;
+  --chart-5: #0891b2;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #12312f;
+  --sidebar-primary: #0f766e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ecfdf5;
+  --sidebar-accent-foreground: #0f766e;
+  --sidebar-border: #cfe8e3;
+  --sidebar-ring: #14b8a6;
 }
 
 @layer base {
@@ -147,6 +148,14 @@
   }
   body {
     @apply bg-background text-foreground;
+    background:
+      radial-gradient(circle at top left, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 34rem),
+      radial-gradient(circle at bottom right, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 30rem),
+      var(--background);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-primary) 22%, white);
+    color: var(--foreground);
   }
   html {
     @apply font-sans;
@@ -162,10 +171,11 @@
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-zinc-700/50 rounded-full;
+    background: color-mix(in srgb, var(--color-primary) 28%, transparent);
+    border-radius: 9999px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    @apply bg-zinc-600;
+    background: color-mix(in srgb, var(--color-primary) 45%, transparent);
   }
   
   @keyframes shimmer {

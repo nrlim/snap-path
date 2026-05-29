@@ -8,6 +8,9 @@ import { getAuthenticatedUser } from '@/lib/rbac';
 import { countTodayPathwayRequests, getPathwayLimitForRole, getPathwayLimitSettings, PATHWAY_LIMIT_WINDOW_LABEL } from '@/lib/pathway-limits';
 import { claimValidationWorkflow } from '@/workflows/claim-validation';
 import { resolveActualLosDays } from '@/lib/los';
+import { sanitizeClaimValidationInput } from '@/lib/ai/sanitizer';
+import { buildClaimDisplayMetadata } from '@/lib/claim-display';
+import type { Prisma } from '@/generated/prisma/client';
 
 export const runtime = 'nodejs';
 
@@ -65,19 +68,35 @@ export async function POST(request: Request) {
       payload.requestedByUserRole = dashboardUser.role;
     }
 
+    // Sanitize PII before persisting to the main payload used by AI/audit views.
+    // A minimal encrypted display snapshot is stored separately for authorized dashboard UI labels.
+    const sanitizedPayload = sanitizeClaimValidationInput(payload);
+    const uiDisplayCipher = buildClaimDisplayMetadata(payload);
+
     // Create job record in DB first to get a stable jobId
     const claimJob = await prisma.claimJob.create({
       data: {
         jobType: 'CLAIM_VALIDATION',
         status: 'QUEUED',
-        inputPayload: payload,
+        inputPayload: sanitizedPayload as Prisma.InputJsonValue,
         clientId,
         providerId,
+        metadata: uiDisplayCipher ? { uiDisplayCipher } : undefined,
       },
     });
 
-    // Fire-and-forget: start the workflow in background
+    // Fire-and-forget: start the durable workflow in background.
     const run = await start(claimValidationWorkflow, [{ jobId: claimJob.id, payload }]);
+
+    await prisma.claimJob.update({
+      where: { id: claimJob.id },
+      data: { workflowRunId: run.runId },
+    });
+
+    // Do not start an immediate inline duplicate workflow here. If the Workflow SDK
+    // dispatch stalls in development, /api/v1/claims/poll performs a guarded stale-run
+    // recovery. Running both immediately can race DB statuses and make progress appear
+    // stuck or jumpy.
 
     const response = NextResponse.json(
       {
@@ -85,7 +104,7 @@ export async function POST(request: Request) {
         jobId: claimJob.id,
         runId: run.runId,
         message: 'Claim validation job telah dimulai.',
-        statusUrl: `/api/v1/claims/status?runId=${run.runId}&jobId=${claimJob.id}`,
+        statusUrl: `/api/v1/claims/poll?runId=${run.runId}&jobId=${claimJob.id}`,
       },
       { status: 202 },
     );
@@ -106,7 +125,10 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error) {
-    console.error('Failed to start claim validation workflow:', error);
+    console.error('[claims/validate]', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      clientId,
+    });
 
     if (!isDashboardUser && auth.apiKeyId) {
       await recordApiUsage({

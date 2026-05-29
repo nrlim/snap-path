@@ -39,18 +39,33 @@ export async function validateTariffPrice(input: TariffValidationInput, jobId: s
     const claimedTotal = getProcedureTotalPrice(proc);
     totalClaimed += claimedTotal;
     
-    // Find master tariff
-    const masterEntries = await prisma.tariffEntry.findMany({
+    // Find master tariff. Prefer an explicit category match, then fall back to
+    // any active entry for the same provider/code. Wizard/import payloads may use
+    // encounter types (RAWAT_INAP/IMP) while the tariff book stores categories such
+    // as KAMAR, TINDAKAN, OPERASI, LAB, or RADIOLOGI.
+    const requestedCategory = proc.category || encounterType;
+    let masterEntries = await prisma.tariffEntry.findMany({
       where: {
         providerId,
         procedureCode: proc.code,
         isActive: true,
-        category: proc.category || encounterType,
-        // In real app, might want to check regionCode as well
+        ...(requestedCategory ? { category: requestedCategory } : {}),
       },
       orderBy: { maxPrice: 'desc' },
       take: 1
     });
+
+    if (masterEntries.length === 0) {
+      masterEntries = await prisma.tariffEntry.findMany({
+        where: {
+          providerId,
+          procedureCode: proc.code,
+          isActive: true,
+        },
+        orderBy: { maxPrice: 'desc' },
+        take: 1,
+      });
+    }
 
     const master = masterEntries[0];
 
@@ -66,7 +81,7 @@ export async function validateTariffPrice(input: TariffValidationInput, jobId: s
         expectedTotal: 0,
         status: 'NOT_FOUND',
         variancePct: 0,
-        notes: 'Procedure code not found in master tariff book for this provider/category.'
+        notes: `Procedure code not found in master tariff book for this provider. Requested category: ${requestedCategory || 'any'}.`
       });
       continue;
     }

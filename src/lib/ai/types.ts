@@ -71,11 +71,41 @@ export interface ClaimValidationOutput {
       clinicalSummary?: string;
       matchedProcedures: string[];
       unmatchedProcedures: string[];
+      procedureFindings?: Array<{
+        procedureCode: string;
+        procedureName: string;
+        status: 'APPROPRIATE' | 'REVIEW_NEEDED' | 'INAPPROPRIATE';
+        reason: string;
+        againstDiagnosis: string;
+        confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+      }>;
+      irrelevantProcedures?: Array<{
+        procedureCode: string;
+        procedureName: string;
+        reason: string;
+        againstDiagnosis: string;
+        confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+      }>;
+      medicationFindings?: Array<{
+        medicationName: string;
+        genericName?: string | null;
+        status: 'APPROPRIATE' | 'REVIEW_NEEDED' | 'INAPPROPRIATE';
+        reason: string;
+        againstDiagnosis: string;
+        confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+      }>;
       missingRequiredProcedures: string[];
+      missingRequiredProcedureDetails?: Array<{
+        code: string;
+        name: string;
+        reason: string;
+        evidenceLevel: 'REQUIRED' | 'COMMON' | 'OPTIONAL';
+      }>;
       suggestedProcedures?: Array<{
         code: string;
         name: string;
         rationale: string;
+        evidenceLevel?: 'COMMON' | 'OPTIONAL';
       }>;
       notes: string;
     }>;
@@ -338,4 +368,16 @@ export interface LosValidationOutput {
   reason: string;
   aiJustification?: string | null;
   references?: string[];
+  therapyRecommendation?: {
+    phases: Array<{
+      phase: string;
+      dayRange: string;
+      keyActivities: string[];
+    }>;
+    criticalPathItems: string[];
+  } | null;
+  stayStatusThresholds?: {
+    overstayDays: number;
+    understayDays: number;
+  } | null;
 }

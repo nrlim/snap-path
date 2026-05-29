@@ -2,6 +2,32 @@
 
 import React from "react";
 
+function translateCommonClinicalText(value: unknown): string {
+  if (Array.isArray(value)) return value.map(translateCommonClinicalText).join(', ');
+  const text = String(value || '').trim();
+  if (!text) return '';
+
+  return text
+    .replace(/\bDay\b/gi, 'Hari')
+    .replace(/\bAdmission\b/gi, 'Admisi')
+    .replace(/\bInitial Assessment\b/gi, 'Asesmen Awal')
+    .replace(/\bAssessment\b/gi, 'Asesmen')
+    .replace(/\bTreatment Plan\b/gi, 'Rencana Terapi')
+    .replace(/\bTreatment\b/gi, 'Terapi')
+    .replace(/\bMonitoring\b/gi, 'Pemantauan')
+    .replace(/\bDischarge\b/gi, 'Pulang')
+    .replace(/\bEducation\b/gi, 'Edukasi')
+    .replace(/\bNursing\b/gi, 'Keperawatan')
+    .replace(/\bNutrition\b/gi, 'Nutrisi')
+    .replace(/\bDaily\b/gi, 'Harian')
+    .replace(/\bEvery day\b/gi, 'Setiap hari')
+    .replace(/\bAs needed\b/gi, 'Sesuai kebutuhan')
+    .replace(/\bBefore discharge\b/gi, 'Sebelum pulang')
+    .replace(/\bper day\b/gi, 'per hari')
+    .replace(/\bday\(s\)\b/gi, 'hari')
+    .replace(/\bdays\b/gi, 'hari');
+}
+
 function normalizePhaseTitle(phase: any, idx: number, totalPhases: number) {
   const rawDayRange = String(phase.dayRange || "").trim();
   const rawPhaseName = String(phase.phaseName || "").trim();
@@ -19,15 +45,15 @@ function normalizePhaseTitle(phase: any, idx: number, totalPhases: number) {
   const isDischarge = /discharge|pulang/.test(lowerName) || /discharge|pulang/.test(lowerRange) || idx === totalPhases - 1;
   const isGenericDayTitle = /^day\s*\d+(?:\s*[-–—]\s*\d+)?$/i.test(fallbackName) || /^hari\s*\d+(?:\s*[-–—]\s*\d+)?$/i.test(fallbackName);
 
-  let readableName = isGenericDayTitle ? "Treatment Plan" : titleFromName;
-  if (isAdmission) readableName = "Admission";
-  if (isDischarge) readableName = "Discharge";
+  let readableName = isGenericDayTitle ? "Rencana Terapi" : titleFromName;
+  if (isAdmission) readableName = "Admisi";
+  if (isDischarge) readableName = "Pulang";
 
   const normalizedRange = rawDayRange
-    ? rawDayRange.replace(/^Day\s*0\b/i, "Day 1")
-    : `Day ${idx + 1}`;
+    ? rawDayRange.replace(/^Day\s*0\b/i, "Hari 1").replace(/\bDay\b/gi, "Hari")
+    : `Hari ${idx + 1}`;
 
-  return `${normalizedRange} - ${readableName}`;
+  return `${normalizedRange} - ${translateCommonClinicalText(readableName)}`;
 }
 
 export default function PathwayTimeline({ phases }: { phases: any[] }) {
@@ -57,7 +83,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
             <div className="pl-1 sm:pl-2">
               <div className="mb-4">
                 <h3 className="text-lg font-bold text-text">{displayName}</h3>
-                <p className="text-sm font-medium text-text-subtle mt-1">{phase.objectives}</p>
+                <p className="text-sm font-medium text-text-subtle mt-1">{translateCommonClinicalText(phase.objectives)}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -72,7 +98,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
                       {phase.assessments.map((item: any, i: number) => (
                         <li key={i} className="text-sm text-text-subtle flex items-start">
                           <span className="text-border mr-2 mt-0.5">•</span>
-                          {typeof item === 'string' ? item : `${item.name}${item.frequency ? ` (${item.frequency})` : ''}`}
+                          {translateCommonClinicalText(typeof item === 'string' ? item : `${item.name}${item.frequency ? ` (${item.frequency})` : ''}`)}
                         </li>
                       ))}
                     </ul>
@@ -90,7 +116,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
                       {phase.treatments.map((item: any, i: number) => (
                         <li key={i} className="text-sm text-text-subtle flex items-start">
                           <span className="text-border mr-2 mt-0.5">•</span>
-                          {typeof item === 'string' ? item : `${item.name}${item.route ? ` (${item.route})` : ''}`}
+                          {translateCommonClinicalText(typeof item === 'string' ? item : `${item.name}${item.route ? ` (${item.route})` : ''}`)}
                         </li>
                       ))}
                     </ul>
@@ -108,7 +134,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
                       {phase.medications.map((item: any, i: number) => (
                         <li key={i} className="text-sm text-text-subtle flex items-start">
                           <span className="text-border mr-2 mt-0.5">•</span>
-                          {typeof item === 'string' ? item : `${item.name} - ${item.dosage || ''} ${item.frequency || ''} ${item.duration ? `(${item.duration})` : ''}`}
+                          {translateCommonClinicalText(typeof item === 'string' ? item : `${item.name} - ${item.dosage || ''} ${item.frequency || ''} ${item.duration ? `(${item.duration})` : ''}`)}
                         </li>
                       ))}
                     </ul>
@@ -126,7 +152,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
                       {Array.isArray(phase.nursing) && phase.nursing.map((item: any, i: number) => (
                         <li key={`nurse-${i}`} className="text-sm text-text-subtle flex items-start">
                           <span className="text-border mr-2 mt-0.5">•</span>
-                          {typeof item === 'string' ? item : `${item.activity}${item.frequency ? ` (${item.frequency})` : ''}`}
+                          {translateCommonClinicalText(typeof item === 'string' ? item : `${item.activity}${item.frequency ? ` (${item.frequency})` : ''}`)}
                         </li>
                       ))}
                       
@@ -135,19 +161,19 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
                         phase.nutrition.map((item: string, i: number) => (
                           <li key={`nutri-${i}`} className="text-sm text-text-subtle flex items-start">
                             <span className="text-border mr-2 mt-0.5">•</span>
-                            [Nutrisi] {item}
+                            [Nutrisi] {translateCommonClinicalText(item)}
                           </li>
                         ))
                       ) : phase.nutrition ? (
                         <>
                           <li className="text-sm text-text-subtle flex items-start">
                             <span className="text-border mr-2 mt-0.5">•</span>
-                            [Nutrisi] Diet: {phase.nutrition.diet || phase.nutrition.dietType}
+                            [Nutrisi] Diet: {translateCommonClinicalText(phase.nutrition.diet || phase.nutrition.dietType)}
                           </li>
                           {phase.nutrition.restrictions && Array.isArray(phase.nutrition.restrictions) && phase.nutrition.restrictions.length > 0 && (
                             <li className="text-sm text-text-subtle flex items-start">
                               <span className="text-border mr-2 mt-0.5">•</span>
-                              [Nutrisi] Pantangan: {phase.nutrition.restrictions.join(', ')}
+                              [Nutrisi] Pantangan: {translateCommonClinicalText(phase.nutrition.restrictions.join(', '))}
                             </li>
                           )}
                         </>

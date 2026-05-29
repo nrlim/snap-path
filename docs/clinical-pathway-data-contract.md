@@ -104,7 +104,53 @@ medications: medications.map(med => ({
 
 ---
 
-## 4. Tariff validator contract
+## 4. Diagnosis vs Procedure validator contract
+
+File: `src/lib/ai/validators/diagnosis.ts`
+
+### Prinsip validasi relevansi tindakan
+
+- Jangan menandai tindakan sebagai `irrelevant` hanya karena kode tindakan tidak ada di mapping lokal `DiagnosisProcedureMap`.
+- Mapping lokal hanya boleh menjadi sumber **positive match** dan **required procedure**.
+- Tindakan dikatakan tidak relevan hanya jika AI memberi alasan klinis spesifik bahwa tindakan tersebut tidak punya hubungan diagnostik, terapeutik, monitoring, administratif admisi, imaging, laboratorium, nursing, atau supportive-care terhadap diagnosis.
+- Jika ragu, tampilkan sebagai butuh konteks/review, bukan langsung irrelevant.
+
+### Output detail tambahan
+
+```ts
+{
+  irrelevantProcedures?: Array<{
+    procedureCode: string;
+    procedureName: string;
+    reason: string;             // kenapa tidak relevan
+    againstDiagnosis: string;   // diagnosis pembanding
+    confidence: "MEDIUM" | "HIGH";
+  }>;
+  missingRequiredProcedureDetails?: Array<{
+    code: string;
+    name: string;
+    reason: string;             // kenapa dianggap wajib
+    evidenceLevel: "REQUIRED" | "COMMON" | "OPTIONAL";
+  }>;
+  suggestedProcedures?: Array<{
+    code: string;
+    name: string;
+    rationale: string;
+    evidenceLevel?: "COMMON" | "OPTIONAL";
+  }>;
+}
+```
+
+### UI behavior
+
+- `Irrelevant Procedures` wajib menampilkan alasan dan dibandingkan terhadap diagnosis apa.
+- `Medication findings` wajib menilai kesesuaian obat terhadap diagnosis, termasuk terapi utama, suportif, simptomatik, antibiotik, cairan, atau obat komorbid. Status obat: `APPROPRIATE`, `REVIEW_NEEDED`, `INAPPROPRIATE`.
+- `AI Suggested Procedures` wajib diberi konteks bahwa sifatnya advisory, bukan otomatis wajib.
+- `Missing Required Procedures` wajib menjelaskan kenapa prosedur dianggap wajib.
+
+---
+
+## 5. Tariff validator contract
 
 File: `src/lib/ai/validators/tariff.ts`
 
@@ -153,7 +199,7 @@ Validator harus menerima variasi field berikut:
 
 ---
 
-## 5. Drug price validator contract
+## 6. Drug price validator contract
 
 File: `src/lib/ai/validators/drug-price.ts`
 
@@ -191,7 +237,7 @@ File: `src/lib/ai/validators/drug-price.ts`
 | `WITHIN_RANGE` | Claimed unit price masih dalam threshold market reference. |
 | `OVER_THRESHOLD` | Claimed unit price melewati market max + threshold. |
 | `UNDER_PRICED` | Claimed unit price jauh di bawah market reference (`variancePct < -20`). |
-| `NOT_FOUND` | Obat tidak ditemukan di cache/reference/AI estimate. Masuk scoring `Kesiapan master data`. |
+| `NOT_FOUND` | Referensi harga obat belum berhasil ditemukan dari cache atau direct web crawl. UI harus menampilkan ini sebagai `Referensi belum tersedia`, bukan `Unregistered`, karena obat tidak bergantung pada Master Buku Tarif. |
 | `CACHE_HIT` | Referensi harga berasal dari cache. |
 
 ### Important negative case
@@ -208,7 +254,7 @@ Status harus `UNDER_PRICED`, bukan `WITHIN_RANGE`.
 
 ---
 
-## 6. Clinical pathway generator & LOS contract
+## 7. Clinical pathway generator & LOS contract
 
 File: `src/lib/ai/generators/pathway.ts`
 
@@ -269,13 +315,13 @@ Day 7 - Discharge
 
 ---
 
-## 7. Timeline UI contract
+## 8. Timeline UI contract
 
 File: `src/app/dashboard/clinical-pathway/components/PathwayTimeline.tsx`
 
 ### Title format
 
-Timeline title harus:
+Timeline title harus tampil dalam Bahasa Indonesia:
 
 ```text
 [dayRange] - [phaseName]
@@ -284,45 +330,61 @@ Timeline title harus:
 Contoh:
 
 ```text
-Day 1 - Admission
-Day 2-4 - Treatment
-Day 5-6 - Monitoring
-Day 7 - Discharge
+Hari 1 - Admisi
+Hari 2-4 - Terapi
+Hari 5-6 - Pemantauan
+Hari 7 - Pulang
 ```
 
 ### Jangan lakukan
 
 - Jangan ubah semua title menjadi single-day sequential kalau AI/DB memberi group day yang valid.
-- Jangan tampilkan `Day 0` ke user. Normalize menjadi `Day 1`.
-- Jangan membuat title seperti `Day 1-2 - Day 1-2`.
+- Jangan tampilkan `Day 0` ke user. Normalize menjadi `Hari 1`.
+- Jangan membuat title seperti `Hari 1-2 - Hari 1-2`.
 
 ---
 
-## 8. Score breakdown contract
+## 9. Score breakdown contract
 
 Scoring dihitung di `aggregateAndSaveStep` dan disimpan di `outputResult.scoreBreakdown`.
 
+### Current scoring model
+
+UI harus menampilkan skor aspek sebagai **positive points**: `score / maxScore`.
+
+Contoh:
+
+| Kondisi | Tampilan UI |
+| --- | --- |
+| Aspek OK dengan bobot 25 | `25 / 25` |
+| Aspek gagal total dengan bobot 20 | `0 / 20` |
+| Aspek parsial, misalnya dokumen kurang 3 poin dari bobot 10 | `7 / 10` |
+
+Field `deducted` dan `maxDeduction` tetap disimpan untuk backward compatibility dan audit trail. Jangan tampilkan aspek OK sebagai `0 / 25` atau aspek gagal sebagai `-20 / 20`, karena membingungkan user.
+
 ### Current scoring parameters
 
-| Code | Label | Max deduction | Trigger |
-| --- | --- | ---: | --- |
-| `DIAGNOSIS_TREATMENT` | Diagnosis & tindakan klinis | 25 | `diagnosisValidation.isValid === false` |
-| `TARIFF` | Tarif tindakan terdaftar | 20 | Registered tariff item over threshold / invalid |
-| `DRUG_PRICE` | Harga obat terdaftar | 20 | Registered drug item over threshold / invalid |
-| `DOCUMENT` | Kelengkapan dokumen | 10 | `documentValidation.isValid === false` |
-| `LOS` | LOS compliance | 10 | actual LOS missing while AI LOS exists, or actual LOS > expected LOS |
-| `UNREGISTERED_MASTER_DATA` | Kesiapan master data | 15 | tariff/drug item `NOT_FOUND` |
+| Code | Label | Max score | Max deduction | Trigger |
+| --- | --- | ---: | ---: | --- |
+| `DIAGNOSIS_TREATMENT` | Diagnosis, tindakan & obat klinis | 25 | 25 | `diagnosisValidation.isValid === false`, tindakan perlu review, prosedur wajib belum diklaim, atau obat tidak sesuai/perlu review |
+| `TARIFF` | Tarif tindakan terdaftar | 20 | 20 | Registered tariff item over threshold / invalid |
+| `DRUG_PRICE` | Harga obat referensi internet | 20 | 20 | Drug item over threshold / underpriced / reference unavailable |
+| `DOCUMENT` | Kelengkapan dokumen | 10 | 10 | `documentValidation.isValid === false` |
+| `LOS` | LOS compliance | 10 | 10 | actual LOS missing while AI LOS exists, or actual LOS > expected LOS |
+| `UNREGISTERED_MASTER_DATA` | Kesiapan master data | 15 | 15 | tariff item `NOT_FOUND` |
 
 ### Why separated?
 
-- `Tarif tindakan terdaftar` dan `Harga obat terdaftar` hanya menilai item yang punya referensi harga.
-- Item tanpa referensi harga tidak boleh dicampur ke price compliance.
-- Item tanpa referensi masuk ke `Kesiapan master data`.
+- `Tarif tindakan terdaftar` hanya menilai tindakan yang punya referensi master tarif.
+- `Harga obat referensi internet` menilai obat berdasarkan cache, AI-assisted source extraction, dan web crawl.
+- Item tindakan tanpa referensi master tarif tidak boleh dicampur ke price compliance; masuk ke `Kesiapan master data`.
+- Item obat tanpa referensi internet tetap berada di aspek `Harga obat referensi internet`; jangan tampilkan sebagai `Unregistered` karena obat tidak berasal dari Master Buku Tarif.
 - LOS berdiri sendiri karena bukan price validation.
+- Label/status LOS di UI harus memakai istilah operasional `Overstay`, `Understay`, `Sesuai Standar`, `Data Kurang`, atau `Tanpa Standar`. Jangan gunakan label ambigu seperti `Efisiensi Baik`.
 
 ---
 
-## 9. Result viewer contract
+## 10. Result viewer contract
 
 File: `src/app/dashboard/clinical-pathway/components/PathwayResultViewer.tsx`
 
@@ -363,7 +425,7 @@ claimedTotal ?? totalPrice ?? inputPayload.medications[].totalPrice ?? unitPrice
 
 ---
 
-## 10. API key & client contract
+## 11. API key & client contract
 
 ### Client vs Provider
 
@@ -380,7 +442,7 @@ claimedTotal ?? totalPrice ?? inputPayload.medications[].totalPrice ?? unitPrice
 
 ---
 
-## 11. AI usage logs contract
+## 12. AI usage logs contract
 
 File: `src/app/dashboard/settings/ai-usage-logs/page.tsx`
 
@@ -398,7 +460,7 @@ File: `src/app/dashboard/settings/ai-usage-logs/page.tsx`
 
 ---
 
-## 12. Safe-change checklist untuk agent
+## 13. Safe-change checklist untuk agent
 
 Sebelum mengubah clinical pathway/validation:
 

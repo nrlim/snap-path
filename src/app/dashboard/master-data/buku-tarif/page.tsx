@@ -10,9 +10,9 @@ export default async function BukuTarifPage(props: {
   const searchParams = await props.searchParams;
   const page = 1;
 
-  // Table tools are handled client-side for a consistent search/filter/sort/pagination UX.
+  // Table tools use server-side search/filter/pagination so results are not limited to the first loaded page.
   const [data, providers, categories] = await Promise.all([
-    getTariffEntries({ page, limit: 1000 }),
+    getTariffEntries({ page, limit: 10 }),
     getProviders(),
     getTariffCategoryOptions(),
   ]);

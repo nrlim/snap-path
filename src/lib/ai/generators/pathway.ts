@@ -27,9 +27,124 @@ function ensurePhasesCoverLos(phases: ClinicalPathwayPhase[], estimatedLos: numb
     return {
       ...phase,
       dayRange: normalized.length === 1 ? `Day 1-${estimatedLos}` : `Day ${lastCoveredDay || index + 1}-${estimatedLos}`,
-      phaseName: /discharge|pulang/i.test(phase.phaseName || '') ? phase.phaseName : `${phase.phaseName || 'Treatment Plan'} & Discharge`,
+      phaseName: /discharge|pulang/i.test(phase.phaseName || '') ? phase.phaseName : `${phase.phaseName || 'Rencana Terapi'} & Pulang`,
     };
   });
+}
+
+async function persistPathwayResult(
+  pathway: ClinicalPathwayOutput,
+  providerType?: string | null,
+  isActive = false,
+): Promise<ClinicalPathwayOutput> {
+  const normalizedPhases = ensurePhasesCoverLos(pathway.phases, pathway.estimatedLos);
+  const savedPathway = await prisma.clinicalPathway.create({
+    data: {
+      diagnosisCode: pathway.diagnosisCode,
+      diagnosisName: pathway.diagnosisName,
+      providerType: providerType || null,
+      pathwayVersion: pathway.pathwayVersion,
+      phases: normalizedPhases as unknown as Prisma.InputJsonValue,
+      estimatedLos: pathway.estimatedLos,
+      totalEstCost: pathway.totalEstimatedCost,
+      generatedBy: pathway.generatedBy,
+      isActive,
+    },
+  });
+
+  return {
+    ...pathway,
+    diagnosisCode: savedPathway.diagnosisCode,
+    diagnosisName: savedPathway.diagnosisName,
+    pathwayVersion: savedPathway.pathwayVersion,
+    estimatedLos: savedPathway.estimatedLos || pathway.estimatedLos,
+    phases: ensurePhasesCoverLos(savedPathway.phases as unknown as ClinicalPathwayPhase[], savedPathway.estimatedLos || pathway.estimatedLos),
+    totalEstimatedCost: savedPathway.totalEstCost,
+  };
+}
+
+function buildFallbackPathway(input: ClinicalPathwayInput, jobId: string): ClinicalPathwayOutput {
+  const diagnosisName = input.diagnosisName || 'Diagnosis tidak diketahui';
+  const isOutpatient = input.encounterType === 'RAWAT_JALAN';
+  const estimatedLos = isOutpatient ? 1 : 3;
+
+  const phases: ClinicalPathwayPhase[] = estimatedLos === 1
+    ? [{
+      phaseId: 'fallback-day-1',
+      phaseName: 'Asesmen, Terapi, dan Rencana Pulang',
+      dayRange: 'Day 1',
+      objectives: [
+        `Konfirmasi kondisi klinis utama terkait ${diagnosisName}.`,
+        'Stabilisasi gejala, pemberian terapi awal, dan penentuan kebutuhan kontrol atau rawat lanjut.',
+      ],
+      assessments: [
+        { name: 'Anamnesis dan pemeriksaan fisik terarah', frequency: 'Saat kunjungan', mandatory: true },
+        { name: 'Pemantauan tanda vital', frequency: 'Sesuai kondisi klinis', mandatory: true },
+      ],
+      treatments: [
+        { name: 'Terapi suportif sesuai diagnosis dan kondisi pasien', mandatory: true },
+        { name: 'Rencana tindak lanjut atau rujukan bila ada tanda bahaya', mandatory: true },
+      ],
+      medications: [],
+      nursing: [{ activity: 'Edukasi tanda bahaya dan kepatuhan terapi', frequency: 'Sebelum pulang' }],
+      nutrition: { diet: 'Diet sesuai kondisi klinis', restrictions: [] },
+      education: ['Jelaskan diagnosis kerja, rencana terapi, tanda bahaya, dan jadwal kontrol.'],
+      dischargeGate: { criteria: ['Kondisi stabil', 'Instruksi pulang dan kontrol dipahami pasien/keluarga'], mustMeetAll: true },
+    }]
+    : [
+      {
+        phaseId: 'fallback-admission',
+        phaseName: 'Admisi dan Stabilisasi',
+        dayRange: 'Day 1',
+        objectives: [`Konfirmasi diagnosis ${diagnosisName}.`, 'Stabilisasi kondisi awal dan tetapkan rencana terapi.'],
+        assessments: [
+          { name: 'Anamnesis, pemeriksaan fisik, dan review faktor risiko', frequency: 'Saat admisi', mandatory: true },
+          { name: 'Pemantauan tanda vital', frequency: 'Minimal tiap shift atau sesuai kondisi', mandatory: true },
+        ],
+        treatments: [{ name: 'Tatalaksana awal sesuai pathway klinis dan kondisi pasien', mandatory: true }],
+        medications: [],
+        nursing: [{ activity: 'Pemantauan kondisi umum dan respons terapi', frequency: 'Tiap shift' }],
+        nutrition: { diet: 'Diet rumah sakit sesuai kondisi klinis', restrictions: [] },
+        education: ['Jelaskan rencana perawatan dan target stabilisasi kepada pasien/keluarga.'],
+      },
+      {
+        phaseId: 'fallback-treatment',
+        phaseName: 'Terapi dan Monitoring',
+        dayRange: `Day 2-${estimatedLos - 1}`,
+        objectives: ['Optimalkan terapi, monitoring respons, dan cegah komplikasi.'],
+        assessments: [{ name: 'Evaluasi klinis harian dan respons terapi', frequency: 'Harian', mandatory: true }],
+        treatments: [{ name: 'Lanjutkan terapi definitif dan suportif sesuai evaluasi dokter', mandatory: true }],
+        medications: [],
+        nursing: [{ activity: 'Dokumentasi respons terapi dan keluhan pasien', frequency: 'Tiap shift' }],
+        nutrition: { diet: 'Diet sesuai kebutuhan klinis', restrictions: [] },
+        education: ['Perkuat edukasi kepatuhan terapi dan persiapan pulang.'],
+      },
+      {
+        phaseId: 'fallback-discharge',
+        phaseName: 'Evaluasi Pulang',
+        dayRange: `Day ${estimatedLos}`,
+        objectives: ['Pastikan pasien stabil dan siap melanjutkan perawatan rawat jalan.'],
+        assessments: [{ name: 'Evaluasi kriteria pulang', frequency: 'Sebelum pulang', mandatory: true }],
+        treatments: [{ name: 'Finalisasi rencana pulang dan kontrol', mandatory: true }],
+        medications: [],
+        nursing: [{ activity: 'Edukasi pulang dan verifikasi pemahaman pasien/keluarga', frequency: 'Sebelum pulang' }],
+        nutrition: { diet: 'Diet sesuai anjuran pulang', restrictions: [] },
+        education: ['Jelaskan obat pulang, kontrol, tanda bahaya, dan kapan harus kembali ke fasilitas kesehatan.'],
+        dischargeGate: { criteria: ['Tanda vital stabil', 'Keluhan membaik atau terkendali', 'Rencana kontrol tersedia'], mustMeetAll: true },
+      },
+    ];
+
+  return {
+    jobId,
+    diagnosisCode: input.diagnosisCode,
+    diagnosisName,
+    pathwayVersion: '1.0-fallback',
+    estimatedLos,
+    phases: ensurePhasesCoverLos(phases, estimatedLos),
+    totalEstimatedCost: null,
+    generatedBy: 'HYBRID',
+    confidence: 0.45,
+  };
 }
 
 export async function generateClinicalPathway(input: ClinicalPathwayInput, jobId: string): Promise<ClinicalPathwayOutput | null> {
@@ -74,42 +189,38 @@ export async function generateClinicalPathway(input: ClinicalPathwayInput, jobId
   const gateway = await getAIGateway({ clientId: input.clientId, providerId: input.providerId, jobId });
   
   try {
-    const { data } = await gateway.generateClinicalPathway(
-      diagnosisCode, 
+    const aiTimeoutMs = 30_000;
+    const aiResultPromise = gateway.generateClinicalPathway(
+      diagnosisCode,
       diagnosisName || "Unknown Diagnosis"
     );
 
-    // Save the generated pathway to DB so it can be reviewed and used as template next time
-    const newPathway = await prisma.clinicalPathway.create({
-      data: {
-        diagnosisCode,
-        diagnosisName: diagnosisName || "Unknown Diagnosis",
-        providerType: providerType || null,
-        pathwayVersion: "1.0-ai",
-        phases: ensurePhasesCoverLos(data.phases as ClinicalPathwayPhase[], data.estimatedLos) as unknown as Prisma.InputJsonValue,
-        estimatedLos: data.estimatedLos,
-        generatedBy: "AI",
-        isActive: false // Keep it inactive until a human medical reviewer approves it
-      }
-    });
+    const { data } = await Promise.race([
+      aiResultPromise,
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`AI clinical pathway generation timed out after ${aiTimeoutMs}ms`)), aiTimeoutMs);
+      }),
+    ]);
 
-    return {
+    // Save the generated pathway to DB so it can be reviewed and used as template next time
+    return await persistPathwayResult({
       jobId,
-      diagnosisCode: newPathway.diagnosisCode,
-      diagnosisName: newPathway.diagnosisName,
-      pathwayVersion: newPathway.pathwayVersion,
-      estimatedLos: newPathway.estimatedLos || 0,
-      phases: ensurePhasesCoverLos(newPathway.phases as unknown as ClinicalPathwayPhase[], newPathway.estimatedLos || 0),
-      totalEstimatedCost: newPathway.totalEstCost,
+      diagnosisCode,
+      diagnosisName: diagnosisName || "Unknown Diagnosis",
+      pathwayVersion: "1.0-ai",
+      estimatedLos: data.estimatedLos,
+      phases: ensurePhasesCoverLos(data.phases as ClinicalPathwayPhase[], data.estimatedLos),
+      totalEstimatedCost: null,
       generatedBy: "AI",
-      confidence: 0.85 // AI generated confidence
-    };
+      confidence: 0.85,
+    }, providerType, false);
 
   } catch (error) {
-    // Log the real underlying cause (Zod validation error, network error, model error, etc.)
-    const cause = error instanceof Error ? error : new Error(String(error));
-    console.error(`[generateClinicalPathway] Failed to generate pathway for ${diagnosisCode}. Cause:`, cause.message, cause);
-    // Return null — the workflow step will handle this gracefully
-    return null;
+    const fallback = buildFallbackPathway(input, jobId);
+    try {
+      return await persistPathwayResult(fallback, providerType, false);
+    } catch {
+      return fallback;
+    }
   }
 }

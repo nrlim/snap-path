@@ -22,11 +22,9 @@ import {
  *   7. aggregateAndSaveStep     — Aggregate scores and persist to DB
  *
  * Called via `start()` from the API route (fire-and-forget).
- * The client polls `/api/v1/claims/status?runId=...` to check progress.
+ * The client polls `/api/v1/claims/poll?runId=...` to check progress.
  */
-export async function claimValidationWorkflow(input: ClaimValidationPayload): Promise<void> {
-  'use workflow';
-
+async function runClaimValidationSteps(input: ClaimValidationPayload): Promise<void> {
   // Step 1: Init + Document validation
   const docRes = await initAndValidateDocStep(input);
 
@@ -47,4 +45,17 @@ export async function claimValidationWorkflow(input: ClaimValidationPayload): Pr
 
   // Step 7: Aggregate and save final result
   await aggregateAndSaveStep(input, docRes, diagRes, tariffRes, drugRes, pathRes, losRes);
+}
+
+export async function claimValidationWorkflow(input: ClaimValidationPayload): Promise<void> {
+  'use workflow';
+  await runClaimValidationSteps(input);
+}
+
+/**
+ * Local development fallback for Next/Turbopack workflow dispatch stalls.
+ * This is intentionally not used in production unless explicitly enabled.
+ */
+export async function runClaimValidationInline(input: ClaimValidationPayload): Promise<void> {
+  await runClaimValidationSteps(input);
 }

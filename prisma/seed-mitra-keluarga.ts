@@ -96,10 +96,10 @@ async function main() {
   console.log(`✅ Provider: ${provider.name} (${provider.id})`);
 
   // Read JSON
-  const jsonPath = path.join(
-    __dirname,
-    "../sample-data/buku-tarif-mitra-keluarga.json"
-  );
+  const legacyJsonPath = path.join(__dirname, "../sample-data/buku-tarif-mitra-keluarga.json");
+  const jsonPath = fs.existsSync(legacyJsonPath)
+    ? legacyJsonPath
+    : path.join(__dirname, "../sample-data/master-data-docs/buku-tarif-mitra-keluarga.json");
   const raw = fs.readFileSync(jsonPath, "utf-8");
   const data = JSON.parse(raw);
 

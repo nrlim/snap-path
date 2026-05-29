@@ -3,13 +3,14 @@
 import prisma from "@/lib/db";
 
 import { getAuthenticatedUser, isPlatformAdminRole } from "@/lib/rbac";
+import { applyClaimDisplayMetadataToJob } from "@/lib/claim-display";
 
 export async function getPathwayJobs() {
   const user = await getAuthenticatedUser();
   if (!user) return [];
 
   const isPlatformAdmin = isPlatformAdminRole(user.role);
-  const whereClause: any = { jobType: "CLAIM_VALIDATION" };
+  const whereClause: Record<string, unknown> = { jobType: "CLAIM_VALIDATION" };
   
   if (!isPlatformAdmin) {
     if (!user.clientId) return [];
@@ -23,7 +24,7 @@ export async function getPathwayJobs() {
     take: 50,
   });
   
-  return jobs;
+  return jobs.map(applyClaimDisplayMetadataToJob);
 }
 
 export async function getPathwayResult(jobId: string) {
@@ -44,5 +45,5 @@ export async function getPathwayResult(jobId: string) {
     return null;
   }
 
-  return job;
+  return applyClaimDisplayMetadataToJob(job);
 }

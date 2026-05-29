@@ -50,7 +50,10 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressAnimationRef = useRef<NodeJS.Timeout | null>(null);
   const stepStartTimes = useRef<Record<number, number>>({});
+  const currentStepIdxRef = useRef(0);
+  const targetStepIdxRef = useRef(0);
   const [, setTicker] = useState(0);
 
   useEffect(() => {
@@ -81,19 +84,51 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
     }
   }
 
-  function markStepsProgress(activeIdx: number) {
+  function applyStepProgress(effectiveIdx: number) {
+    const prevIdx = currentStepIdxRef.current;
     const now = Date.now();
-    if (!stepStartTimes.current[activeIdx]) stepStartTimes.current[activeIdx] = now;
-    setCurrentStepIdx(activeIdx);
+
+    if (effectiveIdx > prevIdx) {
+      for (let i = prevIdx + 1; i <= effectiveIdx; i++) {
+        if (!stepStartTimes.current[i]) stepStartTimes.current[i] = now;
+      }
+    }
+
+    if (!stepStartTimes.current[effectiveIdx]) stepStartTimes.current[effectiveIdx] = now;
+    currentStepIdxRef.current = effectiveIdx;
+    setCurrentStepIdx(effectiveIdx);
     setSteps((prev) => prev.map((step, idx) => {
-      if (idx < activeIdx) {
+      if (idx < effectiveIdx) {
         const start = stepStartTimes.current[idx] || now;
         const dur = step.durationSec || ((now - start) / 1000).toFixed(1);
         return { ...step, status: "completed", durationSec: dur };
       }
-      if (idx === activeIdx) return { ...step, status: "running" };
+      if (idx === effectiveIdx) return { ...step, status: "running" };
       return { ...step, status: "waiting" };
     }));
+  }
+
+  function markStepsProgress(activeIdx: number) {
+    // Never go backwards. If polling jumps several DB statuses at once, animate
+    // through each intermediate step so the user sees a smooth step-by-step flow.
+    targetStepIdxRef.current = Math.max(activeIdx, targetStepIdxRef.current, currentStepIdxRef.current);
+
+    if (progressAnimationRef.current) return;
+
+    const advance = () => {
+      const current = currentStepIdxRef.current;
+      const target = targetStepIdxRef.current;
+      const next = target > current ? current + 1 : target;
+      applyStepProgress(next);
+
+      if (targetStepIdxRef.current > next) {
+        progressAnimationRef.current = setTimeout(advance, 650);
+      } else {
+        progressAnimationRef.current = null;
+      }
+    };
+
+    advance();
   }
 
   function markAllDone() {
@@ -103,13 +138,20 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
       const dur = step.durationSec || ((now - start) / 1000).toFixed(1);
       return { ...step, status: "completed", durationSec: dur };
     }));
+    if (progressAnimationRef.current) {
+      clearTimeout(progressAnimationRef.current);
+      progressAnimationRef.current = null;
+    }
+    currentStepIdxRef.current = WORKFLOW_STEPS.length;
+    targetStepIdxRef.current = WORKFLOW_STEPS.length;
     setCurrentStepIdx(WORKFLOW_STEPS.length);
     setIsDone(true);
     clearStoredWorkflow();
   }
 
   function markFailed(errMsg: string) {
-    setSteps((prev) => prev.map((step, idx) => idx === currentStepIdx ? { ...step, status: "failed", error: errMsg } : step));
+    const failIdx = currentStepIdxRef.current;
+    setSteps((prev) => prev.map((step, idx) => idx === failIdx ? { ...step, status: "failed", error: errMsg } : step));
     setError(errMsg);
     setIsDone(true);
     clearStoredWorkflow();
@@ -125,6 +167,8 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
     setIsMinimized(Boolean(resumeData));
     setError(null);
     setCurrentStepIdx(0);
+    currentStepIdxRef.current = 0;
+    targetStepIdxRef.current = 0;
     setStartedAt(runStartedAt);
     stepStartTimes.current = { 0: runStartedAt };
 
@@ -135,13 +179,13 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
       intervalRef.current = setInterval(async () => {
         if (stopped) return;
         try {
-          const pollRes = await fetch(`/api/v1/claims/status?runId=${runId}&jobId=${jobId}`);
+          const pollRes = await fetch(`/api/v1/claims/poll?runId=${runId}&jobId=${jobId}`);
           const data = await pollRes.json();
 
           if (data.status === "running") {
             const mappedIdx = jobStatusToStepIdx[data.jobStatus ?? "PROCESSING"];
-            // -1 means unknown/generic status — preserve the current step index
-            const stepIdx = (mappedIdx === undefined || mappedIdx === -1) ? currentStepIdx : mappedIdx;
+            // -1 or undefined means unknown/generic status — preserve the current step index via ref
+            const stepIdx = (mappedIdx === undefined || mappedIdx === -1) ? currentStepIdxRef.current : mappedIdx;
             markStepsProgress(stepIdx);
           } else if (data.status === "completed") {
             clearInterval(intervalRef.current!);
@@ -195,6 +239,7 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
     return () => {
       stopped = true;
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (progressAnimationRef.current) clearTimeout(progressAnimationRef.current);
     };
   }, [isOpen, payload]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -68,8 +68,11 @@ export async function POST(req: NextRequest) {
       _mappingNotes: data._mappingNotes,
       usage,
     });
-  } catch (err: any) {
-    console.error('[map-json] Error:', err);
+  } catch (err) {
+    console.error('[claims/map-json]', {
+      message: err instanceof Error ? err.message : 'Unknown error',
+      clientId,
+    });
 
     if (!isDashboardUser && auth.apiKeyId) {
       await recordApiUsage({
@@ -83,7 +86,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'AI mapping failed due to an internal server error. Please check server logs.' },
+      { error: 'AI mapping failed due to an internal server error.' },
       { status: 500 }
     );
   }

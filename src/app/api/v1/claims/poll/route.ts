@@ -3,15 +3,20 @@ import { getRun } from 'workflow/api';
 import { getSession } from '@/lib/auth';
 import { authenticateApiRequest } from '@/lib/middleware/auth-api';
 import prisma from '@/lib/db';
+import { runClaimValidationInline } from '@/workflows/claim-validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/v1/claims/status?runId=xxx&jobId=yyy
+ * GET /api/v1/claims/poll?runId=xxx&jobId=yyy
  *
  * Polls the Workflow SDK for run status, then cross-references with
  * the ClaimJob in the database to return the full result when completed.
+ *
+ * NOTE: This route was previously at /api/v1/claims/status but that path
+ * conflicts with Next.js 16 Turbopack's internal [__metadata_id__] segment
+ * resolution, causing ENOENT errors at dev startup.
  */
 export async function GET(request: NextRequest) {
   // Authenticate (API key or dashboard session)
@@ -55,6 +60,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const latestJob = await prisma.claimJob.findUnique({
+      where: { id: jobId },
+      select: { id: true, status: true, outputResult: true, errorMessage: true },
+    });
+
+    // DB completion is the source of truth for UI navigation. In dev/recovery cases
+    // the ClaimJob can be completed even while the Workflow SDK run is still pending.
+    if (latestJob?.status === 'COMPLETED') {
+      return NextResponse.json({ status: 'completed', jobId, result: latestJob.outputResult });
+    }
+    if (latestJob?.status === 'FAILED') {
+      return NextResponse.json({ status: 'failed', error: latestJob.errorMessage || 'Workflow gagal. Silakan coba lagi.' });
+    }
+
     const wfStatus = await run.status;
 
     if (wfStatus === 'failed' || wfStatus === 'cancelled') {
@@ -75,7 +94,7 @@ export async function GET(request: NextRequest) {
 
       if (!job || job.status !== 'COMPLETED') {
         // Workflow completed but DB not yet committed — brief race condition, treat as running
-        return NextResponse.json({ status: 'running' });
+        return NextResponse.json({ status: 'running', jobStatus: job?.status ?? 'AGGREGATE' });
       }
 
       return NextResponse.json({ status: 'completed', jobId, result: job.outputResult });
@@ -84,12 +103,37 @@ export async function GET(request: NextRequest) {
     // running / pending — return current DB job status for granular UI steps
     const job = await prisma.claimJob.findUnique({
       where: { id: jobId },
-      select: { status: true },
+      select: { status: true, inputPayload: true, providerId: true, clientId: true, updatedAt: true },
     });
+
+    const statusAgeMs = job ? Date.now() - job.updatedAt.getTime() : 0;
+
+    // Local dev recovery: if Workflow SDK has a run but no step has advanced the DB
+    // status for a while, execute the same steps inline so the UI does not stay on
+    // Inisialisasi forever during demos.
+    const isPotentiallyStalled = job && ['QUEUED', 'INIT'].includes(job.status) && statusAgeMs > 10_000;
+    const canInlineRecover = process.env.NODE_ENV !== 'production' || process.env.WORKFLOW_INLINE_FALLBACK === 'true';
+    if (isPotentiallyStalled && canInlineRecover) {
+      await prisma.claimJob.update({ where: { id: jobId }, data: { status: 'DOC_VAL' } }).catch(() => {});
+      void runClaimValidationInline({
+        jobId,
+        payload: {
+          ...(job.inputPayload as Record<string, unknown>),
+          clientId: job.clientId,
+          providerId: job.providerId,
+        },
+      }).catch(async (error) => {
+        console.error('[claims/poll] inline workflow recovery failed', { jobId, message: error instanceof Error ? error.message : 'Unknown' });
+        await prisma.claimJob.update({
+          where: { id: jobId },
+          data: { status: 'FAILED', errorMessage: 'Inline workflow recovery failed.', completedAt: new Date() },
+        }).catch(() => {});
+      });
+    }
 
     return NextResponse.json({ status: 'running', jobStatus: job?.status ?? 'PROCESSING' });
   } catch (error) {
-    console.error('[Claim Status API] error:', error instanceof Error ? error.message : 'unknown');
+    console.error('[Claim Poll API] error:', error instanceof Error ? error.message : 'unknown');
     return NextResponse.json(
       { status: 'failed', error: 'Terjadi kesalahan internal. Silakan coba lagi.' },
       { status: 500 },

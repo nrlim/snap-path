@@ -1,0 +1,137 @@
+{
+  "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9",
+  "claimId": "CLM-MK-2026-SCORE100-DENGUE",
+  "patient": {
+    "name": "Ibu Sari Wulandari",
+    "identifier": [
+      {
+        "value": "PAT-MK-10041"
+      }
+    ],
+    "birthDate": "1992-04-12",
+    "gender": "female"
+  },
+  "encounter": {
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-04-10T09:00:00Z",
+      "end": "2026-04-13T13:00:00Z"
+    },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "A90",
+      "name": "Dengue fever without warning signs",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "LABA100300",
+      "name": "Darah Lengkap",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 513000,
+      "totalPrice": 513000
+    },
+    {
+      "code": "LABA110600",
+      "name": "Trombosit",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 244000,
+      "totalPrice": 244000
+    },
+    {
+      "code": "LABA110500",
+      "name": "Hematokrit",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 189000,
+      "totalPrice": 189000
+    },
+    {
+      "code": "LABA260100",
+      "name": "Elektrolit (Na, K, Cl)",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 926000,
+      "totalPrice": 926000
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "category": "KAMAR",
+      "quantity": 3,
+      "unitPrice": 635000,
+      "totalPrice": 1905000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Trolit Sachet",
+      "genericName": "Elektrolit dan Ekstrak Monascus",
+      "dosage": "Sachet",
+      "quantity": 10,
+      "unitPrice": 12000,
+      "totalPrice": 120000
+    },
+    {
+      "name": "Ringer Laktat 500ml Botol",
+      "genericName": "Ringer Laktat",
+      "dosage": "500ml botol infus",
+      "quantity": 4,
+      "unitPrice": 16000,
+      "totalPrice": 64000
+    }
+  ],
+  "documents": [
+    {
+      "type": "LMA",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: demam 3 hari, nyeri kepala dan mialgia, NS1 dengue positif, trombosit dan hematokrit dimonitor serial, tidak ada tanda perdarahan aktif. Rawat inap untuk monitoring cairan, tanda vital, dan edukasi tanda bahaya."
+    },
+    {
+      "type": "KTP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kronologi jelas; kasus bukan kecelakaan."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
+    }
+  ],
+  "extra": {
+    "nik": "3175021234567890",
+    "phone": "081298761234",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "AS-2026-DHF-001",
+    "los": "3",
+    "losJustification": "Rawat inap 3 hari untuk dengue tanpa warning signs dengan monitoring trombosit, hematokrit, elektrolit, tanda vital, hidrasi oral/IV sesuai kebutuhan, dan observasi fase kritis.",
+    "outcomeNotes": "Pasien afebrile, tanda vital stabil, tidak ada perdarahan, trombosit stabil membaik, toleransi oral baik, dan pulang dengan edukasi tanda bahaya serta kontrol.",
+    "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9"
+  }
+}

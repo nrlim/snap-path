@@ -2,6 +2,43 @@ import { NextResponse } from "next/server";
 import { authenticateApiRequest } from "@/lib/middleware/auth-api";
 import { recordApiUsage } from "@/lib/api-key";
 import prisma from "@/lib/db";
+import type { Prisma } from "@/generated/prisma/client";
+
+type TariffBulkEntry = {
+  providerId: string;
+  procedureCode: string;
+  procedureName: string;
+  category: string;
+  subcategory?: string | null;
+  serviceCode?: string | null;
+  unit?: string | null;
+  regionCode?: string | null;
+  basePrice: number;
+  maxPrice: number;
+  priceTiersJson?: Prisma.InputJsonValue;
+  currency?: string;
+  notes?: string | null;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isActive?: boolean;
+};
+
+function isTariffBulkEntry(entry: unknown): entry is TariffBulkEntry {
+  if (!entry || typeof entry !== "object") return false;
+  const value = entry as Record<string, unknown>;
+
+  return (
+    typeof value.providerId === "string" &&
+    typeof value.procedureCode === "string" &&
+    typeof value.procedureName === "string" &&
+    typeof value.category === "string" &&
+    typeof value.basePrice === "number" &&
+    typeof value.maxPrice === "number" &&
+    typeof value.effectiveFrom === "string" &&
+    !Number.isNaN(Date.parse(value.effectiveFrom)) &&
+    (value.effectiveTo == null || (typeof value.effectiveTo === "string" && !Number.isNaN(Date.parse(value.effectiveTo))))
+  );
+}
 
 export async function POST(request: Request) {
   const startTime = Date.now();
@@ -9,8 +46,8 @@ export async function POST(request: Request) {
   if (!auth.authenticated) return auth.response;
 
   try {
-    const payload = await request.json();
-    
+    const payload = (await request.json()) as { entries?: unknown };
+
     if (!payload.entries || !Array.isArray(payload.entries)) {
       return NextResponse.json({ error: "Invalid payload: 'entries' must be an array" }, { status: 400 });
     }
@@ -20,22 +57,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Maximum 500 entries per bulk request allowed" }, { status: 400 });
     }
 
-    const validEntries = payload.entries.filter((entry: any) => 
-      entry &&
-      typeof entry.providerId === 'string' &&
-      typeof entry.procedureCode === 'string' &&
-      typeof entry.procedureName === 'string' &&
-      typeof entry.category === 'string' &&
-      typeof entry.basePrice === 'number' &&
-      typeof entry.maxPrice === 'number' &&
-      entry.effectiveFrom
-    );
+    const validEntries = payload.entries.filter(isTariffBulkEntry);
 
     if (validEntries.length === 0) {
       return NextResponse.json({ error: "No valid entries provided in bulk payload." }, { status: 400 });
     }
 
-    const dataToInsert = validEntries.map((entry: any) => ({
+    const dataToInsert: Prisma.TariffEntryCreateManyInput[] = validEntries.map((entry) => ({
       providerId: entry.providerId,
       procedureCode: entry.procedureCode,
       procedureName: entry.procedureName,
@@ -46,7 +74,7 @@ export async function POST(request: Request) {
       regionCode: entry.regionCode || null,
       basePrice: entry.basePrice,
       maxPrice: entry.maxPrice,
-      priceTiersJson: entry.priceTiersJson || undefined,
+      priceTiersJson: entry.priceTiersJson,
       currency: entry.currency || "IDR",
       notes: entry.notes || null,
       effectiveFrom: new Date(entry.effectiveFrom),
@@ -56,16 +84,18 @@ export async function POST(request: Request) {
 
     const result = await prisma.tariffEntry.createMany({
       data: dataToInsert,
-      skipDuplicates: true, // Prevents failure if some entries already exist (needs unique constraint, but we'll use it as standard)
+      skipDuplicates: true,
     });
 
-    await recordApiUsage({
-      apiKeyId: auth.apiKeyId!,
-      endpoint: "/api/v1/tariff/bulk",
-      method: "POST",
-      statusCode: 201,
-      durationMs: Date.now() - startTime
-    });
+    if (auth.apiKeyId) {
+      await recordApiUsage({
+        apiKeyId: auth.apiKeyId,
+        endpoint: "/api/v1/tariff/bulk",
+        method: "POST",
+        statusCode: 201,
+        durationMs: Date.now() - startTime
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -74,7 +104,7 @@ export async function POST(request: Request) {
     }, { status: 201 });
 
   } catch (error) {
-    console.error("Failed to bulk create tariff entries:", error);
+    console.error("[tariff/bulk] error:", { message: error instanceof Error ? error.message : "Unknown" });
     return NextResponse.json({ error: "Internal server error during bulk import" }, { status: 500 });
   }
 }

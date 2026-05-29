@@ -1,6 +1,6 @@
 import prisma from '@/lib/db';
 import { DrugPriceCheckInput, DrugPriceCheckOutput } from '../types';
-import { getAIGateway } from '../gateway';
+import { crawlIndonesianDrugPrice } from '../drug-web-price';
 
 const CACHE_TTL_DAYS = 7;
 
@@ -32,7 +32,6 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
   let hasUnderPriced = false;
   
   const items: DrugPriceCheckOutput['items'] = [];
-  const gateway = await getAIGateway({ clientId: input.clientId, providerId, jobId });
 
   for (const med of medications) {
     // 1. Check Cache
@@ -58,42 +57,41 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
       cachedAt = cacheEntry.fetchedAt.toISOString();
       statusSource = 'CACHE_HIT';
     } else {
-      // 2. Cache miss -> AI-assisted web search / estimate
+      // 2. Cache miss -> direct internet crawl from public Indonesian pharmacy/catalog pages.
+      // No third-party search API keys are required for drug price lookup.
       try {
-        const { data } = await gateway.searchDrugMarketPrice({
+        const crawled = await crawlIndonesianDrugPrice({
           name: med.name,
           genericName: med.genericName || null,
           dosage: med.dosage || null,
         });
-        
-        marketPriceMax = data.marketPriceMax || 0;
-        sources = Array.isArray(data.sources) ? data.sources : [];
-        resolvedProductName = data.resolvedProductName;
-        dosageForm = data.dosageForm;
-        unitBasis = data.unitBasis;
-        
+
+        marketPriceMax = crawled.marketPriceMax || 0;
+        sources = crawled.sources;
+        resolvedProductName = crawled.resolvedProductName || resolvedProductName;
+        dosageForm = crawled.dosageForm || dosageForm;
+        unitBasis = crawled.unitBasis || unitBasis;
+
         if (marketPriceMax > 0) {
-          // Save to cache
           const now = new Date();
           const expiresAt = new Date();
           expiresAt.setDate(now.getDate() + CACHE_TTL_DAYS);
-          
+
           await prisma.drugPriceCache.create({
             data: {
               drugName: med.name,
               drugGenericName: med.genericName,
-              marketPriceMax: marketPriceMax,
-              marketPriceAvg: data.marketPriceAvg,
-              sources: sources,
+              marketPriceMax,
+              marketPriceAvg: crawled.marketPriceAvg,
+              sources,
               fetchedAt: now,
-              expiresAt: expiresAt
-            }
+              expiresAt,
+            },
           });
           cachedAt = now.toISOString();
         }
       } catch (error) {
-        console.error(`Failed to fetch drug price for ${med.name}:`, error);
-        // We'll proceed with 0 market price, yielding NOT_FOUND
+        console.error(`Failed to crawl drug price for ${med.name}:`, error);
       }
     }
 
@@ -115,7 +113,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         expectedTotal: 0,
         status: 'NOT_FOUND',
         variancePct: 0,
-        sources: [],
+        sources,
         cachedAt: null
       });
       continue;

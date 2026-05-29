@@ -29,7 +29,7 @@ function getExtension(file: File): string {
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
-    if (!session) {
+    if (!session || typeof session.sub !== 'string') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const userId = sanitizePathSegment(String(session.sub || session.email || 'user'));
+    const userId = sanitizePathSegment(session.sub);
     const safeClaimId = sanitizePathSegment(claimId);
     const safeDocumentType = sanitizePathSegment(documentType);
     const objectPath = [
@@ -82,9 +82,11 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[document-upload] Error:', error);
+    console.error('[document-upload]', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Upload dokumen gagal.' },
+      { error: 'Upload dokumen gagal.' },
       { status: 500 },
     );
   }

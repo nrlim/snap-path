@@ -54,13 +54,13 @@ export function hasPermission(role: unknown, permission: Permission): boolean {
 
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
   const session = await getSession()
-  const userId = typeof session?.userId === 'string' ? session.userId : null
-  const email = typeof session?.email === 'string' ? session.email : null
+  // Session now only stores 'sub' (user ID) — look up fresh user data from DB
+  const userId = typeof session?.sub === 'string' ? session.sub : null
 
-  if (!userId && !email) return null
+  if (!userId) return null
 
-  return prisma.user.findFirst({
-    where: userId ? { id: userId } : { email: email ?? undefined },
+  return prisma.user.findUnique({
+    where: { id: userId },
     select: {
       id: true,
       email: true,

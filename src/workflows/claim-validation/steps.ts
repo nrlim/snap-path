@@ -12,14 +12,23 @@ export interface ClaimValidationPayload {
   payload: any;
 }
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function updateJobStatusAndDelay(jobId: string, status: string, delayMs = 1500) {
+/**
+ * Updates job status in DB. Removed artificial delays — the Workflow SDK
+ * provides durable step tracking and the client polls status independently.
+ */
+async function updateJobStatus(jobId: string, status: string) {
   await prisma.claimJob.update({
     where: { id: jobId },
     data: { status }
   });
-  await delay(delayMs);
+}
+
+function resolveEncounterType(payload: any): 'RAWAT_INAP' | 'RAWAT_JALAN' | 'IGD' {
+  const raw = String(payload?.encounter?.type || payload?.encounter?.class?.code || '').toUpperCase();
+  if (['RAWAT_INAP', 'INPATIENT', 'IMP', 'RI'].includes(raw)) return 'RAWAT_INAP';
+  if (['RAWAT_JALAN', 'OUTPATIENT', 'AMB', 'RJ'].includes(raw)) return 'RAWAT_JALAN';
+  if (['IGD', 'EMERGENCY', 'EMER', 'ER'].includes(raw)) return 'IGD';
+  return 'RAWAT_INAP';
 }
 
 /**
@@ -33,9 +42,8 @@ export async function initAndValidateDocStep(input: ClaimValidationPayload) {
     where: { id: input.jobId },
     data: { status: 'INIT', startedAt: new Date() },
   });
-  await delay(1000);
 
-  await updateJobStatusAndDelay(input.jobId, 'DOC_VAL', 2000);
+  await updateJobStatus(input.jobId, 'DOC_VAL');
 
   const result = await validateDocumentCompleteness(input.payload, input.jobId);
   return result;
@@ -48,7 +56,7 @@ initAndValidateDocStep.maxRetries = 1;
 export async function validateDiagnosisStep(input: ClaimValidationPayload) {
   'use step';
 
-  await updateJobStatusAndDelay(input.jobId, 'DIAG_VAL', 2500);
+  await updateJobStatus(input.jobId, 'DIAG_VAL');
 
   try {
     return await validateDiagnosisTreatment(input.payload, input.jobId);
@@ -70,12 +78,12 @@ validateDiagnosisStep.maxRetries = 1;
 export async function validateTariffStep(input: ClaimValidationPayload) {
   'use step';
 
-  await updateJobStatusAndDelay(input.jobId, 'TARIFF_VAL', 1500);
+  await updateJobStatus(input.jobId, 'TARIFF_VAL');
 
   return await validateTariffPrice(
     {
       providerId: input.payload.providerId,
-      encounterType: input.payload.encounter.type,
+      encounterType: resolveEncounterType(input.payload),
       procedures: input.payload.procedures,
     },
     input.jobId,
@@ -90,7 +98,7 @@ validateTariffStep.maxRetries = 2;
 export async function checkDrugPricesStep(input: ClaimValidationPayload) {
   'use step';
 
-  await updateJobStatusAndDelay(input.jobId, 'DRUG_VAL', 2000);
+  await updateJobStatus(input.jobId, 'DRUG_VAL');
 
   if (!input.payload.medications || input.payload.medications.length === 0) {
     return null;
@@ -126,14 +134,14 @@ checkDrugPricesStep.maxRetries = 1;
 export async function generatePathwayStep(input: ClaimValidationPayload) {
   'use step';
 
-  await updateJobStatusAndDelay(input.jobId, 'PATHWAY_GEN', 2500);
+  await updateJobStatus(input.jobId, 'PATHWAY_GEN');
 
   if (!input.payload.diagnoses || input.payload.diagnoses.length === 0) {
     return null;
   }
 
   const primaryDiag =
-    input.payload.diagnoses.find((d: any) => d.type === 'PRIMARY') ||
+    input.payload.diagnoses.find((d: any) => String(d.type || '').toUpperCase() === 'PRIMARY') ||
     input.payload.diagnoses[0];
 
   try {
@@ -141,7 +149,7 @@ export async function generatePathwayStep(input: ClaimValidationPayload) {
       {
         diagnosisCode: primaryDiag.code,
         diagnosisName: primaryDiag.description || primaryDiag.name,
-        encounterType: input.payload.encounter.type,
+        encounterType: resolveEncounterType(input.payload),
         providerId: input.payload.providerId,
         clientId: input.payload.clientId,
       },
@@ -153,8 +161,12 @@ export async function generatePathwayStep(input: ClaimValidationPayload) {
     if (msg.includes('401') || msg.includes('403')) {
       throw new FatalError(`AI auth gagal (non-retryable): ${msg}`);
     }
-    // AI generation failures (schema validation, timeout, model errors) are
-    // non-critical — the workflow should still complete with partial results.
+    // Abort/timeout should be retried by the workflow SDK (not swallowed)
+    if (error instanceof Error && (error.name === 'AbortError' || msg.toLowerCase().includes('abort') || msg.toLowerCase().includes('timeout'))) {
+      throw error;
+    }
+    // AI generation failures (schema validation, model errors) are non-critical —
+    // the workflow still completes with partial results.
     console.error(`[generatePathwayStep] Pathway generation failed for ${primaryDiag.code}, continuing without pathway:`, error);
     return null;
   }
@@ -167,7 +179,7 @@ generatePathwayStep.maxRetries = 1;
 export async function validateLosStep(input: ClaimValidationPayload) {
   'use step';
 
-  await updateJobStatusAndDelay(input.jobId, 'LOS_VAL', 1500);
+  await updateJobStatus(input.jobId, 'LOS_VAL');
 
   try {
     return await validateLos(input.payload, input.jobId);
@@ -195,7 +207,7 @@ export async function aggregateAndSaveStep(
 ) {
   'use step';
 
-  await updateJobStatusAndDelay(input.jobId, 'AGGREGATE', 1000);
+  await updateJobStatus(input.jobId, 'AGGREGATE');
 
   let overallScore = 100;
   let status = 'VALID';
@@ -203,7 +215,7 @@ export async function aggregateAndSaveStep(
   const tariffItems = tariffRes?.items || [];
   const drugItems = drugRes?.items || [];
   const hasUnregisteredTariff = tariffItems.some((item: any) => item.status === 'NOT_FOUND');
-  const hasUnregisteredDrug = drugItems.some((item: any) => item.status === 'NOT_FOUND');
+  const hasDrugReferenceUnavailable = drugItems.some((item: any) => item.status === 'NOT_FOUND');
   
   const losDeduction = losRes?.deduction || 0;
   
@@ -215,21 +227,38 @@ export async function aggregateAndSaveStep(
     : 0;
   const scoreBreakdown = {
     baseScore: 100,
+    scoringModel: 'positive_points_v1',
+    description: 'Setiap aspek menampilkan poin yang diperoleh dari bobot maksimum. Temuan validasi mengurangi poin aspek tersebut.',
     items: [
-      { code: 'DIAGNOSIS_TREATMENT', label: 'Diagnosis & tindakan klinis', maxDeduction: 25, deducted: 0, reason: 'Diagnosis dan tindakan sesuai kebutuhan klinis utama.' },
-      { code: 'TARIFF', label: 'Tarif tindakan terdaftar', maxDeduction: 20, deducted: 0, reason: 'Item tindakan yang terdaftar berada dalam threshold master fee schedule.' },
-      { code: 'DRUG_PRICE', label: 'Harga obat terdaftar', maxDeduction: 20, deducted: 0, reason: 'Item obat yang memiliki referensi harga berada dalam threshold.' },
-      { code: 'DOCUMENT', label: 'Kelengkapan dokumen', maxDeduction: 10, deducted: 0, reason: 'Enam dokumen wajib klaim rawat inap sudah lengkap.' },
-      { code: 'LOS', label: 'LOS compliance', maxDeduction: 10, deducted: 0, reason: 'LOS aktual sesuai standar pathway.' },
-      { code: 'UNREGISTERED_MASTER_DATA', label: 'Kesiapan master data', maxDeduction: 15, deducted: 0, reason: 'Semua tindakan dan obat tersedia pada master data/referensi.' },
+      { code: 'DIAGNOSIS_TREATMENT', label: 'Diagnosis, tindakan & obat klinis', maxDeduction: 25, maxScore: 25, score: 25, deducted: 0, status: 'PASS', reason: 'Diagnosis, tindakan, dan obat sesuai kebutuhan klinis utama.' },
+      { code: 'TARIFF', label: 'Tarif tindakan terdaftar', maxDeduction: 20, maxScore: 20, score: 20, deducted: 0, status: 'PASS', reason: 'Item tindakan yang terdaftar berada dalam threshold master fee schedule.' },
+      { code: 'DRUG_PRICE', label: 'Harga obat referensi internet', maxDeduction: 20, maxScore: 20, score: 20, deducted: 0, status: 'PASS', reason: 'Item obat yang memiliki referensi harga internet berada dalam threshold.' },
+      { code: 'DOCUMENT', label: 'Kelengkapan dokumen', maxDeduction: 10, maxScore: 10, score: 10, deducted: 0, status: 'PASS', reason: 'Enam dokumen wajib klaim rawat inap sudah lengkap.' },
+      { code: 'LOS', label: 'LOS compliance', maxDeduction: 10, maxScore: 10, score: 10, deducted: 0, status: 'PASS', reason: 'LOS aktual sesuai standar pathway.' },
+      { code: 'UNREGISTERED_MASTER_DATA', label: 'Kesiapan master data', maxDeduction: 15, maxScore: 15, score: 15, deducted: 0, status: 'PASS', reason: 'Semua tindakan dan obat tersedia pada master data/referensi.' },
     ],
   };
 
-  if (!diagRes.isValid) {
-    overallScore -= 25;
-    scoreBreakdown.items[0].deducted = 25;
-    scoreBreakdown.items[0].reason = 'Diagnosis tidak sesuai tindakan, ada prosedur tidak relevan, atau prosedur wajib belum ada.';
-    status = 'REVIEW_NEEDED';
+  const diagnosisDetails = Array.isArray(diagRes?.details) ? diagRes.details : [];
+  const diagnosisMissingRequiredCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.missingRequiredProcedures?.length || 0), 0);
+  const diagnosisIrrelevantCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.irrelevantProcedures?.length || detail.unmatchedProcedures?.length || 0), 0);
+  const diagnosisMedicationReviewCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'REVIEW_NEEDED').length || 0), 0);
+  const diagnosisMedicationInappropriateCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'INAPPROPRIATE').length || 0), 0);
+  const diagnosisScore = typeof diagRes?.score === 'number' ? Math.max(0, Math.min(100, diagRes.score)) : (diagRes?.isValid ? 100 : 0);
+  const diagnosisDeduction = Math.min(
+    25,
+    Math.max(
+      !diagRes?.isValid ? 1 : 0,
+      Math.ceil(((100 - diagnosisScore) / 100) * 25),
+      Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisIrrelevantCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3)),
+    ),
+  );
+
+  if (diagnosisDeduction > 0) {
+    overallScore -= diagnosisDeduction;
+    scoreBreakdown.items[0].deducted = diagnosisDeduction;
+    scoreBreakdown.items[0].reason = `Perlu review klinis: ${diagnosisMissingRequiredCount} prosedur wajib belum diklaim, ${diagnosisIrrelevantCount} tindakan perlu review relevansi, dan ${diagnosisMedicationReviewCount + diagnosisMedicationInappropriateCount} obat perlu review kesesuaian terhadap diagnosis.`;
+    status = diagnosisDeduction >= 15 ? 'REVIEW_NEEDED' : 'WARNING';
   }
   if (tariffRes.status === 'WARNING' || tariffRes.status === 'INVALID') {
     overallScore -= 20;
@@ -240,7 +269,9 @@ export async function aggregateAndSaveStep(
   if (drugRes && (drugRes.status === 'WARNING' || drugRes.status === 'INVALID')) {
     overallScore -= 20;
     scoreBreakdown.items[2].deducted = 20;
-    scoreBreakdown.items[2].reason = 'Ada item obat terdaftar yang melewati threshold market reference.';
+    scoreBreakdown.items[2].reason = hasDrugReferenceUnavailable
+      ? 'Ada item obat yang belum berhasil ditemukan referensi harga internetnya, sehingga perlu review manual.'
+      : 'Ada item obat yang melewati threshold market reference atau jauh di bawah referensi.';
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
   if (!docRes.isValid) {
@@ -258,11 +289,16 @@ export async function aggregateAndSaveStep(
     scoreBreakdown.items[4].reason = losRes.reason;
   }
   
-  if (hasUnregisteredTariff || hasUnregisteredDrug) {
+  if (hasUnregisteredTariff) {
     overallScore -= 15;
     scoreBreakdown.items[5].deducted = 15;
-    scoreBreakdown.items[5].reason = `${hasUnregisteredTariff ? 'Ada tindakan yang belum tersedia di master tarif, sehingga belum bisa divalidasi harga. ' : ''}${hasUnregisteredDrug ? 'Ada obat yang belum ditemukan pada referensi harga, sehingga belum bisa divalidasi harga.' : ''}`.trim();
+    scoreBreakdown.items[5].reason = 'Ada tindakan yang belum tersedia di master tarif, sehingga belum bisa divalidasi harga.';
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
+  }
+
+  for (const item of scoreBreakdown.items) {
+    item.score = Math.max(0, item.maxScore - item.deducted);
+    item.status = item.deducted === 0 ? 'PASS' : item.score > 0 ? 'PARTIAL' : 'NEEDS_REVIEW';
   }
 
   overallScore = Math.max(0, overallScore);

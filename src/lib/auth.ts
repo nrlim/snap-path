@@ -1,15 +1,21 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose'
 import { cookies } from 'next/headers'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 
-const defaultSecret = 'default_super_secure_secret_key_change_me_in_production';
-if (!process.env.JWT_SECRET) {
-  console.warn('WARNING: JWT_SECRET environment variable is not set. Using default insecure key. Please configure this in production.');
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is required in production')
+    }
+    console.warn('[auth] JWT_SECRET not set — using dev-only derived key. Set JWT_SECRET for production.')
+    return crypto.createHash('sha256').update('snap-path-dev-only-key-do-not-use-in-prod').digest()
+  }
+  return new TextEncoder().encode(secret)
 }
 
-const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || defaultSecret
-)
+const SECRET_KEY = getJwtSecret()
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10)
@@ -22,15 +28,20 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 export async function createSession(payload: JWTPayload) {
   const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 1 week
-  const session = await new SignJWT(payload)
+  // Only store minimal non-sensitive identifiers in JWT claims
+  const minimalPayload: JWTPayload = {
+    sub: typeof payload.userId === 'string' ? payload.userId : undefined,
+    iat: Math.floor(Date.now() / 1000),
+  }
+  const session = await new SignJWT(minimalPayload)
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('7d')
     .sign(SECRET_KEY)
 
   const cookieStore = await cookies()
-  cookieStore.set('session', session, {
+  cookieStore.set('__Host-session', session, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: true,
     expires: expires,
     sameSite: 'lax',
     path: '/',
@@ -39,7 +50,8 @@ export async function createSession(payload: JWTPayload) {
 
 export async function getSession() {
   const cookieStore = await cookies()
-  const session = cookieStore.get('session')?.value
+  // Support both __Host-session (new) and session (legacy) cookies
+  const session = cookieStore.get('__Host-session')?.value || cookieStore.get('session')?.value
   if (!session) return null
 
   try {
@@ -54,5 +66,6 @@ export async function getSession() {
 
 export async function clearSession() {
   const cookieStore = await cookies()
-  cookieStore.delete('session')
+  cookieStore.delete('__Host-session')
+  cookieStore.delete('session') // Clean up legacy cookie
 }

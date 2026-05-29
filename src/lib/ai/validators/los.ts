@@ -53,6 +53,8 @@ export async function validateLos(payload: any, jobId: string): Promise<LosValid
   let maxLos: number | undefined;
   let aiJustification: string | undefined;
   let references: string[] | undefined;
+  let therapyRecommendation: LosValidationOutput['therapyRecommendation'] | undefined;
+  let stayStatusThresholds: LosValidationOutput['stayStatusThresholds'] | undefined;
   let source: LosValidationOutput['source'] = "NOT_AVAILABLE";
 
   if (selectedTemplate && selectedTemplate.estimatedLos) {
@@ -68,6 +70,8 @@ export async function validateLos(payload: any, jobId: string): Promise<LosValid
       maxLos = data.maxLos;
       aiJustification = data.justification;
       references = data.references;
+      therapyRecommendation = data.therapyRecommendation || null;
+      stayStatusThresholds = data.stayStatusThresholds || null;
       source = "AI_ESTIMATE";
     } catch (error) {
       console.error(`Failed to estimate LOS via AI for ${diagnosisCode}:`, error);
@@ -76,11 +80,12 @@ export async function validateLos(payload: any, jobId: string): Promise<LosValid
     }
   }
 
-  // Fetch threshold configuration
+  // Fetch threshold configuration — use AI-provided thresholds if available, else fall back to global config
   const config = await prisma.systemConfig.findUnique({
     where: { id: 'GLOBAL_CONFIG' }
   });
-  const thresholdLosDays = config?.thresholdLosDays ?? 1;
+  const thresholdLosDays = stayStatusThresholds?.overstayDays ?? config?.thresholdLosDays ?? 1;
+  const understayThresholdDays = stayStatusThresholds?.understayDays ?? 1;
 
   // Calculate Variance & Deduction
   const varianceDays = actualLos - expectedLos;
@@ -112,18 +117,24 @@ export async function validateLos(payload: any, jobId: string): Promise<LosValid
       deduction = 10;
       reason = `Overstay melebihi batas kewajaran: ${varianceDays} hari di atas standar (${expectedLos} hari). Terindikasi inefisiensi yang sangat tinggi.`;
     }
-  } else if (variancePct <= -50) {
+  } else if (varianceDays < -understayThresholdDays) {
     status = "UNDERSTAY";
-    deduction = 5;
-    reason = `Understay mencurigakan: LOS aktual ${actualLos} hari, jauh lebih rendah dari standar minimum (${expectedLos} hari). Kemungkinan indikasi pulang atas permintaan sendiri atau kesalahan data.`;
+    if (variancePct <= -50) {
+      deduction = 5;
+      reason = `Understay signifikan: LOS aktual ${actualLos} hari, jauh lebih rendah dari standar (${expectedLos} hari, min ${minLos ?? '-'} hari). Perlu review karena dapat mengindikasikan pulang dini, readmission risk, atau kesalahan data.`;
+    } else {
+      deduction = 0;
+      reason = `Understay ${Math.abs(varianceDays)} hari dari standar (${expectedLos} hari). Tidak ada pengurang skor, tetapi tetap ditandai untuk konteks klinis.`;
+    }
+  } else if (varianceDays < 0) {
+    // Within understay threshold — still compliant but noted
+    status = "COMPLIANT";
+    deduction = 0;
+    reason = `LOS aktual ${actualLos} hari masih dalam batas toleransi understay (${understayThresholdDays} hari) dari standar (${expectedLos} hari).`;
   } else if (varianceDays > 0 && varianceDays <= thresholdLosDays) {
     status = "COMPLIANT";
     deduction = 0;
     reason = `LOS aktual ${actualLos} hari masih dalam batas toleransi overstay (${thresholdLosDays} hari) dari standar (${expectedLos} hari).`;
-  } else if (varianceDays < 0) {
-    status = "COMPLIANT";
-    deduction = 0;
-    reason = `LOS aktual ${actualLos} hari (lebih cepat dari standar ${expectedLos} hari). Efisiensi rumah sakit sangat baik.`;
   }
 
   return {
@@ -139,6 +150,8 @@ export async function validateLos(payload: any, jobId: string): Promise<LosValid
     deduction,
     reason,
     aiJustification,
-    references
+    references,
+    therapyRecommendation,
+    stayStatusThresholds,
   };
 }

@@ -3,6 +3,7 @@ import { authenticateApiRequest } from "@/lib/middleware/auth-api";
 import { recordApiUsage } from "@/lib/api-key";
 import prisma from "@/lib/db";
 import { checkDrugPrices } from "@/lib/ai/validators/drug-price";
+import { sanitizeClaimValidationInput } from "@/lib/ai/sanitizer";
 
 export async function POST(request: Request) {
   const startTime = Date.now();
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
       data: {
         jobType: "DRUG_PRICE",
         status: "QUEUED",
-        inputPayload: payload,
+        inputPayload: sanitizeClaimValidationInput(payload) as any,
         providerId: payload.providerId || auth.providerId,
       }
     });
@@ -40,13 +41,15 @@ export async function POST(request: Request) {
       }
     }, 1000);
 
-    await recordApiUsage({
-      apiKeyId: auth.apiKeyId!,
-      endpoint: "/api/v1/drugs/price-check",
-      method: "POST",
-      statusCode: 202,
-      durationMs: Date.now() - startTime
-    });
+    if (auth.apiKeyId) {
+      await recordApiUsage({
+        apiKeyId: auth.apiKeyId,
+        endpoint: "/api/v1/drugs/price-check",
+        method: "POST",
+        statusCode: 202,
+        durationMs: Date.now() - startTime
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -56,6 +59,7 @@ export async function POST(request: Request) {
     }, { status: 202 });
 
   } catch (error) {
+    console.error('[drugs/price-check]', { message: error instanceof Error ? error.message : 'Unknown' });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

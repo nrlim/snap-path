@@ -2,21 +2,42 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { authenticateApiRequest } from "@/lib/middleware/auth-api";
 import { getSession } from "@/lib/auth";
+import { getAuthenticatedUser, isPlatformAdminRole } from "@/lib/rbac";
+
+async function authorizeJobAccess(request: Request): Promise<
+  | { authorized: true; clientId: string | null; isPlatformAdmin: boolean }
+  | { authorized: false; response: NextResponse }
+> {
+  const auth = await authenticateApiRequest(request);
+  if (auth.authenticated) {
+    return { authorized: true, clientId: auth.clientId ?? null, isPlatformAdmin: false };
+  }
+
+  const session = await getSession();
+  if (!session || typeof session.sub !== 'string') {
+    return { authorized: false, response: auth.response ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+  }
+
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    return { authorized: false, response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+  }
+
+  return { authorized: true, clientId: user.clientId, isPlatformAdmin: isPlatformAdminRole(user.role) };
+}
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   const { jobId } = await params;
-  
-  const auth = await authenticateApiRequest(request);
-  let authenticatedClientId = auth.authenticated ? auth.clientId : null;
-  if (!auth.authenticated) {
-    const session = await getSession();
-    if (!session) {
-      return auth.response;
-    }
-    authenticatedClientId = typeof session.clientId === 'string' ? session.clientId : null;
+
+  const authz = await authorizeJobAccess(request);
+  if (!authz.authorized) return authz.response;
+
+  // Validate jobId format (UUID)
+  if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
+    return NextResponse.json({ error: "Invalid job ID format" }, { status: 400 });
   }
 
   try {
@@ -28,8 +49,12 @@ export async function GET(
       return NextResponse.json({ error: "Job not found" }, { status: 404 });
     }
 
-    if (authenticatedClientId && job.clientId !== authenticatedClientId) {
-      return NextResponse.json({ error: "Unauthorized access to this job" }, { status: 403 });
+    // Tenant isolation
+    if (!authz.isPlatformAdmin && authz.clientId && job.clientId !== authz.clientId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    if (!authz.isPlatformAdmin && !authz.clientId && job.clientId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (job.status !== "COMPLETED" && job.status !== "FAILED") {
@@ -48,7 +73,7 @@ export async function GET(
       completedAt: job.completedAt?.toISOString() || null,
     });
   } catch (error) {
-    console.error("Failed to fetch job result:", error);
+    console.error("[jobs/result]", { jobId, message: error instanceof Error ? error.message : 'Unknown' });
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

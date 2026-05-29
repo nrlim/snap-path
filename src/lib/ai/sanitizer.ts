@@ -3,23 +3,54 @@
  * from data before sending it to AI providers.
  */
 
+// Pre-compiled regex patterns to prevent ReDoS from dynamic pattern creation
+const NIK_PATTERN = /\b\d{16}\b/g;
+const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const PHONE_PATTERN = /\b(\+62|62|0)8[1-9][0-9]{6,10}\b/g;
+
+// Cache for validated dynamic patterns (bounded to prevent memory issues)
+const patternCache = new Map<string, RegExp>();
+const MAX_CACHED_PATTERNS = 100;
+
+function getSafePattern(pattern: string): RegExp | null {
+  if (patternCache.has(pattern)) return patternCache.get(pattern)!;
+
+  // Prevent ReDoS: reject overly complex patterns
+  if (pattern.length > 100) return null;
+  // Reject patterns with nested quantifiers that could cause catastrophic backtracking
+  if (/[+*]{2,}|\{[\d,]+\}[+*]|\([^)]*[+*][^)]*\)[+*]/.test(pattern)) return null;
+
+  try {
+    const regex = new RegExp(pattern, 'i');
+    if (patternCache.size >= MAX_CACHED_PATTERNS) {
+      // Evict oldest entry
+      const firstKey = patternCache.keys().next().value;
+      if (firstKey) patternCache.delete(firstKey);
+    }
+    patternCache.set(pattern, regex);
+    return regex;
+  } catch {
+    return null;
+  }
+}
+
 // Basic redaction for text blobs
 export function sanitizeClinicalText(text: string): string {
   if (!text || typeof text !== 'string') return text;
   
   let sanitized = text;
   // Redact potential NIKs (16 digits)
-  sanitized = sanitized.replace(/\b\d{16}\b/g, '[NIK_REDACTED]');
+  sanitized = sanitized.replace(NIK_PATTERN, '[NIK_REDACTED]');
   // Redact emails
-  sanitized = sanitized.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL_REDACTED]');
+  sanitized = sanitized.replace(EMAIL_PATTERN, '[EMAIL_REDACTED]');
   // Redact phone numbers (Indonesian 08xx / +62)
-  sanitized = sanitized.replace(/\b(\+62|62|0)8[1-9][0-9]{6,10}\b/g, '[PHONE_REDACTED]');
+  sanitized = sanitized.replace(PHONE_PATTERN, '[PHONE_REDACTED]');
   
   return sanitized;
 }
 
 // Targeted redaction for known ClaimValidationInput structure
-export function sanitizeClaimValidationInput(payload: any): any {
+export function sanitizeClaimValidationInput(payload: unknown): unknown {
   if (!payload || typeof payload !== 'object') return payload;
   
   // Deep clone to avoid mutating the original object used by DB/UI
@@ -28,7 +59,7 @@ export function sanitizeClaimValidationInput(payload: any): any {
   if (sanitized.patient) {
     if (sanitized.patient.name) sanitized.patient.name = '[PASIEN]';
     if (sanitized.patient.id) sanitized.patient.id = '[ID_REDACTED]';
-    if (sanitized.patient.dateOfBirth) sanitized.patient.dateOfBirth = '1900-01-01'; // Default valid date to avoid schema errors
+    if (sanitized.patient.dateOfBirth) sanitized.patient.dateOfBirth = '1900-01-01';
     // Gender is kept as it is clinically relevant
   }
   
@@ -38,9 +69,8 @@ export function sanitizeClaimValidationInput(payload: any): any {
   
   if (sanitized.claimId) sanitized.claimId = '[CLAIM_ID_REDACTED]';
   
-  // Optionally, we could redact notes if they are free text, but they might contain clinical info.
-  // We'll apply text-based redaction to notes just in case.
-  if (sanitized.notes) {
+  // Apply text-based redaction to free-text notes
+  if (sanitized.notes && typeof sanitized.notes === 'string') {
     sanitized.notes = sanitizeClinicalText(sanitized.notes);
   }
 
@@ -49,43 +79,50 @@ export function sanitizeClaimValidationInput(payload: any): any {
 
 // Aggressive recursive redaction for unknown JSON structures
 export function sanitizeArbitraryJson(
-  json: any,
+  json: unknown,
   redactPatterns: string[] = [],
   safeContextsArr: string[] = []
-): any {
+): unknown {
   if (!json) return json;
   if (typeof json === 'string') return sanitizeClinicalText(json);
   if (typeof json !== 'object') return json;
 
   const sanitized = JSON.parse(JSON.stringify(json));
   
-  // Create RegExp objects dynamically
-  const piiKeyPatterns = redactPatterns.map(pattern => new RegExp(pattern, 'i'));
-  const safeContexts = safeContextsArr.map(pattern => new RegExp(pattern, 'i'));
+  // Build validated RegExp objects with ReDoS protection
+  const piiKeyPatterns = redactPatterns
+    .map(p => getSafePattern(p))
+    .filter((p): p is RegExp => p !== null);
+  const safeContexts = safeContextsArr
+    .map(p => getSafePattern(p))
+    .filter((p): p is RegExp => p !== null);
 
-  function stripPii(obj: any) {
-    if (!obj || typeof obj !== 'object') return;
+  function stripPii(obj: unknown, depth: number = 0): void {
+    // Prevent stack overflow from deeply nested objects
+    if (!obj || typeof obj !== 'object' || depth > 20) return;
     
     if (Array.isArray(obj)) {
-      obj.forEach(stripPii);
+      obj.forEach(item => stripPii(item, depth + 1));
       return;
     }
 
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
-        if (typeof obj[key] === 'object') {
-          stripPii(obj[key]);
+        const value = (obj as Record<string, unknown>)[key];
+
+        if (typeof value === 'object') {
+          stripPii(value, depth + 1);
           continue;
         }
 
-        const isString = typeof obj[key] === 'string';
+        const isString = typeof value === 'string';
         const isPiiKey = piiKeyPatterns.some(regex => regex.test(key));
         const isSafeContext = safeContexts.some(regex => regex.test(key));
 
         if (isPiiKey && !isSafeContext && isString) {
-          obj[key] = '[REDACTED]';
+          (obj as Record<string, unknown>)[key] = '[REDACTED]';
         } else if (isString) {
-          obj[key] = sanitizeClinicalText(obj[key]);
+          (obj as Record<string, unknown>)[key] = sanitizeClinicalText(value);
         }
       }
     }

@@ -46,21 +46,23 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       }
     });
 
-    await recordApiUsage({
-      apiKeyId: auth.apiKeyId!,
-      endpoint: `/api/v1/tariff/[id]`,
-      method: "PUT",
-      statusCode: 200,
-      durationMs: Date.now() - startTime
-    });
+    if (auth.apiKeyId) {
+      await recordApiUsage({
+        apiKeyId: auth.apiKeyId,
+        endpoint: `/api/v1/tariff/[id]`,
+        method: "PUT",
+        statusCode: 200,
+        durationMs: Date.now() - startTime
+      });
+    }
 
     return NextResponse.json({
       success: true,
       data: updatedEntry
     });
-  } catch (error: any) {
-    console.error("Failed to update tariff entry:", error);
-    if (error.code === 'P2025') {
+  } catch (error) {
+    console.error("[tariff/id] PUT error:", { message: error instanceof Error ? error.message : 'Unknown' });
+    if ((error as { code?: string }).code === 'P2025') {
       return NextResponse.json({ error: "Tariff entry not found" }, { status: 404 });
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -93,22 +95,24 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
       data: { isActive: false }
     });
 
-    await recordApiUsage({
-      apiKeyId: auth.apiKeyId!,
-      endpoint: `/api/v1/tariff/[id]`,
-      method: "DELETE",
-      statusCode: 200,
-      durationMs: Date.now() - startTime
-    });
+    if (auth.apiKeyId) {
+      await recordApiUsage({
+        apiKeyId: auth.apiKeyId,
+        endpoint: `/api/v1/tariff/[id]`,
+        method: "DELETE",
+        statusCode: 200,
+        durationMs: Date.now() - startTime
+      });
+    }
 
     return NextResponse.json({
       success: true,
       message: "Tariff entry soft deleted successfully",
       data: deletedEntry
     });
-  } catch (error: any) {
-    console.error("Failed to delete tariff entry:", error);
-    if (error.code === 'P2025') {
+  } catch (error) {
+    console.error("[tariff/id] DELETE error:", { message: error instanceof Error ? error.message : 'Unknown' });
+    if ((error as { code?: string }).code === 'P2025') {
       return NextResponse.json({ error: "Tariff entry not found" }, { status: 404 });
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

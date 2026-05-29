@@ -7,13 +7,16 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
   const gateway = await getAIGateway({ clientId: input.clientId, providerId: input.providerId, jobId });
 
   const details: ClaimValidationOutput['diagnosisValidation']['details'] = [];
-  const claimedProcedureCodes = procedures.map(p => p.code);
+  const claimedProcedureCodes = procedures.map(p => p.code).filter(Boolean);
 
-  // Pre-build a name lookup map from procedures in input (may have names)
+  // Pre-build a name lookup map from procedures in input (may have names).
   const inputProcNameMap: Record<string, string> = {};
   for (const p of procedures) {
-    if (p.code && ((p as any).name || p.description)) inputProcNameMap[p.code] = (p as any).name || p.description;
+    const name = (p as any).name || p.description || (p as any).procedureName;
+    if (p.code && name) inputProcNameMap[p.code] = name;
   }
+
+  const formatProcedure = (code: string, name?: string | null) => name ? `${code} — ${name}` : code;
 
   let overallValid = true;
 
@@ -45,23 +48,54 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
 
     const mappedCodes = mapEntries.map(m => m.procedureCode);
 
-    // Build matched/unmatched with names
-    const matchedWithNames = claimedProcedureCodes
-      .filter(c => mappedCodes.includes(c))
-      .map(c => inputProcNameMap[c] ? `${c} — ${inputProcNameMap[c]}` : c);
-    const unmatchedWithNames = claimedProcedureCodes
-      .filter(c => !mappedCodes.includes(c))
-      .map(c => inputProcNameMap[c] ? `${c} — ${inputProcNameMap[c]}` : c);
+    // Local mapping is used as a positive match and required-procedure source only.
+    // Absence from mapping must not automatically mean irrelevant; AI must justify irrelevance.
+    const matchedCodes = claimedProcedureCodes.filter(c => mappedCodes.includes(c));
+    const unmappedCodes = claimedProcedureCodes.filter(c => !mappedCodes.includes(c));
+    const matchedWithNames = matchedCodes.map(c => formatProcedure(c, inputProcNameMap[c]));
+    const unmappedWithNames = unmappedCodes.map(c => formatProcedure(c, inputProcNameMap[c]));
+    const procedureFindings = [
+      ...matchedCodes.map((code) => ({
+        procedureCode: code,
+        procedureName: inputProcNameMap[code] || code,
+        status: 'APPROPRIATE' as const,
+        reason: `Tindakan ini sesuai dengan mapping lokal diagnosis ${diag.code}.`,
+        againstDiagnosis: diag.code,
+        confidence: 'MEDIUM' as const,
+      })),
+      ...unmappedCodes.map((code) => ({
+        procedureCode: code,
+        procedureName: inputProcNameMap[code] || code,
+        status: 'REVIEW_NEEDED' as const,
+        reason: `Tindakan ini belum ada di mapping lokal diagnosis ${diag.code}. Ini bukan berarti tidak relevan; perlu dinilai berdasarkan konteks klinis dan alasan AI.`,
+        againstDiagnosis: diag.code,
+        confidence: 'LOW' as const,
+      })),
+    ];
 
     details.push({
       diagnosisCode: diag.code,
       diagnosisName: (diag as any).name || diag.description || diag.code,
       clinicalSummary: '',
       matchedProcedures: matchedWithNames,
-      unmatchedProcedures: unmatchedWithNames,
+      unmatchedProcedures: [],
+      procedureFindings,
+      irrelevantProcedures: [],
+      medicationFindings: [],
       missingRequiredProcedures,
+      missingRequiredProcedureDetails: missingRequiredProcedures.map((item) => {
+        const [code, name] = item.split(' — ');
+        return {
+          code: code || item,
+          name: name || item,
+          reason: `Prosedur ini ditandai wajib pada mapping diagnosis ${diag.code}.`,
+          evidenceLevel: 'REQUIRED' as const,
+        };
+      }),
       suggestedProcedures: [],
-      notes: ''
+      notes: unmappedWithNames.length
+        ? `Ada ${unmappedWithNames.length} tindakan yang belum ada di mapping lokal diagnosis ini. Tindakan tersebut tidak otomatis dianggap tidak relevan dan perlu dinilai berdasarkan konteks klinis.`
+        : ''
     });
   }
 
@@ -79,10 +113,67 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
         existing.notes = aiDetail.notes;
         if (aiDetail.diagnosisName) existing.diagnosisName = aiDetail.diagnosisName;
         if (aiDetail.clinicalSummary) existing.clinicalSummary = aiDetail.clinicalSummary;
+        if (Array.isArray(aiDetail.matchedProcedures) && aiDetail.matchedProcedures.length) {
+          const mergedMatched = new Set([...(existing.matchedProcedures || []), ...aiDetail.matchedProcedures]);
+          existing.matchedProcedures = Array.from(mergedMatched);
+          existing.procedureFindings = (existing.procedureFindings || []).map((finding) => {
+            const display = `${finding.procedureCode} — ${finding.procedureName}`;
+            const isMatchedByAi = aiDetail.matchedProcedures.some((value: string) => value.includes(finding.procedureCode) || value === display || value === finding.procedureName);
+            return isMatchedByAi ? { ...finding, status: 'APPROPRIATE' as const, reason: 'AI menilai tindakan ini masih relevan terhadap diagnosis.', confidence: 'MEDIUM' as const } : finding;
+          });
+        }
+        if (Array.isArray(aiDetail.medicationFindings) && aiDetail.medicationFindings.length) {
+          existing.medicationFindings = aiDetail.medicationFindings
+            .filter((item: any) => item?.confidence !== 'LOW' && item?.reason && item?.medicationName)
+            .map((item: any) => ({
+              medicationName: String(item.medicationName),
+              genericName: item.genericName ? String(item.genericName) : null,
+              status: item.status === 'INAPPROPRIATE' ? 'INAPPROPRIATE' as const : item.status === 'APPROPRIATE' ? 'APPROPRIATE' as const : 'REVIEW_NEEDED' as const,
+              reason: String(item.reason),
+              againstDiagnosis: String(item.againstDiagnosis || existing.diagnosisCode),
+              confidence: item.confidence === 'HIGH' ? 'HIGH' as const : 'MEDIUM' as const,
+            }));
+        }
+        if (Array.isArray(aiDetail.irrelevantProcedures) && aiDetail.irrelevantProcedures.length) {
+          const relevantIrrelevant = aiDetail.irrelevantProcedures
+            .filter((item: any) => item?.confidence !== 'LOW' && item?.reason && item?.procedureCode)
+            .map((item: any) => ({
+              procedureCode: String(item.procedureCode),
+              procedureName: String(item.procedureName || inputProcNameMap[item.procedureCode] || item.procedureCode),
+              reason: String(item.reason),
+              againstDiagnosis: String(item.againstDiagnosis || existing.diagnosisCode),
+              confidence: item.confidence === 'HIGH' ? 'HIGH' as const : 'MEDIUM' as const,
+            }));
+          existing.irrelevantProcedures = relevantIrrelevant;
+          existing.procedureFindings = (existing.procedureFindings || []).map((finding) => {
+            const irrelevant = relevantIrrelevant.find((item: { procedureCode: string }) => item.procedureCode === finding.procedureCode);
+            return irrelevant ? {
+              procedureCode: irrelevant.procedureCode,
+              procedureName: irrelevant.procedureName,
+              status: 'INAPPROPRIATE' as const,
+              reason: irrelevant.reason,
+              againstDiagnosis: irrelevant.againstDiagnosis,
+              confidence: irrelevant.confidence,
+            } : finding;
+          });
+          existing.unmatchedProcedures = relevantIrrelevant.map((item: { procedureCode: string; procedureName: string; reason: string }) => `${item.procedureCode} — ${item.procedureName}: ${item.reason}`);
+        } else if (Array.isArray(aiDetail.unmatchedProcedures) && aiDetail.unmatchedProcedures.length) {
+          // Backward-compatible fallback for older AI schemas. Keep as review text, but do not add DB-only unmapped items.
+          existing.unmatchedProcedures = aiDetail.unmatchedProcedures;
+        }
         if (aiDetail.suggestedProcedures?.length) existing.suggestedProcedures = aiDetail.suggestedProcedures;
-        // Merge missing procedures AI caught that DB didn't
+        if (Array.isArray(aiDetail.missingRequiredProcedureDetails) && aiDetail.missingRequiredProcedureDetails.length) {
+          existing.missingRequiredProcedureDetails = [
+            ...(existing.missingRequiredProcedureDetails || []),
+            ...aiDetail.missingRequiredProcedureDetails.filter((item: any) => item?.evidenceLevel === 'REQUIRED'),
+          ];
+        }
+        // Merge only procedures AI marks as truly REQUIRED, not advisory suggestions.
         for (const missing of aiDetail.missingRequiredProcedures || []) {
-          if (!existing.missingRequiredProcedures.includes(missing)) {
+          const isRequired = (aiDetail.missingRequiredProcedureDetails || []).some((item: any) =>
+            item?.evidenceLevel === 'REQUIRED' && (`${item.code} — ${item.name}` === missing || item.code === missing)
+          );
+          if (isRequired && !existing.missingRequiredProcedures.includes(missing)) {
             existing.missingRequiredProcedures.push(missing);
           }
         }
@@ -93,9 +184,20 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
     aiScore = overallValid ? 80 : 50;
   }
 
+  const missingRequiredCount = details.reduce((total, detail) => total + (detail.missingRequiredProcedures?.length || 0), 0);
+  const irrelevantCount = details.reduce((total, detail) => total + (detail.irrelevantProcedures?.length || detail.unmatchedProcedures?.length || 0), 0);
+  const medicationReviewCount = details.reduce((total, detail) => total + (detail.medicationFindings?.filter((item) => item.status === 'REVIEW_NEEDED').length || 0), 0);
+  const medicationInappropriateCount = details.reduce((total, detail) => total + (detail.medicationFindings?.filter((item) => item.status === 'INAPPROPRIATE').length || 0), 0);
+
+  // Convert diagnosis/procedure/medication findings into a readable 0-100 score.
+  const ruleBasedDeduction = Math.min(100, (missingRequiredCount * 20) + (irrelevantCount * 8) + (medicationReviewCount * 4) + (medicationInappropriateCount * 10));
+  const ruleBasedScore = Math.max(0, 100 - ruleBasedDeduction);
+  const finalScore = Math.min(aiScore, ruleBasedScore);
+  const finalValid = overallValid && missingRequiredCount === 0 && irrelevantCount === 0 && medicationInappropriateCount === 0 && finalScore >= 80;
+
   return {
-    isValid: overallValid,
-    score: aiScore,
+    isValid: finalValid,
+    score: finalScore,
     details
   };
 }
