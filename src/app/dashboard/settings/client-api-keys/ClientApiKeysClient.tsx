@@ -17,7 +17,6 @@ type Client = {
   aiModel: string | null;
   aiMaxTokens: number | null;
   aiTemperature: number | null;
-  monthlyTokenLimit: number | null;
   apiKeys: Array<{ id: string; name: string; isActive: boolean; expiresAt: Date | string | null; createdAt: Date | string; apiKey?: string | null; apiSecret?: string | null }>;
 };
 
@@ -216,7 +215,7 @@ function FragmentRow({ client, isExpanded, canManageClients, onToggle, onEdit, o
     <>
       <tr className="hover:bg-surface-elevated/30">
         <td className="px-4 py-3"><button type="button" onClick={onToggle} className="rounded-md p-1.5 text-text-subtle hover:bg-surface-elevated">{isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button></td>
-        <td className="px-4 py-3"><p className="font-bold text-text">{client.name}</p><p className="text-xs text-text-faint">Limit: {client.monthlyTokenLimit ? `${client.monthlyTokenLimit.toLocaleString("id-ID")} token/bulan` : "Tidak dibatasi"}</p></td>
+        <td className="px-4 py-3"><p className="font-bold text-text">{client.name}</p><p className="text-xs text-text-faint">Credit-based usage</p></td>
         <td className="px-4 py-3 font-mono text-xs text-text-subtle">{client.code}</td>
         <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${client.isActive ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700"}`}>{client.isActive ? "Active" : "Inactive"}</span></td>
         {canManageClients && <td className="px-4 py-3 text-text-subtle">{client.aiProvider || "Global config"}</td>}
@@ -316,10 +315,6 @@ function ClientModal({ client, isPending, onClose, onSubmit }: { client: Client 
             </>
           )}
 
-          <label className="text-sm font-medium text-text">
-            Limit Token Bulanan
-            <input name="monthlyTokenLimit" type="number" defaultValue={client?.monthlyTokenLimit || ""} className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" />
-          </label>
           <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-text">
             <input name="isActive" type="checkbox" defaultChecked={client?.isActive ?? true} className="h-4 w-4 rounded border-border text-primary" /> Client aktif
           </label>

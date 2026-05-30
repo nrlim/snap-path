@@ -76,7 +76,6 @@ export async function upsertClient(formData: FormData) {
       aiModel: nullableString(formData.get("aiModel")),
       aiMaxTokens: nullableNumber(formData.get("aiMaxTokens")),
       aiTemperature: nullableNumber(formData.get("aiTemperature")),
-      monthlyTokenLimit: nullableNumber(formData.get("monthlyTokenLimit")),
     };
 
     if (id) await prisma.client.update({ where: { id }, data });

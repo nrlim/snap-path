@@ -14,7 +14,6 @@ export type Permission =
   | 'CLIENT_API_KEYS'
   | 'USER_MANAGEMENT'
   | 'CLINICAL_THRESHOLDS'
-  | 'PATHWAY_LIMITS'
 
 export type AuthenticatedUser = {
   id: string
@@ -50,8 +49,6 @@ export function hasPermission(role: unknown, permission: Permission): boolean {
     case 'USER_MANAGEMENT':
     case 'CLINICAL_THRESHOLDS':
       return role === 'ADMIN' || role === 'CLIENT_ADMIN'
-    case 'PATHWAY_LIMITS':
-      return false
     default:
       return false
   }

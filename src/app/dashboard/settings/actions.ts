@@ -84,37 +84,6 @@ export async function updateThresholdConfig(formData: FormData) {
   }
 }
 
-export async function updatePathwayLimitConfig(formData: FormData) {
-  if (!(await getCurrentUserPermission("PATHWAY_LIMITS"))) {
-    return { success: false, error: "Anda tidak memiliki akses untuk mengubah limit Clinical Pathway." };
-  }
-
-  try {
-    const data = {
-      pathwayDailyLimitViewer: formLimit(formData, "pathwayDailyLimitViewer", 3),
-      pathwayDailyLimitClientUser: formLimit(formData, "pathwayDailyLimitClientUser", 10),
-      pathwayDailyLimitClientAdmin: formLimit(formData, "pathwayDailyLimitClientAdmin", 25),
-      pathwayDailyLimitAdmin: formLimit(formData, "pathwayDailyLimitAdmin", 0),
-      pathwayDailyLimitSuperAdmin: formLimit(formData, "pathwayDailyLimitSuperAdmin", 0),
-    };
-
-    await prisma.systemConfig.upsert({
-      where: { id: "GLOBAL_CONFIG" },
-      update: data,
-      create: {
-        id: "GLOBAL_CONFIG",
-        ...data,
-      },
-    });
-
-    revalidatePath("/dashboard/settings/pathway-limits");
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to update pathway limits:", error);
-    return { success: false, error: "Gagal menyimpan limit Clinical Pathway." };
-  }
-}
-
 export async function updatePrivacyConfig(redactPatterns: string[], safeContexts: string[]) {
   const user = await getAuthenticatedUser();
   if (!user || (!hasPermission(user.role, "AI_ENGINE_CONFIG") && !hasPermission(user.role, "PRIVACY_CONFIG"))) {
