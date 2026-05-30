@@ -431,6 +431,22 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     return item.claimedUnitPrice ?? item.unitPrice ?? claimed?.unitPrice ?? claimed?.price ?? null;
   };
 
+  const getProcedureDisplayName = (item: any) => {
+    const claimed = findClaimedProcedure(item);
+    return item.description || item.procedureName || item.name || claimed?.name || claimed?.description || claimed?.procedureName || 'Tindakan medis';
+  };
+
+  const getProcedureDisplayCode = (item: any) => {
+    const claimed = findClaimedProcedure(item);
+    return item.code || item.procedureCode || claimed?.code || claimed?.procedureCode || null;
+  };
+
+  const getProcedureLine = (item: any) => {
+    const name = item.procedureName || item.name || item.description || 'Tindakan medis';
+    const code = item.procedureCode || item.code || null;
+    return { name, code };
+  };
+
   const getDrugClaimedTotal = (item: any) => {
     const claimed = findClaimedMedication(item);
     return item.claimedTotal ?? item.totalPrice ?? claimed?.totalPrice ?? ((item.claimedUnitPrice ?? item.unitPrice ?? claimed?.unitPrice ?? claimed?.price ?? 0) * (item.quantity ?? claimed?.quantity ?? 1));
@@ -707,9 +723,11 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                     <div className="space-y-2">
                       <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Tindakan Diklaim ({inputPayload.procedures?.length || 0})</p>
                       <ul className="space-y-0.5">
-                        {(inputPayload.procedures || []).slice(0, 5).map((p: any, i: number) => (
-                          <li key={i} className="text-xs text-text-subtle">• <span className="font-mono">{p.code}</span>{p.name ? ` — ${p.name}` : ''}</li>
-                        ))}
+                        {(inputPayload.procedures || []).slice(0, 5).map((p: any, i: number) => {
+                          const name = p.name || p.description || p.procedureName || 'Tindakan medis';
+                          const code = p.code || p.procedureCode;
+                          return <li key={i} className="text-xs text-text-subtle">• <span className="font-medium text-text">{name}</span>{code ? <span className="font-mono text-text-faint"> — {code}</span> : null}</li>;
+                        })}
                         {inputPayload.procedures?.length > 5 && <li className="text-xs text-text-faint">+ {inputPayload.procedures.length - 5} lainnya...</li>}
                       </ul>
                     </div>
@@ -768,7 +786,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         return (
                           <tr key={i} className={isOver ? "bg-red-500/5" : isNotFound || isUnder ? "bg-yellow-500/5" : ""}>
                             <td className="px-4 py-3">
-                              <p className="font-medium text-text">{item.description || findClaimedProcedure(item)?.name || findClaimedProcedure(item)?.description || item.procedureName || 'Tindakan medis'}</p>
+                              <p className="font-medium text-text">{getProcedureDisplayName(item)}</p>
+                              {getProcedureDisplayCode(item) && <p className="mt-0.5 font-mono text-[10px] text-text-faint">{getProcedureDisplayCode(item)}</p>}
                             </td>
                             <td className="px-4 py-3 text-right font-medium text-text-subtle">
                               {item.quantity || 1}
@@ -941,7 +960,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 const detail = diag.missingRequiredProcedureDetails?.find((item: any) => p.includes(item.code) || item.code === p);
                                 return (
                                   <li key={j} className="rounded-md bg-surface/70 p-2 text-sm text-orange-800">
-                                    <p className="font-semibold">{detail ? `${detail.code} — ${detail.name}` : p}</p>
+                                    <p className="font-semibold">{detail?.name || p}</p>
+                                    {detail?.code && <p className="mt-0.5 font-mono text-[11px] text-orange-700/70">{detail.code}</p>}
                                     {detail?.reason && <p className="mt-1 text-xs leading-5 text-orange-700/80">Alasan: {detail.reason}</p>}
                                   </li>
                                 );
@@ -960,7 +980,10 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 return (
                                   <li key={j} className={`rounded-md bg-surface/70 p-2 text-sm ${isIssue ? 'text-amber-800' : 'text-green-800'}`}>
                                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                      <p className="font-semibold">{p.procedureCode} — {p.procedureName}</p>
+                                      <div>
+                                        <p className="font-semibold">{getProcedureLine(p).name}</p>
+                                        {getProcedureLine(p).code && <p className="mt-0.5 font-mono text-[11px] opacity-70">{getProcedureLine(p).code}</p>}
+                                      </div>
                                       <span className={`w-fit rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${p.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : p.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
                                         {p.status === 'APPROPRIATE' ? 'Sesuai' : p.status === 'INAPPROPRIATE' ? 'Tidak sesuai' : 'Perlu review'}
                                       </span>
@@ -983,7 +1006,14 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 const isDetailed = typeof item === 'object' && item !== null;
                                 return (
                                   <li key={j} className="rounded-md bg-surface/70 p-2 text-sm text-red-800">
-                                    <p className="font-semibold">{isDetailed ? `${item.procedureCode} — ${item.procedureName}` : String(item).split(':')[0]}</p>
+                                    {isDetailed ? (
+                                      <div>
+                                        <p className="font-semibold">{getProcedureLine(item).name}</p>
+                                        {getProcedureLine(item).code && <p className="mt-0.5 font-mono text-[11px] text-red-700/70">{getProcedureLine(item).code}</p>}
+                                      </div>
+                                    ) : (
+                                      <p className="font-semibold">{String(item).split(':')[0]}</p>
+                                    )}
                                     {isDetailed ? (
                                       <div className="mt-1 space-y-1 text-xs leading-5 text-red-700/80">
                                         <p>Alasan: {item.reason}</p>
@@ -1031,7 +1061,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                             <ul className="space-y-2">
                               {diag.suggestedProcedures.map((s: any, j: number) => (
                                 <li key={j} className="rounded-md bg-surface/70 p-2 text-sm">
-                                  <p><span className="font-mono font-bold text-primary mr-1.5">{s.code}</span><span className="font-semibold text-primary">{s.name}</span></p>
+                                  <p className="font-semibold text-primary">{s.name || 'Tindakan medis'}</p>
+                                  {s.code && <p className="mt-0.5 font-mono text-[11px] text-primary/65">{s.code}</p>}
                                   {s.rationale && <p className="mt-1 text-xs leading-5 text-primary/70">Alasan saran: {s.rationale}</p>}
                                   {s.evidenceLevel && <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-primary/60">Level: {s.evidenceLevel === 'COMMON' ? 'Umum pada pathway' : 'Opsional sesuai indikasi'}</p>}
                                 </li>

@@ -23,7 +23,7 @@ export default async function EditBukuTarifPage(props: {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-text">Edit Fee Entry</h1>
           <p className="text-sm text-text-subtle mt-1">
-            Update procedure data for <strong>{entry.procedureCode}</strong>.
+            Update procedure data for <strong>{entry.procedureName}</strong>{entry.procedureCode ? <span className="font-mono text-text-faint"> — {entry.procedureCode}</span> : null}.
           </p>
         </div>
       </div>

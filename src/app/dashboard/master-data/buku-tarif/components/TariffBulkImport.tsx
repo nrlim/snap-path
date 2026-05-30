@@ -108,8 +108,8 @@ export default function TariffBulkImport({ providers }: { providers: any[] }) {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-surface-elevated/80 text-text-subtle">
                         <tr>
-                          <th className="p-2 border-b border-border/60">Procedure Code</th>
-                          <th className="p-2 border-b border-border/60">Name</th>
+                          <th className="p-2 border-b border-border/60">Procedure Name</th>
+                          <th className="p-2 border-b border-border/60">Code</th>
                           <th className="p-2 border-b border-border/60">Category</th>
                           <th className="p-2 border-b border-border/60">Provider ID</th>
                           <th className="p-2 border-b border-border/60 text-right">Base Price</th>
@@ -118,8 +118,8 @@ export default function TariffBulkImport({ providers }: { providers: any[] }) {
                       <tbody>
                         {previewData.slice(0, 50).map((row, idx) => (
                           <tr key={idx} className="border-b border-border/60 last:border-0 hover:bg-surface-elevated/30">
-                            <td className="p-2 text-text">{row.procedureCode}</td>
-                            <td className="p-2 text-text-subtle truncate max-w-[150px]">{row.procedureName}</td>
+                            <td className="p-2 text-text truncate max-w-[220px]">{row.procedureName}</td>
+                            <td className="p-2 font-mono text-text-subtle">{row.procedureCode}</td>
                             <td className="p-2 text-text">{row.category}</td>
                             <td className="p-2 text-text-subtle truncate max-w-[100px]">{row.providerId}</td>
                             <td className="p-2 text-text text-right">{row.basePrice}</td>
