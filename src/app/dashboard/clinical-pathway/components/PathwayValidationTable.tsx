@@ -15,6 +15,55 @@ type Job = {
 
 type SortField = "createdAt" | "patient" | "provider" | "totalClaim" | "status" | "score";
 
+type ScoreBreakdownItem = {
+  code?: string;
+  label?: string;
+  maxDeduction?: number;
+  maxScore?: number;
+  score?: number;
+  deducted?: number;
+};
+
+function getDiagnosisFindingCounts(outputResult: any) {
+  const details = Array.isArray(outputResult?.diagnosisValidation?.details)
+    ? outputResult.diagnosisValidation.details
+    : Array.isArray(outputResult?.diagnosisValidations)
+      ? outputResult.diagnosisValidations
+      : [];
+
+  return details.reduce((counts: { missing: number; relevance: number; medication: number }, detail: any) => {
+    const medicationFindings = Array.isArray(detail?.medicationFindings) ? detail.medicationFindings : [];
+    counts.missing += detail?.missingRequiredProcedures?.length || 0;
+    counts.relevance += detail?.irrelevantProcedures?.length || detail?.unmatchedProcedures?.length || 0;
+    counts.medication += medicationFindings.filter((item: any) => item.status === "REVIEW_NEEDED" || item.status === "INAPPROPRIATE").length;
+    return counts;
+  }, { missing: 0, relevance: 0, medication: 0 });
+}
+
+function getDisplayScore(outputResult: any) {
+  const rawScore = outputResult?.overallScore ?? outputResult?.validationScore;
+  const items = outputResult?.scoreBreakdown?.items;
+  if (!Array.isArray(items) || items.length === 0) return typeof rawScore === "number" ? rawScore : null;
+
+  const findings = getDiagnosisFindingCounts(outputResult);
+  const hasDiagnosisFindings = findings.missing > 0 || findings.relevance > 0 || findings.medication > 0;
+
+  return items.reduce((total: number, item: ScoreBreakdownItem) => {
+    const maxScore = item.maxScore ?? item.maxDeduction ?? 0;
+    const isDiagnosisItem = item.code === "DIAGNOSIS_TREATMENT" || item.label === "Diagnosis, tindakan & obat klinis";
+    const shouldClearHiddenDiagnosisDeduction = isDiagnosisItem
+      && (item.deducted || 0) > 0
+      && outputResult?.diagnosisValidation?.isValid
+      && !hasDiagnosisFindings;
+    const score = shouldClearHiddenDiagnosisDeduction
+      ? maxScore
+      : typeof item.score === "number"
+        ? item.score
+        : Math.max(0, maxScore - (item.deducted || 0));
+    return total + score;
+  }, 0);
+}
+
 function getTotalClaim(input: any) {
   let totalClaim = input?.totalClaimAmount;
   if (!totalClaim && input) {
@@ -37,7 +86,7 @@ function sortValue(job: Job, field: SortField) {
   if (field === "patient") return String(input?.patient?.name || "").toLowerCase();
   if (field === "provider") return String(job.provider?.name || "").toLowerCase();
   if (field === "totalClaim") return getTotalClaim(input);
-  if (field === "score") return Number(job.outputResult?.overallScore || job.outputResult?.validationScore || 0);
+  if (field === "score") return Number(getDisplayScore(job.outputResult) ?? 0);
   return job.status.toLowerCase();
 }
 
@@ -101,7 +150,7 @@ export default function PathwayValidationTable({ jobs }: { jobs: Job[] }) {
               const input = job.inputPayload as any;
               const totalClaim = getTotalClaim(input);
               const currency = input?.currency || "IDR";
-              const score = job.outputResult?.overallScore || job.outputResult?.validationScore;
+              const score = getDisplayScore(job.outputResult);
               return <tr key={job.id} className="transition-colors hover:bg-surface-elevated/40"><td className="px-4 py-3 whitespace-nowrap text-text-subtle">{new Date(job.createdAt).toLocaleDateString("id-ID", { month: "short", day: "numeric", year: "numeric" })}</td><td className="px-4 py-3 font-medium text-text">{input?.patient?.name || "Unknown Patient"}</td><td className="px-4 py-3 text-text-subtle">{job.provider?.name || "-"}</td><td className="px-4 py-3 text-right font-medium">{totalClaim ? new Intl.NumberFormat("id-ID", { style: "currency", currency, maximumFractionDigits: 0 }).format(totalClaim) : "-"}</td><td className="px-4 py-3 text-center">{statusBadge(job.status)}</td><td className="px-4 py-3 text-right font-mono font-bold text-text">{typeof score === "number" ? score : "-"}</td><td className="px-4 py-3 text-right"><Link href={`/dashboard/clinical-pathway/${job.id}`} className="inline-flex items-center justify-center rounded-md bg-surface-elevated px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary hover:text-white">View Results</Link></td></tr>;
             })}
           </tbody>

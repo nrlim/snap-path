@@ -244,13 +244,18 @@ export async function aggregateAndSaveStep(
   const diagnosisIrrelevantCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.irrelevantProcedures?.length || detail.unmatchedProcedures?.length || 0), 0);
   const diagnosisMedicationReviewCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'REVIEW_NEEDED').length || 0), 0);
   const diagnosisMedicationInappropriateCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'INAPPROPRIATE').length || 0), 0);
+  const hasDiagnosisFindings = diagnosisMissingRequiredCount > 0 || diagnosisIrrelevantCount > 0 || diagnosisMedicationReviewCount > 0 || diagnosisMedicationInappropriateCount > 0;
   const diagnosisScore = typeof diagRes?.score === 'number' ? Math.max(0, Math.min(100, diagRes.score)) : (diagRes?.isValid ? 100 : 0);
+  const diagnosisFindingDeduction = Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisIrrelevantCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3));
+  const diagnosisScoreDeduction = hasDiagnosisFindings || !diagRes?.isValid
+    ? Math.ceil(((100 - diagnosisScore) / 100) * 25)
+    : 0;
   const diagnosisDeduction = Math.min(
     25,
     Math.max(
       !diagRes?.isValid ? 1 : 0,
-      Math.ceil(((100 - diagnosisScore) / 100) * 25),
-      Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisIrrelevantCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3)),
+      diagnosisScoreDeduction,
+      diagnosisFindingDeduction,
     ),
   );
 

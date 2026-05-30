@@ -62,6 +62,7 @@ function ConformanceRow({ label, value, badgeLabel, isSuccess, isWarning }: { la
 type ScoreBreakdownStatus = 'PASS' | 'PARTIAL' | 'NEEDS_REVIEW';
 
 type ScoreBreakdownItem = {
+  code?: string;
   label: string;
   maxDeduction: number;
   maxScore?: number;
@@ -77,6 +78,7 @@ type LooseValidationItem = {
 };
 
 type PersistedScoreBreakdownItem = {
+  code?: string;
   label: string;
   maxDeduction: number;
   maxScore?: number;
@@ -229,7 +231,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   }
 
   const result = job.outputResult || {};
-  const validationScore = result.overallScore || result.validationScore || 0;
+  const persistedValidationScore = result.overallScore || result.validationScore || 0;
   const persistedLatencyMs = result.processingTime?.totalMs ?? result.processingTime?.total;
   const startedTime = job.startedAt ? new Date(job.startedAt).getTime() : null;
   const completedTime = job.completedAt ? new Date(job.completedAt).getTime() : null;
@@ -311,8 +313,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const diagnosisMedicationReviewCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'REVIEW_NEEDED').length || 0), 0);
   const diagnosisMedicationInappropriateCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'INAPPROPRIATE').length || 0), 0);
   const diagnosisMedicationIssueCount = diagnosisMedicationReviewCount + diagnosisMedicationInappropriateCount;
+  const hasDiagnosisFindings = diagnosisMissingRequiredCount > 0 || diagnosisReviewRelevanceCount > 0 || diagnosisMedicationIssueCount > 0;
   const diagnosisHasDeduction = result.diagnosisValidation
-    ? (!result.diagnosisValidation.isValid || diagnosisMissingRequiredCount > 0 || diagnosisReviewRelevanceCount > 0 || diagnosisMedicationIssueCount > 0)
+    ? (!result.diagnosisValidation.isValid || hasDiagnosisFindings)
     : false;
   const fallbackDiagnosisDeduction = diagnosisHasDeduction
     ? Math.min(25, Math.max(1, Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisReviewRelevanceCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3))))
@@ -377,18 +380,24 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const persistedScoreItems = result.scoreBreakdown?.items as PersistedScoreBreakdownItem[] | undefined;
   const normalizeScoreItem = (item: ScoreBreakdownItem): ScoreBreakdownItem => {
     const maxScore = item.maxScore ?? item.maxDeduction;
-    const deducted = Math.max(0, item.deducted || 0);
-    const earnedScore = typeof item.score === 'number' ? item.score : Math.max(0, maxScore - deducted);
+    const shouldClearHiddenDiagnosisDeduction = (item.code === 'DIAGNOSIS_TREATMENT' || item.label === 'Diagnosis, tindakan & obat klinis')
+      && item.deducted > 0
+      && result.diagnosisValidation?.isValid
+      && !hasDiagnosisFindings;
+    const deducted = shouldClearHiddenDiagnosisDeduction ? 0 : Math.max(0, item.deducted || 0);
+    const earnedScore = shouldClearHiddenDiagnosisDeduction ? maxScore : (typeof item.score === 'number' ? item.score : Math.max(0, maxScore - deducted));
     return {
       ...item,
       maxScore,
       deducted,
       score: earnedScore,
-      status: item.status ?? (deducted === 0 ? 'PASS' : earnedScore > 0 ? 'PARTIAL' : 'NEEDS_REVIEW'),
+      status: shouldClearHiddenDiagnosisDeduction ? 'PASS' : (item.status ?? (deducted === 0 ? 'PASS' : earnedScore > 0 ? 'PARTIAL' : 'NEEDS_REVIEW')),
+      reason: shouldClearHiddenDiagnosisDeduction ? 'Diagnosis, tindakan, dan obat sesuai kebutuhan klinis utama.' : item.reason,
     };
   };
   const scoreBreakdown: ScoreBreakdownItem[] = Array.isArray(persistedScoreItems) && persistedScoreItems.length > 0
     ? persistedScoreItems.map((item) => normalizeScoreItem({
+        code: item.code,
         label: item.label,
         maxDeduction: item.maxDeduction,
         maxScore: item.maxScore,
@@ -398,6 +407,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         reason: item.reason,
       }))
     : fallbackScoreBreakdown.map(normalizeScoreItem);
+  const validationScore = scoreBreakdown.length > 0
+    ? scoreBreakdown.reduce((total, item) => total + (item.score ?? Math.max(0, (item.maxScore ?? item.maxDeduction) - item.deducted)), 0)
+    : persistedValidationScore;
 
   const findClaimedProcedure = (item: any) => {
     const code = item.code || item.procedureCode;
