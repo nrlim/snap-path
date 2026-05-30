@@ -71,14 +71,22 @@ export async function GET(
     // Apply the same sanitizer that the AI gateway uses for each job type
     let sanitizedPayload: unknown;
     if (job.jobType === "MAP_JSON") {
-      const config = await prisma.systemConfig.findUnique({
-        where: { id: "GLOBAL_CONFIG" },
-        select: { piiRedactPatterns: true, piiSafeContexts: true },
-      });
+      const [config, clientConfig] = await Promise.all([
+        prisma.systemConfig.findUnique({
+          where: { id: "GLOBAL_CONFIG" },
+          select: { piiRedactPatterns: true, piiSafeContexts: true },
+        }),
+        job.clientId
+          ? prisma.client.findUnique({
+              where: { id: job.clientId },
+              select: { piiRedactPatterns: true, piiSafeContexts: true },
+            })
+          : Promise.resolve(null),
+      ]);
       sanitizedPayload = sanitizeArbitraryJson(
         job.inputPayload,
-        config?.piiRedactPatterns ?? [],
-        config?.piiSafeContexts ?? []
+        clientConfig ? clientConfig.piiRedactPatterns : (config?.piiRedactPatterns ?? []),
+        clientConfig ? clientConfig.piiSafeContexts : (config?.piiSafeContexts ?? [])
       );
     } else {
       sanitizedPayload = sanitizeClaimValidationInput(job.inputPayload);

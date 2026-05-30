@@ -84,7 +84,6 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
   const canSeeConfig = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'CLIENT_ADMIN'
   const canSeeCoreAI = userRole === 'SUPER_ADMIN'
   const canSeeClientConfig = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'CLIENT_ADMIN'
-  const canSeePathwayLimits = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN'
 
   // Dynamic header based on route
   const getHeaderInfo = () => {
@@ -131,16 +130,16 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
         subtitle: 'Set global tolerance limits for Clinical Pathway validations.',
       }
     }
-    if (pathname.startsWith('/dashboard/settings/pathway-limits')) {
-      return {
-        title: 'Clinical Pathway Request Limits',
-        subtitle: 'Set daily generation limits by user role.',
-      }
-    }
     if (pathname.startsWith('/dashboard/settings/client-api-keys')) {
       return {
         title: 'Client API Keys',
         subtitle: 'Generate client API key and secret credentials for external integrations.',
+      }
+    }
+    if (pathname.startsWith('/dashboard/settings/credits')) {
+      return {
+        title: 'Credit Usage',
+        subtitle: 'Manage client credits for Clinical Pathway requests.',
       }
     }
     if (pathname.startsWith('/dashboard/settings/user-management')) {
@@ -222,11 +221,11 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
                   {openMenus['Configuration'] && (
                     <div className="mt-0.5 space-y-0.5 pl-3">
                       {canSeeCoreAI && <Link href="/dashboard/settings/ai-provider" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-provider') || pathname === '/dashboard/settings' ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Integrations</Link>}
-                      {canSeeCoreAI && <Link href="/dashboard/settings/privacy-config" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/privacy-config') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Privasi & PII AI</Link>}
-                      {canSeeCoreAI && <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Usage Logs</Link>}
+                      {(canSeeCoreAI || userRole === 'CLIENT_ADMIN') && <Link href="/dashboard/settings/privacy-config" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/privacy-config') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Privasi & PII AI</Link>}
+                      {(canSeeCoreAI || userRole === 'CLIENT_ADMIN') && <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Usage Logs</Link>}
                       {canSeeClientConfig && <Link href="/dashboard/settings/client-api-keys" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/client-api-keys') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Client API Keys</Link>}
+                      {canSeeClientConfig && <Link href="/dashboard/settings/credits" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/credits') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Credit Usage</Link>}
                       {canSeeClientConfig && <Link href="/dashboard/settings/user-management" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/user-management') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>User Management</Link>}
-                      {canSeePathwayLimits && <Link href="/dashboard/settings/pathway-limits" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/pathway-limits') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Pathway Limits</Link>}
                       {canSeeClientConfig && <Link href="/dashboard/settings/threshold" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/threshold') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Clinical Thresholds</Link>}
                     </div>
                   )}

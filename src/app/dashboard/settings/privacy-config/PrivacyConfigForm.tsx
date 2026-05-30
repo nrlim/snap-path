@@ -6,10 +6,14 @@ import { useUI } from '@/components/providers/UIProvider';
 
 export default function PrivacyConfigForm({ 
   initialRedactPatterns, 
-  initialSafeContexts 
+  initialSafeContexts,
+  scope = 'platform',
+  scopeName = 'Global SnapPath',
 }: { 
   initialRedactPatterns: string[], 
-  initialSafeContexts: string[] 
+  initialSafeContexts: string[],
+  scope?: 'platform' | 'client',
+  scopeName?: string,
 }) {
   const { showLoading, hideLoading, showNotification, showConfirm } = useUI();
   
@@ -54,7 +58,7 @@ export default function PrivacyConfigForm({
           } else {
             showNotification({ type: 'error', title: 'Gagal', message: res.error || 'Terjadi kesalahan.' });
           }
-        } catch (error) {
+        } catch {
           showNotification({ type: 'error', title: 'Error', message: 'Error server tidak terduga.' });
         } finally {
           hideLoading();
@@ -70,7 +74,7 @@ export default function PrivacyConfigForm({
           Konfigurasi Privasi & PII AI
         </h1>
         <p className="text-sm text-text-subtle mt-1">
-          Kelola kata kunci (patterns) yang harus disensor (redacted) dan konteks medis yang aman (whitelist) untuk diteruskan ke AI.
+          Kelola kata kunci (patterns) yang harus disensor (redacted) dan konteks medis yang aman (whitelist) untuk diteruskan ke AI. Scope aktif: {scope === 'client' ? `Client ${scopeName}` : 'Global platform'}.
         </p>
       </div>
 

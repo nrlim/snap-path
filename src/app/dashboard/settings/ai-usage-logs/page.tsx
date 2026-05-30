@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import prisma from "@/lib/db";
-import { getCurrentUserPermission } from "@/lib/rbac";
+import { getAuthenticatedUser, hasPermission, isSuperAdminRole } from "@/lib/rbac";
+import { updateAIUsageMarkupConfig } from "../actions";
 import AIUsageLogsClient from "./AIUsageLogsClient";
 
 const DEFAULT_PRICING = { inputPerMillion: 0.15, outputPerMillion: 0.6 };
@@ -32,29 +33,39 @@ function getPricing(model: string | null) {
   return MODEL_PRICING[model] || DEFAULT_PRICING;
 }
 
-function estimateCostUsd(log: Pick<AIUsageLog, "aiModel" | "inputTokens" | "outputTokens">) {
+function estimateBaseCostUsd(log: Pick<AIUsageLog, "aiModel" | "inputTokens" | "outputTokens">) {
   const pricing = getPricing(log.aiModel);
   return ((log.inputTokens / 1_000_000) * pricing.inputPerMillion) + ((log.outputTokens / 1_000_000) * pricing.outputPerMillion);
 }
 
+function applyMarkup(costUsd: number, markupPct: number) {
+  return costUsd * (1 + (markupPct / 100));
+}
+
 export default async function AIUsageLogsPage() {
-  if (!(await getCurrentUserPermission("AI_USAGE_LOGS"))) {
+  const user = await getAuthenticatedUser();
+  if (!user || !hasPermission(user.role, "AI_USAGE_LOGS")) {
     redirect("/dashboard");
   }
 
+  const canSeeTechnicalDetails = isSuperAdminRole(user.role);
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
 
+  const config = await prisma.systemConfig.findUnique({ where: { id: "GLOBAL_CONFIG" } });
+  const markupPct = config?.aiUsageMarkupPct ?? 100;
+  const scopedWhere = canSeeTechnicalDetails ? {} : { clientId: user.clientId || "__none__" };
+
   const [logs, monthLogs] = await Promise.all([
     prisma.apiUsageLog.findMany({
-      where: { requestType: "AI" },
+      where: { ...scopedWhere, requestType: "AI" },
       include: { client: { select: { name: true, code: true } }, apiKey: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
       take: 250,
     }),
     prisma.apiUsageLog.findMany({
-      where: { requestType: "AI", createdAt: { gte: monthStart } },
+      where: { ...scopedWhere, requestType: "AI", createdAt: { gte: monthStart } },
       include: { client: { select: { name: true, code: true } }, apiKey: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     }),
@@ -68,7 +79,7 @@ export default async function AIUsageLogsPage() {
     current.inputTokens += log.inputTokens;
     current.outputTokens += log.outputTokens;
     current.totalTokens += log.totalTokens;
-    current.costUsd += estimateCostUsd(log);
+    current.costUsd += applyMarkup(estimateBaseCostUsd(log), markupPct);
     summaryByClient.set(key, current);
   }
 
@@ -91,7 +102,7 @@ export default async function AIUsageLogsPage() {
     current.inputTokens += log.inputTokens;
     current.outputTokens += log.outputTokens;
     current.totalTokens += log.totalTokens;
-    current.costUsd += estimateCostUsd(log);
+    current.costUsd += applyMarkup(estimateBaseCostUsd(log), markupPct);
     if (log.createdAt > current.lastRequestAt) current.lastRequestAt = log.createdAt;
     costByJob.set(log.jobId, current);
   }
@@ -106,24 +117,40 @@ export default async function AIUsageLogsPage() {
     clientName: log.client?.name || "Global/Internal",
     jobId: log.jobId,
     endpoint: log.endpoint,
-    aiProvider: log.aiProvider,
-    aiModel: log.aiModel,
+    aiProvider: canSeeTechnicalDetails ? log.aiProvider : null,
+    aiModel: canSeeTechnicalDetails ? log.aiModel : null,
     inputTokens: log.inputTokens,
     outputTokens: log.outputTokens,
     totalTokens: log.totalTokens,
     durationMs: log.durationMs,
+    costUsd: applyMarkup(estimateBaseCostUsd(log), markupPct),
     createdAt: log.createdAt.toISOString(),
   }));
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-2xl font-bold tracking-tight text-transparent">AI Usage Logs</h1>
-        <p className="mt-1 max-w-3xl text-sm text-text-subtle">
-          Hanya mencatat request AI, bukan request API biasa. Digunakan untuk estimasi biaya per request clinical pathway berdasarkan input token dan output token.
-        </p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h1 className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-2xl font-bold tracking-tight text-transparent">AI Usage Logs</h1>
+          <p className="mt-1 max-w-3xl text-sm text-text-subtle">
+            Hanya mencatat request AI. {canSeeTechnicalDetails ? "Super admin dapat melihat detail teknis dan mengatur markup pemakaian layanan." : "Detail provider dan model disembunyikan pada dashboard client."}
+          </p>
+        </div>
+        {canSeeTechnicalDetails && (
+          <form action={async (formData) => {
+            "use server";
+            await updateAIUsageMarkupConfig(formData);
+          }} className="rounded-xl border border-border/80 bg-surface p-4 shadow-sm">
+            <label htmlFor="aiUsageMarkupPct" className="text-xs font-bold uppercase tracking-wider text-text-subtle">Markup usage (%)</label>
+            <div className="mt-2 flex gap-2">
+              <input id="aiUsageMarkupPct" name="aiUsageMarkupPct" type="number" min="0" step="1" defaultValue={markupPct} className="w-32 rounded-md border border-border bg-surface px-3 py-2 text-base text-text sm:text-sm" />
+              <button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover">Simpan</button>
+            </div>
+            <p className="mt-2 text-xs text-text-subtle">Contoh: 100 berarti biaya layanan = 2x estimasi dasar.</p>
+          </form>
+        )}
       </div>
-      <AIUsageLogsClient summaryCards={summaryCards} jobCosts={jobCosts} logs={serializedLogs} />
+      <AIUsageLogsClient summaryCards={summaryCards} jobCosts={jobCosts} logs={serializedLogs} canSeeTechnicalDetails={canSeeTechnicalDetails} />
     </div>
   );
 }

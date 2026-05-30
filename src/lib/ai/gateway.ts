@@ -82,6 +82,25 @@ export class AIGateway {
         outputTokens,
         durationMs: Date.now() - startTime,
       });
+
+      if (statusCode < 500 && this.context.clientId && (inputTokens > 0 || outputTokens > 0)) {
+        const config = await prisma.systemConfig.findUnique({
+          where: { id: 'GLOBAL_CONFIG' },
+          select: { aiUsageMarkupPct: true },
+        });
+        const creditAmount = estimateAIUsageCredit({
+          aiModel: this.context.aiModel,
+          inputTokens,
+          outputTokens,
+          markupPct: config?.aiUsageMarkupPct ?? 100,
+        });
+        await debitClientCreditUsage({
+          clientId: this.context.clientId,
+          amount: creditAmount,
+          jobId: this.context.jobId,
+          operation,
+        });
+      }
     }
   }
 
@@ -127,6 +146,7 @@ import { SumoPodAIDriver } from './drivers/sumopod';
 
 import prisma from '../db';
 import { recordApiUsage } from '../api-key';
+import { debitClientCreditUsage, estimateAIUsageCredit } from '../credits';
 
 export async function getAIGateway(context: AIGatewayContext = {}): Promise<AIGateway> {
   // Always fetch latest config from DB, then apply provider-specific overrides.
@@ -138,7 +158,7 @@ export async function getAIGateway(context: AIGatewayContext = {}): Promise<AIGa
   ]);
 
   const providerName = providerConfig?.aiProvider || config?.aiProvider || "vercel-ai-gateway";
-  let baseURL = providerConfig?.aiGatewayUrl || config?.aiGatewayUrl || "";
+  const baseURL = providerConfig?.aiGatewayUrl || config?.aiGatewayUrl || "";
   const model = providerConfig?.aiModel || config?.aiModel || (providerName === "sumopod" ? process.env.SUMOPOD_MODEL : null) || "gpt-4o-mini";
   const maxTokens = providerConfig?.aiMaxTokens || config?.aiMaxTokens || 1500;
   const temperature = providerConfig?.aiTemperature ?? config?.aiTemperature ?? 0.7;
@@ -153,5 +173,8 @@ export async function getAIGateway(context: AIGatewayContext = {}): Promise<AIGa
       temperature,
     );
 
-  return new AIGateway(driver, { ...context, aiProvider: providerName, aiModel: model }, config?.piiRedactPatterns, config?.piiSafeContexts);
+  const piiRedactPatterns = providerConfig ? providerConfig.piiRedactPatterns : config?.piiRedactPatterns;
+  const piiSafeContexts = providerConfig ? providerConfig.piiSafeContexts : config?.piiSafeContexts;
+
+  return new AIGateway(driver, { ...context, aiProvider: providerName, aiModel: model }, piiRedactPatterns, piiSafeContexts);
 }

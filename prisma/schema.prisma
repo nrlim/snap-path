@@ -98,6 +98,9 @@ model Client {
   aiMaxTokens       Int?
   aiTemperature     Float?
   monthlyTokenLimit Int?
+  creditBalance     Float    @default(0)
+  piiRedactPatterns String[] @default(["name", "nama", "pasien", "patient", "fullname", "nik", "id", "ktp", "ssn", "identifier", "address", "alamat", "phone", "telepon", "nohp", "mobile", "email", "dob", "dateofbirth", "tanggallahir", "asuransi", "insurance", "bpjs"])
+  piiSafeContexts   String[] @default(["diagnosis", "procedure", "medication", "drug", "facility", "hospital", "clinic", "encounter", "class", "code", "type"])
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -106,6 +109,23 @@ model Client {
   apiUsageLogs      ApiUsageLog[]
   providers         Provider[]
   claimJobs         ClaimJob[]
+  creditLedgers     CreditLedger[]
+}
+
+model CreditLedger {
+  id              String   @id @default(uuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id])
+  amount          Float    // Positive for top-up, negative for usage debit
+  balanceAfter    Float
+  type            String   // "TOPUP" | "USAGE" | "ADJUSTMENT"
+  description     String?
+  jobId           String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  @@index([clientId, createdAt])
+  @@index([jobId])
 }
 
 model Provider {
@@ -279,6 +299,7 @@ model SystemConfig {
   pathwayDailyLimitClientAdmin Int @default(25)
   pathwayDailyLimitAdmin Int @default(0) // 0 means unlimited
   pathwayDailyLimitSuperAdmin Int @default(0) // 0 means unlimited
+  aiUsageMarkupPct Float @default(100.0)
   piiRedactPatterns String[] @default(["name", "nama", "pasien", "patient", "fullname", "nik", "id", "ktp", "ssn", "identifier", "address", "alamat", "phone", "telepon", "nohp", "mobile", "email", "dob", "dateofbirth", "tanggallahir", "asuransi", "insurance", "bpjs"])
   piiSafeContexts   String[] @default(["diagnosis", "procedure", "medication", "drug", "facility", "hospital", "clinic", "encounter", "class", "code", "type"])
   updatedAt       DateTime @updatedAt

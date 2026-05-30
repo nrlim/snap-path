@@ -12,7 +12,7 @@ const MODEL_PRICING: Record<string, { inputPerMillion: number; outputPerMillion:
   'gpt-4.1': { inputPerMillion: 2, outputPerMillion: 8 },
 }
 
-const SERVICE_COST_MULTIPLIER = 2
+const DEFAULT_USAGE_MARKUP_PCT = 100
 const USD_TO_IDR = 16_000
 
 type JsonRecord = Record<string, unknown>
@@ -34,10 +34,10 @@ function getPricing(model: string | null) {
   return MODEL_PRICING[model] || DEFAULT_PRICING
 }
 
-function estimateServiceCostIdr(log: { aiModel: string | null; inputTokens: number; outputTokens: number }) {
+function estimateServiceCostUsd(log: { aiModel: string | null; inputTokens: number; outputTokens: number }, markupPct = DEFAULT_USAGE_MARKUP_PCT) {
   const pricing = getPricing(log.aiModel)
   const baseUsd = ((log.inputTokens / 1_000_000) * pricing.inputPerMillion) + ((log.outputTokens / 1_000_000) * pricing.outputPerMillion)
-  return baseUsd * SERVICE_COST_MULTIPLIER * USD_TO_IDR
+  return baseUsd * (1 + (markupPct / 100))
 }
 
 function formatNumber(value: number) {
@@ -46,6 +46,14 @@ function formatNumber(value: number) {
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value)
+}
+
+function formatUsd(value: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 4, maximumFractionDigits: 6 }).format(value)
+}
+
+function formatCredit(value: number) {
+  return `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value)}`
 }
 
 function formatDate(value: Date) {
@@ -149,22 +157,13 @@ export default async function DashboardPage(props: {
   trendStart.setHours(0, 0, 0, 0)
 
   const scopedClientWhere = isPlatformAdmin ? {} : { clientId: user.clientId || '__none__' }
-  const tariffWhere = isPlatformAdmin
-    ? {}
-    : user.clientId
-      ? { provider: { clientId: user.clientId } }
-      : { providerId: '__none__' }
-  const sourceWhere = isPlatformAdmin
-    ? { isActive: true }
-    : { clientId: user.clientId || '__none__', isActive: true }
-
   const [
     monthJobs,
     recentJobs,
     trendJobs,
     aiUsageLogs,
-    activeTariffs,
-    activeSources,
+    systemConfig,
+    creditClients,
     activeApiKeys,
     teamUsers,
   ] = await Promise.all([
@@ -192,8 +191,11 @@ export default async function DashboardPage(props: {
       orderBy: { createdAt: 'desc' },
       take: 1000,
     }),
-    prisma.tariffEntry.count({ where: { ...tariffWhere, isActive: true } }),
-    prisma.provider.count({ where: sourceWhere }),
+    prisma.systemConfig.findUnique({ where: { id: 'GLOBAL_CONFIG' }, select: { aiUsageMarkupPct: true } }),
+    prisma.client.findMany({
+      where: isPlatformAdmin ? undefined : { id: user.clientId || '__none__' },
+      select: { creditBalance: true },
+    }),
     prisma.apiKey.count({ where: { ...scopedClientWhere, isActive: true } }),
     prisma.user.count({ where: scopedClientWhere }),
   ])
@@ -204,7 +206,10 @@ export default async function DashboardPage(props: {
   const scores = monthJobs.map((job) => getDisplayScore(job.outputResult)).filter((score): score is number => score !== null)
   const averageScore = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0
   const totalTokens = aiUsageLogs.reduce((sum, log) => sum + log.totalTokens, 0)
-  const serviceUsageCost = aiUsageLogs.reduce((sum, log) => sum + estimateServiceCostIdr(log), 0)
+  const usageMarkupPct = systemConfig?.aiUsageMarkupPct ?? DEFAULT_USAGE_MARKUP_PCT
+  const serviceUsageCostUsd = aiUsageLogs.reduce((sum, log) => sum + estimateServiceCostUsd(log, usageMarkupPct), 0)
+  const serviceUsageCostIdr = serviceUsageCostUsd * USD_TO_IDR
+  const creditBalance = creditClients.reduce((sum, client) => sum + client.creditBalance, 0)
 
   const trendPoints = Array.from({ length: trendDays }, (_, index) => {
     const date = new Date(trendStart)
@@ -238,8 +243,8 @@ export default async function DashboardPage(props: {
   const summaryCards = [
     { label: 'Validasi bulan ini', value: formatNumber(monthJobs.length), helper: `${completedJobs} selesai, ${inProgressJobs} berjalan`, tone: 'text-primary' },
     { label: 'Skor rata-rata', value: scores.length ? `${Math.round(averageScore)}/100` : 'Belum ada', helper: 'Rata-rata hasil validasi klaim', tone: 'text-secondary' },
-    { label: 'Estimasi pemakaian layanan', value: formatCurrency(serviceUsageCost), helper: `${formatNumber(totalTokens)} unit pemrosesan`, tone: 'text-accent-foreground' },
-    { label: 'Master data aktif', value: formatNumber(activeTariffs), helper: `${activeSources} sumber data, ${activeApiKeys} kredensial aktif`, tone: 'text-text' },
+    { label: 'Estimasi pemakaian layanan', value: `${formatUsd(serviceUsageCostUsd)} / ${formatCurrency(serviceUsageCostIdr)}`, helper: `${formatNumber(totalTokens)} unit pemrosesan`, tone: 'text-accent-foreground' },
+    { label: 'Credit tersedia', value: formatCredit(creditBalance), helper: `Berkurang sesuai estimasi pemakaian AI`, tone: 'text-text' },
   ]
 
   return (

@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAIGateway } from '@/lib/ai/gateway';
 import { authenticateApiRequest } from '@/lib/middleware/auth-api';
 import { getSession } from '@/lib/auth';
-import { getAuthenticatedUser } from '@/lib/rbac';
+import { getAuthenticatedUser, isPlatformAdminRole } from '@/lib/rbac';
 import { recordApiUsage } from '@/lib/api-key';
+import { assertClientHasCredit } from '@/lib/credits';
+import prisma from '@/lib/db';
 
 /**
  * POST /api/v1/claims/map-json
@@ -41,8 +43,40 @@ export async function POST(req: NextRequest) {
     }
 
     const providerId = typeof body.providerId === 'string' ? body.providerId : null;
+    const bodyClientId = typeof body.clientId === 'string' && body.clientId.trim() ? body.clientId.trim() : null;
+    const resolvedClientId = isDashboardUser && isPlatformAdminRole(dashboardUser?.role) ? bodyClientId : (clientId || null);
+
+    if (!resolvedClientId) {
+      return NextResponse.json(
+        { error: 'Client wajib dipilih agar credit usage dapat dicatat.', code: 'CLIENT_REQUIRED' },
+        { status: 400 },
+      );
+    }
+
+    if (providerId) {
+      const provider = await prisma.provider.findUnique({
+        where: { id: providerId },
+        select: { clientId: true, isActive: true },
+      });
+      if (!provider?.isActive || provider.clientId !== resolvedClientId) {
+        return NextResponse.json(
+          { error: 'Provider tidak valid untuk client ini.', code: 'PROVIDER_CLIENT_MISMATCH' },
+          { status: 403 },
+        );
+      }
+    }
+
+    const creditPreflight = await assertClientHasCredit(resolvedClientId);
+
+    if (!creditPreflight.success) {
+      return NextResponse.json(
+        { error: 'Credit client tidak mencukupi. Silakan hubungi admin untuk top up credit.', code: 'CLIENT_CREDIT_INSUFFICIENT' },
+        { status: 402 },
+      );
+    }
+
     const gateway = await getAIGateway({
-      clientId: typeof body.clientId === 'string' ? body.clientId : clientId,
+      clientId: resolvedClientId,
       providerId: providerId,
     });
     const { data, usage } = await gateway.mapArbitraryJsonToClaim(body);
@@ -50,7 +84,7 @@ export async function POST(req: NextRequest) {
     if (!isDashboardUser && auth.apiKeyId) {
       await recordApiUsage({
         apiKeyId: auth.apiKeyId,
-        clientId: typeof body.clientId === 'string' ? body.clientId : clientId,
+        clientId: resolvedClientId,
         providerId: providerId,
         endpoint: '/api/v1/claims/map-json',
         method: 'POST',

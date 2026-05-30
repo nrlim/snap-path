@@ -9,6 +9,8 @@ export type UserRole = (typeof ROLES)[number]
 export type Permission =
   | 'AI_ENGINE_CONFIG'
   | 'AI_USAGE_LOGS'
+  | 'PRIVACY_CONFIG'
+  | 'CLIENT_CREDITS'
   | 'CLIENT_API_KEYS'
   | 'USER_MANAGEMENT'
   | 'CLINICAL_THRESHOLDS'
@@ -39,14 +41,17 @@ export function hasPermission(role: unknown, permission: Permission): boolean {
 
   switch (permission) {
     case 'AI_ENGINE_CONFIG':
-    case 'AI_USAGE_LOGS':
       return false
+    case 'AI_USAGE_LOGS':
+    case 'PRIVACY_CONFIG':
+      return role === 'CLIENT_ADMIN'
     case 'CLIENT_API_KEYS':
+    case 'CLIENT_CREDITS':
     case 'USER_MANAGEMENT':
     case 'CLINICAL_THRESHOLDS':
       return role === 'ADMIN' || role === 'CLIENT_ADMIN'
     case 'PATHWAY_LIMITS':
-      return role === 'ADMIN'
+      return false
     default:
       return false
   }

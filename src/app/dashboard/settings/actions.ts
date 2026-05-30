@@ -1,7 +1,7 @@
 "use server";
 
 import prisma from "@/lib/db";
-import { getCurrentUserPermission } from "@/lib/rbac";
+import { getAuthenticatedUser, getCurrentUserPermission, hasPermission, isSuperAdminRole } from "@/lib/rbac";
 import { revalidatePath } from "next/cache";
 
 function formLimit(formData: FormData, key: string, fallback: number) {
@@ -116,8 +116,9 @@ export async function updatePathwayLimitConfig(formData: FormData) {
 }
 
 export async function updatePrivacyConfig(redactPatterns: string[], safeContexts: string[]) {
-  if (!(await getCurrentUserPermission("AI_ENGINE_CONFIG"))) {
-    return { success: false, error: "Anda tidak memiliki akses untuk mengubah konfigurasi AI." };
+  const user = await getAuthenticatedUser();
+  if (!user || (!hasPermission(user.role, "AI_ENGINE_CONFIG") && !hasPermission(user.role, "PRIVACY_CONFIG"))) {
+    return { success: false, error: "Anda tidak memiliki akses untuk mengubah konfigurasi privasi." };
   }
 
   try {
@@ -126,19 +127,55 @@ export async function updatePrivacyConfig(redactPatterns: string[], safeContexts
       piiSafeContexts: safeContexts,
     };
 
-    await prisma.systemConfig.upsert({
-      where: { id: "GLOBAL_CONFIG" },
-      update: data,
-      create: {
-        id: "GLOBAL_CONFIG",
-        ...data,
-      },
-    });
+    if (isSuperAdminRole(user.role)) {
+      await prisma.systemConfig.upsert({
+        where: { id: "GLOBAL_CONFIG" },
+        update: data,
+        create: {
+          id: "GLOBAL_CONFIG",
+          ...data,
+        },
+      });
+    } else {
+      if (!user.clientId) return { success: false, error: "User belum terhubung ke client." };
+      await prisma.client.update({
+        where: { id: user.clientId },
+        data,
+      });
+    }
 
     revalidatePath("/dashboard/settings/privacy-config");
     return { success: true };
   } catch (error) {
     console.error("Failed to update privacy config:", error);
     return { success: false, error: "Gagal menyimpan konfigurasi privasi & PII." };
+  }
+}
+
+export async function updateAIUsageMarkupConfig(formData: FormData) {
+  const user = await getAuthenticatedUser();
+  if (!user || !isSuperAdminRole(user.role)) {
+    return { success: false, error: "Anda tidak memiliki akses untuk mengubah markup usage." };
+  }
+
+  try {
+    const rawMarkup = Number(formData.get("aiUsageMarkupPct"));
+    const aiUsageMarkupPct = Number.isFinite(rawMarkup) && rawMarkup >= 0 ? rawMarkup : 100;
+
+    await prisma.systemConfig.upsert({
+      where: { id: "GLOBAL_CONFIG" },
+      update: { aiUsageMarkupPct },
+      create: {
+        id: "GLOBAL_CONFIG",
+        aiUsageMarkupPct,
+      },
+    });
+
+    revalidatePath("/dashboard/settings/ai-usage-logs");
+    revalidatePath("/dashboard");
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update AI usage markup:", error);
+    return { success: false, error: "Gagal menyimpan markup usage." };
   }
 }
