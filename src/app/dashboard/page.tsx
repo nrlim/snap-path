@@ -52,9 +52,54 @@ function formatDate(value: Date) {
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(value)
 }
 
-function getScore(outputResult: unknown): number | null {
+function getDiagnosisFindingCounts(outputResult: unknown) {
   const output = asRecord(outputResult)
-  return numberValue(output?.overallScore) ?? numberValue(output?.score) ?? numberValue(asRecord(output?.scoreBreakdown)?.totalScore)
+  const diagnosisValidation = asRecord(output?.diagnosisValidation)
+  const details = Array.isArray(diagnosisValidation?.details)
+    ? diagnosisValidation.details
+    : Array.isArray(output?.diagnosisValidations)
+      ? output.diagnosisValidations
+      : []
+
+  return details.reduce((counts: { missing: number; relevance: number; medication: number }, rawDetail) => {
+    const detail = asRecord(rawDetail)
+    const medicationFindings = Array.isArray(detail?.medicationFindings) ? detail.medicationFindings : []
+    counts.missing += Array.isArray(detail?.missingRequiredProcedures) ? detail.missingRequiredProcedures.length : 0
+    counts.relevance += Array.isArray(detail?.irrelevantProcedures)
+      ? detail.irrelevantProcedures.length
+      : Array.isArray(detail?.unmatchedProcedures)
+        ? detail.unmatchedProcedures.length
+        : 0
+    counts.medication += medicationFindings.filter((item) => {
+      const status = asRecord(item)?.status
+      return status === 'REVIEW_NEEDED' || status === 'INAPPROPRIATE'
+    }).length
+    return counts
+  }, { missing: 0, relevance: 0, medication: 0 })
+}
+
+function getDisplayScore(outputResult: unknown): number | null {
+  const output = asRecord(outputResult)
+  const rawScore = numberValue(output?.overallScore) ?? numberValue(output?.validationScore) ?? numberValue(output?.score)
+  const scoreBreakdown = asRecord(output?.scoreBreakdown)
+  const items = Array.isArray(scoreBreakdown?.items) ? scoreBreakdown.items : []
+  if (items.length === 0) return rawScore
+
+  const diagnosisValidation = asRecord(output?.diagnosisValidation)
+  const findings = getDiagnosisFindingCounts(outputResult)
+  const hasDiagnosisFindings = findings.missing > 0 || findings.relevance > 0 || findings.medication > 0
+
+  return items.reduce((total, rawItem) => {
+    const item = asRecord(rawItem)
+    const maxScore = numberValue(item?.maxScore) ?? numberValue(item?.maxDeduction) ?? 0
+    const deducted = numberValue(item?.deducted) ?? 0
+    const isDiagnosisItem = item?.code === 'DIAGNOSIS_TREATMENT' || item?.label === 'Diagnosis, tindakan & obat klinis'
+    const shouldClearHiddenDiagnosisDeduction = isDiagnosisItem && deducted > 0 && diagnosisValidation?.isValid === true && !hasDiagnosisFindings
+    const score = shouldClearHiddenDiagnosisDeduction
+      ? maxScore
+      : numberValue(item?.score) ?? Math.max(0, maxScore - deducted)
+    return total + score
+  }, 0)
 }
 
 function getDiagnosis(inputPayload: unknown, outputResult: unknown) {
@@ -86,16 +131,22 @@ function getStatusTone(status: string) {
   }
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage(props: {
+  searchParams: Promise<{ trend?: string | string[] }>;
+}) {
+  const searchParams = await props.searchParams
+  const trendParam = Array.isArray(searchParams.trend) ? searchParams.trend[0] : searchParams.trend
+  const trendMode = trendParam === 'monthly' ? 'monthly' : 'weekly'
+  const trendDays = trendMode === 'monthly' ? 30 : 7
   const user = await getAuthenticatedUser()
   if (!user) redirect('/login')
 
   const isPlatformAdmin = isPlatformAdminRole(user.role)
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-  const weekStart = new Date(now)
-  weekStart.setDate(now.getDate() - 6)
-  weekStart.setHours(0, 0, 0, 0)
+  const trendStart = new Date(now)
+  trendStart.setDate(now.getDate() - (trendDays - 1))
+  trendStart.setHours(0, 0, 0, 0)
 
   const scopedClientWhere = isPlatformAdmin ? {} : { clientId: user.clientId || '__none__' }
   const tariffWhere = isPlatformAdmin
@@ -110,6 +161,7 @@ export default async function DashboardPage() {
   const [
     monthJobs,
     recentJobs,
+    trendJobs,
     aiUsageLogs,
     activeTariffs,
     activeSources,
@@ -128,6 +180,12 @@ export default async function DashboardPage() {
       orderBy: { createdAt: 'desc' },
       take: 6,
     }),
+    prisma.claimJob.findMany({
+      where: { ...scopedClientWhere, jobType: 'CLAIM_VALIDATION', createdAt: { gte: trendStart } },
+      select: { id: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+      take: 1000,
+    }),
     prisma.apiUsageLog.findMany({
       where: { ...scopedClientWhere, requestType: 'AI', createdAt: { gte: monthStart } },
       select: { aiModel: true, inputTokens: true, outputTokens: true, totalTokens: true, createdAt: true },
@@ -143,20 +201,39 @@ export default async function DashboardPage() {
   const completedJobs = monthJobs.filter((job) => job.status === 'COMPLETED').length
   const failedJobs = monthJobs.filter((job) => job.status === 'FAILED').length
   const inProgressJobs = monthJobs.filter((job) => !['COMPLETED', 'FAILED'].includes(job.status)).length
-  const scores = monthJobs.map((job) => getScore(job.outputResult)).filter((score): score is number => score !== null)
+  const scores = monthJobs.map((job) => getDisplayScore(job.outputResult)).filter((score): score is number => score !== null)
   const averageScore = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0
   const totalTokens = aiUsageLogs.reduce((sum, log) => sum + log.totalTokens, 0)
   const serviceUsageCost = aiUsageLogs.reduce((sum, log) => sum + estimateServiceCostIdr(log), 0)
 
-  const dailyRuns = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(weekStart)
-    date.setDate(weekStart.getDate() + index)
+  const trendPoints = Array.from({ length: trendDays }, (_, index) => {
+    const date = new Date(trendStart)
+    date.setDate(trendStart.getDate() + index)
     const nextDate = new Date(date)
     nextDate.setDate(date.getDate() + 1)
-    const count = monthJobs.filter((job) => job.createdAt >= date && job.createdAt < nextDate).length
-    return { label: new Intl.DateTimeFormat('id-ID', { weekday: 'short' }).format(date), count }
+    const count = trendJobs.filter((job) => job.createdAt >= date && job.createdAt < nextDate).length
+    return {
+      label: trendMode === 'monthly'
+        ? new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short' }).format(date)
+        : new Intl.DateTimeFormat('id-ID', { weekday: 'short' }).format(date),
+      count,
+    }
   })
-  const maxDailyRuns = Math.max(1, ...dailyRuns.map((item) => item.count))
+  const maxTrendCount = Math.max(1, ...trendPoints.map((item) => item.count))
+  const chartWidth = 320
+  const chartHeight = 128
+  const chartPadding = 12
+  const chartStep = trendPoints.length > 1 ? (chartWidth - chartPadding * 2) / (trendPoints.length - 1) : 0
+  const chartCoordinates = trendPoints.map((item, index) => {
+    const x = chartPadding + (index * chartStep)
+    const y = chartHeight - chartPadding - ((item.count / maxTrendCount) * (chartHeight - chartPadding * 2))
+    return { ...item, x, y }
+  })
+  const chartLinePoints = chartCoordinates.map((item) => `${item.x},${item.y}`).join(' ')
+  const chartAreaPoints = chartCoordinates.length > 0
+    ? `${chartPadding},${chartHeight - chartPadding} ${chartLinePoints} ${chartWidth - chartPadding},${chartHeight - chartPadding}`
+    : ''
+  const trendTotal = trendPoints.reduce((sum, item) => sum + item.count, 0)
 
   const summaryCards = [
     { label: 'Validasi bulan ini', value: formatNumber(monthJobs.length), helper: `${completedJobs} selesai, ${inProgressJobs} berjalan`, tone: 'text-primary' },
@@ -225,23 +302,53 @@ export default async function DashboardPage() {
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.2fr]">
         <div className="rounded-xl border border-border/80 bg-surface p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-base font-bold text-text">Tren 7 hari</h2>
-              <p className="mt-1 text-sm text-text-subtle">Jumlah workflow validasi yang masuk.</p>
+              <h2 className="text-base font-bold text-text">Tren workflow</h2>
+              <p className="mt-1 text-sm text-text-subtle">{trendTotal} validasi dalam {trendMode === 'monthly' ? '30 hari terakhir' : '7 hari terakhir'}.</p>
             </div>
-            <span className="rounded-full bg-secondary-soft px-3 py-1 text-xs font-semibold text-secondary ring-1 ring-secondary/20">Mingguan</span>
+            <div className="inline-flex rounded-full border border-border bg-surface-elevated p-1">
+              <Link href="/dashboard?trend=weekly" className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${trendMode === 'weekly' ? 'bg-primary text-white shadow-sm' : 'text-text-subtle hover:text-text'}`}>Mingguan</Link>
+              <Link href="/dashboard?trend=monthly" className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${trendMode === 'monthly' ? 'bg-primary text-white shadow-sm' : 'text-text-subtle hover:text-text'}`}>Bulanan</Link>
+            </div>
           </div>
-          <div className="mt-6 flex h-44 items-end gap-2" aria-label="Grafik workflow tujuh hari terakhir">
-            {dailyRuns.map((item) => (
-              <div key={item.label} className="flex flex-1 flex-col items-center gap-2">
-                <div className="flex h-32 w-full items-end rounded-full bg-surface-elevated/70 p-1">
-                  <div className="w-full rounded-full bg-primary transition-all" style={{ height: `${Math.max(8, (item.count / maxDailyRuns) * 100)}%` }} />
-                </div>
-                <p className="text-[11px] font-medium text-text-subtle">{item.label}</p>
-                <p className="text-xs font-bold tabular-nums text-text">{item.count}</p>
+          <div className="mt-6 rounded-2xl border border-border/60 bg-surface-elevated/40 p-4" aria-label={`Grafik workflow ${trendMode === 'monthly' ? 'bulanan' : 'mingguan'}`}>
+            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-44 w-full overflow-visible" role="img" aria-label="Line chart jumlah workflow validasi">
+              <defs>
+                <linearGradient id="workflowTrendArea" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.24" />
+                  <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0.02" />
+                </linearGradient>
+              </defs>
+              {[0, 1, 2, 3].map((line) => {
+                const y = chartPadding + (line * ((chartHeight - chartPadding * 2) / 3))
+                return <line key={line} x1={chartPadding} x2={chartWidth - chartPadding} y1={y} y2={y} stroke="var(--color-border)" strokeWidth="1" strokeDasharray="4 6" />
+              })}
+              {chartAreaPoints && <polygon points={chartAreaPoints} fill="url(#workflowTrendArea)" />}
+              {chartLinePoints && <polyline points={chartLinePoints} fill="none" stroke="var(--color-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+              {chartCoordinates.map((item, index) => (
+                <g key={`${item.label}-${index}`}>
+                  <circle cx={item.x} cy={item.y} r="4" fill="var(--color-surface)" stroke="var(--color-primary)" strokeWidth="2.5" />
+                  {(trendMode === 'weekly' || index === 0 || index === chartCoordinates.length - 1 || index % 7 === 0) && (
+                    <text x={item.x} y={chartHeight + 6} textAnchor="middle" className="fill-[var(--color-text-subtle)] text-[10px] font-medium">{item.label}</text>
+                  )}
+                </g>
+              ))}
+            </svg>
+            <div className="mt-5 grid grid-cols-3 gap-3 text-center">
+              <div className="rounded-xl bg-surface p-3 ring-1 ring-border/70">
+                <p className="text-xs text-text-subtle">Total</p>
+                <p className="mt-1 text-lg font-bold tabular-nums text-text">{trendTotal}</p>
               </div>
-            ))}
+              <div className="rounded-xl bg-surface p-3 ring-1 ring-border/70">
+                <p className="text-xs text-text-subtle">Tertinggi</p>
+                <p className="mt-1 text-lg font-bold tabular-nums text-primary">{maxTrendCount}</p>
+              </div>
+              <div className="rounded-xl bg-surface p-3 ring-1 ring-border/70">
+                <p className="text-xs text-text-subtle">Rata-rata</p>
+                <p className="mt-1 text-lg font-bold tabular-nums text-secondary">{(trendTotal / trendDays).toFixed(1)}</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -261,7 +368,7 @@ export default async function DashboardPage() {
               </div>
             ) : recentJobs.map((rawJob) => {
               const job = applyClaimDisplayMetadataToJob(rawJob)
-              const score = getScore(job.outputResult)
+              const score = getDisplayScore(job.outputResult)
               return (
                 <Link key={job.id} href={`/dashboard/clinical-pathway/${job.id}`} className="block p-4 transition-colors hover:bg-surface-elevated/50">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
