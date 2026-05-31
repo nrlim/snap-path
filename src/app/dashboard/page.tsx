@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import prisma from '@/lib/db'
 import { applyClaimDisplayMetadataToJob } from '@/lib/claim-display'
-import { getAuthenticatedUser, isPlatformAdminRole } from '@/lib/rbac'
+import { getAuthenticatedUser, isPlatformAdminRole, isSuperAdminRole } from '@/lib/rbac'
 
 const DEFAULT_PRICING = { inputPerMillion: 0.15, outputPerMillion: 0.6 }
 const MODEL_PRICING: Record<string, { inputPerMillion: number; outputPerMillion: number }> = {
@@ -152,6 +152,7 @@ export default async function DashboardPage(props: {
   if (!user) redirect('/login')
 
   const isPlatformAdmin = isPlatformAdminRole(user.role)
+  const isSuperAdmin = isSuperAdminRole(user.role)
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
   const trendStart = new Date(now)
@@ -243,7 +244,7 @@ export default async function DashboardPage(props: {
   const summaryCards = [
     { label: 'Validasi bulan ini', value: formatNumber(monthJobs.length), helper: `${completedJobs} selesai, ${inProgressJobs} berjalan`, tone: 'text-primary' },
     { label: 'Skor rata-rata', value: scores.length ? `${Math.round(averageScore)}/100` : 'Belum ada', helper: 'Rata-rata hasil validasi klaim', tone: 'text-secondary' },
-    { label: 'Kuota request tersedia', value: formatRequestQuota(requestBalance), helper: 'Berkurang 1 setiap request validasi', tone: 'text-text' },
+    { label: 'Kuota request tersedia', value: isSuperAdmin ? '∞' : formatRequestQuota(requestBalance), helper: isSuperAdmin ? 'Super admin tidak dibatasi kuota request' : 'Berkurang 1 setiap request validasi', tone: 'text-text' },
     ...(isPlatformAdmin ? [
       { label: 'Estimasi pemakaian layanan', value: `${formatUsd(serviceUsageCostUsd)} / ${formatCurrency(serviceUsageCostIdr)}`, helper: `${formatNumber(totalTokens)} unit pemrosesan`, tone: 'text-accent-foreground' },
       { label: 'Credit tersedia', value: formatCredit(creditBalance), helper: `Berkurang sesuai estimasi pemakaian AI`, tone: 'text-text' },

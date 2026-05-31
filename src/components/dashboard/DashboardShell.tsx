@@ -10,11 +10,12 @@ type DashboardShellProps = {
   userEmail?: string
   userRole?: string
   requestBalance?: number
+  requestQuotaLabel?: string
 }
 
 
 
-export default function DashboardShell({ children, userEmail, userRole, requestBalance = 0 }: DashboardShellProps) {
+export default function DashboardShell({ children, userEmail, userRole, requestBalance = 0, requestQuotaLabel }: DashboardShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [isNavVisible, setIsNavVisible] = useState(true)
@@ -82,7 +83,7 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
   }
 
   const profileInitial = userEmail?.charAt(0).toUpperCase() ?? 'U'
-  const formattedRequestBalance = new Intl.NumberFormat('id-ID').format(requestBalance)
+  const formattedRequestBalance = requestQuotaLabel ?? new Intl.NumberFormat('id-ID').format(requestBalance)
   const canSeeConfig = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'CLIENT_ADMIN'
   const canSeeCoreAI = userRole === 'SUPER_ADMIN'
   const canSeeClientConfig = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'CLIENT_ADMIN'

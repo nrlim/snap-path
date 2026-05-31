@@ -86,15 +86,18 @@ export async function POST(request: Request) {
       payload.requestedByUserRole = dashboardUser.role;
     }
 
-    const requestPreflight = await assertClientHasRequestQuota(resolvedClientId);
-    if (!requestPreflight.success) {
-      return NextResponse.json(
-        {
-          error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.',
-          code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT',
-        },
-        { status: 402 },
-      );
+    const hasUnlimitedQuota = dashboardUser?.role === 'SUPER_ADMIN';
+    if (!hasUnlimitedQuota) {
+      const requestPreflight = await assertClientHasRequestQuota(resolvedClientId);
+      if (!requestPreflight.success) {
+        return NextResponse.json(
+          {
+            error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.',
+            code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT',
+          },
+          { status: 402 },
+        );
+      }
     }
 
     // Sanitize PII before persisting to the main payload used by AI/audit views.
@@ -113,25 +116,27 @@ export async function POST(request: Request) {
       },
     });
 
-    const requestDebit = await debitClientRequestUsage({
-      clientId: resolvedClientId,
-      jobId: claimJob.id,
-      description: 'Clinical Pathway validation request',
-    });
-
-    if (!requestDebit.success) {
-      await prisma.claimJob.update({
-        where: { id: claimJob.id },
-        data: { status: 'FAILED', errorMessage: 'Kuota request client tidak mencukupi.' },
+    if (!hasUnlimitedQuota) {
+      const requestDebit = await debitClientRequestUsage({
+        clientId: resolvedClientId,
+        jobId: claimJob.id,
+        description: 'Clinical Pathway validation request',
       });
 
-      return NextResponse.json(
-        {
-          error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.',
-          code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT',
-        },
-        { status: 402 },
-      );
+      if (!requestDebit.success) {
+        await prisma.claimJob.update({
+          where: { id: claimJob.id },
+          data: { status: 'FAILED', errorMessage: 'Kuota request client tidak mencukupi.' },
+        });
+
+        return NextResponse.json(
+          {
+            error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.',
+            code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT',
+          },
+          { status: 402 },
+        );
+      }
     }
 
     // Fire-and-forget: start the durable workflow in background.

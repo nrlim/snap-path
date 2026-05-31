@@ -66,25 +66,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const requestPreflight = await assertClientHasRequestQuota(resolvedClientId);
+    const hasUnlimitedQuota = dashboardUser?.role === 'SUPER_ADMIN';
+    if (!hasUnlimitedQuota) {
+      const requestPreflight = await assertClientHasRequestQuota(resolvedClientId);
 
-    if (!requestPreflight.success) {
-      return NextResponse.json(
-        { error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.', code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT' },
-        { status: 402 },
-      );
-    }
+      if (!requestPreflight.success) {
+        return NextResponse.json(
+          { error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.', code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT' },
+          { status: 402 },
+        );
+      }
 
-    const requestDebit = await debitClientRequestUsage({
-      clientId: resolvedClientId,
-      description: 'AI JSON mapping request',
-    });
+      const requestDebit = await debitClientRequestUsage({
+        clientId: resolvedClientId,
+        description: 'AI JSON mapping request',
+      });
 
-    if (!requestDebit.success) {
-      return NextResponse.json(
-        { error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.', code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT' },
-        { status: 402 },
-      );
+      if (!requestDebit.success) {
+        return NextResponse.json(
+          { error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.', code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT' },
+          { status: 402 },
+        );
+      }
     }
 
     const gateway = await getAIGateway({

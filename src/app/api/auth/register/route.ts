@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
@@ -76,21 +77,48 @@ export async function POST(request: NextRequest) {
     }
 
     const hashedPassword = await hashPassword(password)
+    const clientCodeBase = email.split('@')[0]?.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase().slice(0, 24) || 'CLIENT'
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name: sanitizedName,
-        role: 'VIEWER',
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      const client = await tx.client.create({
+        data: {
+          code: `TRIAL_${clientCodeBase}_${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+          name: sanitizedName ? `${sanitizedName} Workspace` : `${email} Workspace`,
+          requestBalance: 5,
+        },
+        select: { id: true, requestBalance: true },
+      })
+
+      const createdUser = await tx.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name: sanitizedName,
+          role: 'VIEWER',
+          clientId: client.id,
+        },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+          clientId: true,
+          createdAt: true,
+        },
+      })
+
+      await tx.requestLedger.create({
+        data: {
+          clientId: client.id,
+          amount: 5,
+          balanceAfter: client.requestBalance,
+          type: 'TOPUP',
+          description: 'Free trial quota for new registration',
+          createdByUserId: createdUser.id,
+        },
+      })
+
+      return createdUser
     })
 
     return NextResponse.json({ success: true, user }, { status: 201 })
