@@ -12,7 +12,6 @@ const MODEL_PRICING: Record<string, { inputPerMillion: number; outputPerMillion:
   'gpt-4.1': { inputPerMillion: 2, outputPerMillion: 8 },
 }
 
-const DEFAULT_USAGE_MARKUP_PCT = 100
 const USD_TO_IDR = 16_000
 
 type JsonRecord = Record<string, unknown>
@@ -34,10 +33,9 @@ function getPricing(model: string | null) {
   return MODEL_PRICING[model] || DEFAULT_PRICING
 }
 
-function estimateServiceCostUsd(log: { aiModel: string | null; inputTokens: number; outputTokens: number }, markupPct = DEFAULT_USAGE_MARKUP_PCT) {
+function estimateServiceCostUsd(log: { aiModel: string | null; inputTokens: number; outputTokens: number }) {
   const pricing = getPricing(log.aiModel)
-  const baseUsd = ((log.inputTokens / 1_000_000) * pricing.inputPerMillion) + ((log.outputTokens / 1_000_000) * pricing.outputPerMillion)
-  return baseUsd * (1 + (markupPct / 100))
+  return ((log.inputTokens / 1_000_000) * pricing.inputPerMillion) + ((log.outputTokens / 1_000_000) * pricing.outputPerMillion)
 }
 
 function formatNumber(value: number) {
@@ -54,6 +52,10 @@ function formatUsd(value: number) {
 
 function formatCredit(value: number) {
   return `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value)}`
+}
+
+function formatRequestQuota(value: number) {
+  return `${new Intl.NumberFormat('id-ID').format(Math.max(0, Math.floor(value)))} request`
 }
 
 function formatDate(value: Date) {
@@ -162,7 +164,6 @@ export default async function DashboardPage(props: {
     recentJobs,
     trendJobs,
     aiUsageLogs,
-    systemConfig,
     creditClients,
     activeApiKeys,
     teamUsers,
@@ -191,10 +192,9 @@ export default async function DashboardPage(props: {
       orderBy: { createdAt: 'desc' },
       take: 1000,
     }),
-    prisma.systemConfig.findUnique({ where: { id: 'GLOBAL_CONFIG' }, select: { aiUsageMarkupPct: true } }),
     prisma.client.findMany({
       where: isPlatformAdmin ? undefined : { id: user.clientId || '__none__' },
-      select: { creditBalance: true },
+      select: { creditBalance: true, requestBalance: true },
     }),
     prisma.apiKey.count({ where: { ...scopedClientWhere, isActive: true } }),
     prisma.user.count({ where: scopedClientWhere }),
@@ -206,10 +206,10 @@ export default async function DashboardPage(props: {
   const scores = monthJobs.map((job) => getDisplayScore(job.outputResult)).filter((score): score is number => score !== null)
   const averageScore = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0
   const totalTokens = aiUsageLogs.reduce((sum, log) => sum + log.totalTokens, 0)
-  const usageMarkupPct = systemConfig?.aiUsageMarkupPct ?? DEFAULT_USAGE_MARKUP_PCT
-  const serviceUsageCostUsd = aiUsageLogs.reduce((sum, log) => sum + estimateServiceCostUsd(log, usageMarkupPct), 0)
+  const serviceUsageCostUsd = aiUsageLogs.reduce((sum, log) => sum + estimateServiceCostUsd(log), 0)
   const serviceUsageCostIdr = serviceUsageCostUsd * USD_TO_IDR
   const creditBalance = creditClients.reduce((sum, client) => sum + client.creditBalance, 0)
+  const requestBalance = creditClients.reduce((sum, client) => sum + client.requestBalance, 0)
 
   const trendPoints = Array.from({ length: trendDays }, (_, index) => {
     const date = new Date(trendStart)
@@ -243,8 +243,11 @@ export default async function DashboardPage(props: {
   const summaryCards = [
     { label: 'Validasi bulan ini', value: formatNumber(monthJobs.length), helper: `${completedJobs} selesai, ${inProgressJobs} berjalan`, tone: 'text-primary' },
     { label: 'Skor rata-rata', value: scores.length ? `${Math.round(averageScore)}/100` : 'Belum ada', helper: 'Rata-rata hasil validasi klaim', tone: 'text-secondary' },
-    { label: 'Estimasi pemakaian layanan', value: `${formatUsd(serviceUsageCostUsd)} / ${formatCurrency(serviceUsageCostIdr)}`, helper: `${formatNumber(totalTokens)} unit pemrosesan`, tone: 'text-accent-foreground' },
-    { label: 'Credit tersedia', value: formatCredit(creditBalance), helper: `Berkurang sesuai estimasi pemakaian AI`, tone: 'text-text' },
+    { label: 'Kuota request tersedia', value: formatRequestQuota(requestBalance), helper: 'Berkurang 1 setiap request validasi', tone: 'text-text' },
+    ...(isPlatformAdmin ? [
+      { label: 'Estimasi pemakaian layanan', value: `${formatUsd(serviceUsageCostUsd)} / ${formatCurrency(serviceUsageCostIdr)}`, helper: `${formatNumber(totalTokens)} unit pemrosesan`, tone: 'text-accent-foreground' },
+      { label: 'Credit tersedia', value: formatCredit(creditBalance), helper: `Berkurang sesuai estimasi pemakaian AI`, tone: 'text-text' },
+    ] : []),
   ]
 
   return (
@@ -257,7 +260,7 @@ export default async function DashboardPage(props: {
               Ringkasan validasi klaim dan kesiapan data bulan ini.
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-text-subtle">
-              Pantau volume workflow, kualitas hasil validasi, estimasi pemakaian layanan, dan kesiapan master data tanpa menampilkan detail teknis engine internal.
+              Pantau volume workflow, kualitas hasil validasi, kuota request, dan kesiapan master data tanpa menampilkan detail teknis engine internal.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link href="/dashboard/clinical-pathway" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-primary/25 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">

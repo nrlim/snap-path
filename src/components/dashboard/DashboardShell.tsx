@@ -9,11 +9,12 @@ type DashboardShellProps = {
   children: React.ReactNode
   userEmail?: string
   userRole?: string
+  requestBalance?: number
 }
 
 
 
-export default function DashboardShell({ children, userEmail, userRole }: DashboardShellProps) {
+export default function DashboardShell({ children, userEmail, userRole, requestBalance = 0 }: DashboardShellProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [isNavVisible, setIsNavVisible] = useState(true)
@@ -81,9 +82,11 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
   }
 
   const profileInitial = userEmail?.charAt(0).toUpperCase() ?? 'U'
+  const formattedRequestBalance = new Intl.NumberFormat('id-ID').format(requestBalance)
   const canSeeConfig = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'CLIENT_ADMIN'
   const canSeeCoreAI = userRole === 'SUPER_ADMIN'
   const canSeeClientConfig = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'CLIENT_ADMIN'
+  const canSeeUsageAndCredits = userRole === 'SUPER_ADMIN'
 
   // Dynamic header based on route
   const getHeaderInfo = () => {
@@ -138,8 +141,8 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
     }
     if (pathname.startsWith('/dashboard/settings/credits')) {
       return {
-        title: 'Credit Usage',
-        subtitle: 'Manage client credits for Clinical Pathway requests.',
+        title: 'Request Top Up',
+        subtitle: 'Manage client request quota for Clinical Pathway requests.',
       }
     }
     if (pathname.startsWith('/dashboard/settings/user-management')) {
@@ -222,9 +225,9 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
                     <div className="mt-0.5 space-y-0.5 pl-3">
                       {canSeeCoreAI && <Link href="/dashboard/settings/ai-provider" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-provider') || pathname === '/dashboard/settings' ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Integrations</Link>}
                       {(canSeeCoreAI || userRole === 'CLIENT_ADMIN') && <Link href="/dashboard/settings/privacy-config" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/privacy-config') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Privasi & PII AI</Link>}
-                      {(canSeeCoreAI || userRole === 'CLIENT_ADMIN') && <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Usage Logs</Link>}
+                      {canSeeUsageAndCredits && <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>AI Usage Logs</Link>}
                       {canSeeClientConfig && <Link href="/dashboard/settings/client-api-keys" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/client-api-keys') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Client API Keys</Link>}
-                      {canSeeClientConfig && <Link href="/dashboard/settings/credits" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/credits') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Credit Usage</Link>}
+                      {canSeeUsageAndCredits && <Link href="/dashboard/settings/credits" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/credits') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Request Top Up</Link>}
                       {canSeeClientConfig && <Link href="/dashboard/settings/user-management" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/user-management') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>User Management</Link>}
                       {canSeeClientConfig && <Link href="/dashboard/settings/threshold" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/threshold') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Clinical Thresholds</Link>}
                     </div>
@@ -257,7 +260,7 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
                 {isProfileOpen && (
                   <div
                     role="menu"
-                    className="absolute -right-4 sm:-right-6 lg:-right-8 mt-[14px] w-72 origin-top-right rounded-bl-lg border border-r-0 border-t-0 border-border/70 bg-surface-elevated/85 p-2 shadow-lg shadow-surface-accent/60 backdrop-blur-md transition-all"
+                    className="absolute -right-4 sm:-right-6 lg:-right-8 mt-[14px] w-72 origin-top-right rounded-bl-lg border border-r-0 border-t-0 border-border/70 bg-surface-elevated p-2 shadow-lg shadow-surface-accent/40 transition-all"
                   >
                     <div className="flex flex-col gap-1 border-b border-border/60 px-3 pb-3 pt-2">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-text-faint">Signed in</p>
@@ -265,7 +268,10 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-sm font-bold text-text">
                           {profileInitial}
                         </span>
-                        <p className="truncate text-sm font-medium text-text">{userEmail}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-text">{userEmail}</p>
+                          <p className="mt-0.5 text-xs font-semibold text-primary">Kuota tersedia: {formattedRequestBalance} request</p>
+                        </div>
                       </div>
                     </div>
 
@@ -360,13 +366,14 @@ export default function DashboardShell({ children, userEmail, userRole }: Dashbo
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 pb-6 pt-2">
-              <div className="mb-6 flex items-center gap-4 rounded-2xl border border-primary/10 bg-primary-soft/30 p-3.5">
+              <div className="mb-6 flex items-center gap-4 rounded-2xl border border-primary/10 bg-surface p-3.5 shadow-sm">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-base font-bold text-white shadow-sm">
                   {profileInitial}
                 </span>
                 <div className="flex-1 overflow-hidden">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">Account</p>
                   <p className="truncate text-sm font-medium text-text">{userEmail}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-primary">Kuota: {formattedRequestBalance} request</p>
                 </div>
               </div>
 

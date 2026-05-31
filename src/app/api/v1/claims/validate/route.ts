@@ -9,7 +9,7 @@ import { claimValidationWorkflow } from '@/workflows/claim-validation';
 import { resolveActualLosDays } from '@/lib/los';
 import { sanitizeClaimValidationInput } from '@/lib/ai/sanitizer';
 import { buildClaimDisplayMetadata } from '@/lib/claim-display';
-import { assertClientHasCredit } from '@/lib/credits';
+import { assertClientHasRequestQuota, debitClientRequestUsage } from '@/lib/credits';
 import type { Prisma } from '@/generated/prisma/client';
 
 export const runtime = 'nodejs';
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
     if (!clientId) {
       return NextResponse.json(
-        { error: 'Client wajib dipilih agar credit usage dapat dicatat.', code: 'CLIENT_REQUIRED' },
+        { error: 'Client wajib dipilih agar penggunaan request dapat dicatat.', code: 'CLIENT_REQUIRED' },
         { status: 400 },
       );
     }
@@ -86,12 +86,12 @@ export async function POST(request: Request) {
       payload.requestedByUserRole = dashboardUser.role;
     }
 
-    const creditPreflight = await assertClientHasCredit(resolvedClientId);
-    if (!creditPreflight.success) {
+    const requestPreflight = await assertClientHasRequestQuota(resolvedClientId);
+    if (!requestPreflight.success) {
       return NextResponse.json(
         {
-          error: 'Credit client tidak mencukupi. Silakan hubungi admin untuk top up credit.',
-          code: 'CLIENT_CREDIT_INSUFFICIENT',
+          error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.',
+          code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT',
         },
         { status: 402 },
       );
@@ -112,6 +112,27 @@ export async function POST(request: Request) {
         metadata: uiDisplayCipher ? { uiDisplayCipher } : undefined,
       },
     });
+
+    const requestDebit = await debitClientRequestUsage({
+      clientId: resolvedClientId,
+      jobId: claimJob.id,
+      description: 'Clinical Pathway validation request',
+    });
+
+    if (!requestDebit.success) {
+      await prisma.claimJob.update({
+        where: { id: claimJob.id },
+        data: { status: 'FAILED', errorMessage: 'Kuota request client tidak mencukupi.' },
+      });
+
+      return NextResponse.json(
+        {
+          error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.',
+          code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT',
+        },
+        { status: 402 },
+      );
+    }
 
     // Fire-and-forget: start the durable workflow in background.
     const run = await start(claimValidationWorkflow, [{ jobId: claimJob.id, payload }]);

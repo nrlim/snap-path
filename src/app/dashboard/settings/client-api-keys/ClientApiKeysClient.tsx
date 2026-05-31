@@ -215,7 +215,7 @@ function FragmentRow({ client, isExpanded, canManageClients, onToggle, onEdit, o
     <>
       <tr className="hover:bg-surface-elevated/30">
         <td className="px-4 py-3"><button type="button" onClick={onToggle} className="rounded-md p-1.5 text-text-subtle hover:bg-surface-elevated">{isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button></td>
-        <td className="px-4 py-3"><p className="font-bold text-text">{client.name}</p><p className="text-xs text-text-faint">Credit-based usage</p></td>
+        <td className="px-4 py-3"><p className="font-bold text-text">{client.name}</p><p className="text-xs text-text-faint">Request-based usage</p></td>
         <td className="px-4 py-3 font-mono text-xs text-text-subtle">{client.code}</td>
         <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${client.isActive ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700"}`}>{client.isActive ? "Active" : "Inactive"}</span></td>
         {canManageClients && <td className="px-4 py-3 text-text-subtle">{client.aiProvider || "Global config"}</td>}

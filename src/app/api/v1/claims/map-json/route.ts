@@ -4,7 +4,7 @@ import { authenticateApiRequest } from '@/lib/middleware/auth-api';
 import { getSession } from '@/lib/auth';
 import { getAuthenticatedUser, isPlatformAdminRole } from '@/lib/rbac';
 import { recordApiUsage } from '@/lib/api-key';
-import { assertClientHasCredit } from '@/lib/credits';
+import { assertClientHasRequestQuota, debitClientRequestUsage } from '@/lib/credits';
 import prisma from '@/lib/db';
 
 /**
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     if (!resolvedClientId) {
       return NextResponse.json(
-        { error: 'Client wajib dipilih agar credit usage dapat dicatat.', code: 'CLIENT_REQUIRED' },
+        { error: 'Client wajib dipilih agar penggunaan request dapat dicatat.', code: 'CLIENT_REQUIRED' },
         { status: 400 },
       );
     }
@@ -66,11 +66,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const creditPreflight = await assertClientHasCredit(resolvedClientId);
+    const requestPreflight = await assertClientHasRequestQuota(resolvedClientId);
 
-    if (!creditPreflight.success) {
+    if (!requestPreflight.success) {
       return NextResponse.json(
-        { error: 'Credit client tidak mencukupi. Silakan hubungi admin untuk top up credit.', code: 'CLIENT_CREDIT_INSUFFICIENT' },
+        { error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.', code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT' },
+        { status: 402 },
+      );
+    }
+
+    const requestDebit = await debitClientRequestUsage({
+      clientId: resolvedClientId,
+      description: 'AI JSON mapping request',
+    });
+
+    if (!requestDebit.success) {
+      return NextResponse.json(
+        { error: 'Kuota request client tidak mencukupi. Silakan hubungi admin untuk top up request.', code: 'CLIENT_REQUEST_QUOTA_INSUFFICIENT' },
         { status: 402 },
       );
     }

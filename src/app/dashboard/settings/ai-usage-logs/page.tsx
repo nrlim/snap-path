@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import prisma from "@/lib/db";
 import { getAuthenticatedUser, hasPermission, isSuperAdminRole } from "@/lib/rbac";
-import { updateAIUsageMarkupConfig } from "../actions";
 import AIUsageLogsClient from "./AIUsageLogsClient";
 
 const DEFAULT_PRICING = { inputPerMillion: 0.15, outputPerMillion: 0.6 };
@@ -38,10 +37,6 @@ function estimateBaseCostUsd(log: Pick<AIUsageLog, "aiModel" | "inputTokens" | "
   return ((log.inputTokens / 1_000_000) * pricing.inputPerMillion) + ((log.outputTokens / 1_000_000) * pricing.outputPerMillion);
 }
 
-function applyMarkup(costUsd: number, markupPct: number) {
-  return costUsd * (1 + (markupPct / 100));
-}
-
 export default async function AIUsageLogsPage() {
   const user = await getAuthenticatedUser();
   if (!user || !hasPermission(user.role, "AI_USAGE_LOGS")) {
@@ -53,8 +48,6 @@ export default async function AIUsageLogsPage() {
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
 
-  const config = await prisma.systemConfig.findUnique({ where: { id: "GLOBAL_CONFIG" } });
-  const markupPct = config?.aiUsageMarkupPct ?? 100;
   const scopedWhere = canSeeTechnicalDetails ? {} : { clientId: user.clientId || "__none__" };
 
   const [logs, monthLogs] = await Promise.all([
@@ -79,7 +72,7 @@ export default async function AIUsageLogsPage() {
     current.inputTokens += log.inputTokens;
     current.outputTokens += log.outputTokens;
     current.totalTokens += log.totalTokens;
-    current.costUsd += applyMarkup(estimateBaseCostUsd(log), markupPct);
+    current.costUsd += estimateBaseCostUsd(log);
     summaryByClient.set(key, current);
   }
 
@@ -102,7 +95,7 @@ export default async function AIUsageLogsPage() {
     current.inputTokens += log.inputTokens;
     current.outputTokens += log.outputTokens;
     current.totalTokens += log.totalTokens;
-    current.costUsd += applyMarkup(estimateBaseCostUsd(log), markupPct);
+    current.costUsd += estimateBaseCostUsd(log);
     if (log.createdAt > current.lastRequestAt) current.lastRequestAt = log.createdAt;
     costByJob.set(log.jobId, current);
   }
@@ -123,7 +116,7 @@ export default async function AIUsageLogsPage() {
     outputTokens: log.outputTokens,
     totalTokens: log.totalTokens,
     durationMs: log.durationMs,
-    costUsd: applyMarkup(estimateBaseCostUsd(log), markupPct),
+    costUsd: estimateBaseCostUsd(log),
     createdAt: log.createdAt.toISOString(),
   }));
 
@@ -133,22 +126,9 @@ export default async function AIUsageLogsPage() {
         <div>
           <h1 className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-2xl font-bold tracking-tight text-transparent">AI Usage Logs</h1>
           <p className="mt-1 max-w-3xl text-sm text-text-subtle">
-            Hanya mencatat request AI. {canSeeTechnicalDetails ? "Super admin dapat melihat detail teknis dan mengatur markup pemakaian layanan." : "Detail provider dan model disembunyikan pada dashboard client."}
+            Hanya mencatat request AI untuk audit biaya internal. Detail penggunaan dan credit hanya tersedia untuk super admin.
           </p>
         </div>
-        {canSeeTechnicalDetails && (
-          <form action={async (formData) => {
-            "use server";
-            await updateAIUsageMarkupConfig(formData);
-          }} className="rounded-xl border border-border/80 bg-surface p-4 shadow-sm">
-            <label htmlFor="aiUsageMarkupPct" className="text-xs font-bold uppercase tracking-wider text-text-subtle">Markup usage (%)</label>
-            <div className="mt-2 flex gap-2">
-              <input id="aiUsageMarkupPct" name="aiUsageMarkupPct" type="number" min="0" step="1" defaultValue={markupPct} className="w-32 rounded-md border border-border bg-surface px-3 py-2 text-base text-text sm:text-sm" />
-              <button type="submit" className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover">Simpan</button>
-            </div>
-            <p className="mt-2 text-xs text-text-subtle">Contoh: 100 berarti biaya layanan = 2x estimasi dasar.</p>
-          </form>
-        )}
       </div>
       <AIUsageLogsClient summaryCards={summaryCards} jobCosts={jobCosts} logs={serializedLogs} canSeeTechnicalDetails={canSeeTechnicalDetails} />
     </div>

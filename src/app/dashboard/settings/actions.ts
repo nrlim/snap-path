@@ -121,30 +121,3 @@ export async function updatePrivacyConfig(redactPatterns: string[], safeContexts
   }
 }
 
-export async function updateAIUsageMarkupConfig(formData: FormData) {
-  const user = await getAuthenticatedUser();
-  if (!user || !isSuperAdminRole(user.role)) {
-    return { success: false, error: "Anda tidak memiliki akses untuk mengubah markup usage." };
-  }
-
-  try {
-    const rawMarkup = Number(formData.get("aiUsageMarkupPct"));
-    const aiUsageMarkupPct = Number.isFinite(rawMarkup) && rawMarkup >= 0 ? rawMarkup : 100;
-
-    await prisma.systemConfig.upsert({
-      where: { id: "GLOBAL_CONFIG" },
-      update: { aiUsageMarkupPct },
-      create: {
-        id: "GLOBAL_CONFIG",
-        aiUsageMarkupPct,
-      },
-    });
-
-    revalidatePath("/dashboard/settings/ai-usage-logs");
-    revalidatePath("/dashboard");
-    return { success: true };
-  } catch (error) {
-    console.error("Failed to update AI usage markup:", error);
-    return { success: false, error: "Gagal menyimpan markup usage." };
-  }
-}

@@ -42,10 +42,11 @@ export function hasPermission(role: unknown, permission: Permission): boolean {
     case 'AI_ENGINE_CONFIG':
       return false
     case 'AI_USAGE_LOGS':
+    case 'CLIENT_CREDITS':
+      return false
     case 'PRIVACY_CONFIG':
       return role === 'CLIENT_ADMIN'
     case 'CLIENT_API_KEYS':
-    case 'CLIENT_CREDITS':
     case 'USER_MANAGEMENT':
     case 'CLINICAL_THRESHOLDS':
       return role === 'ADMIN' || role === 'CLIENT_ADMIN'

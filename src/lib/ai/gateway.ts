@@ -84,15 +84,10 @@ export class AIGateway {
       });
 
       if (statusCode < 500 && this.context.clientId && (inputTokens > 0 || outputTokens > 0)) {
-        const config = await prisma.systemConfig.findUnique({
-          where: { id: 'GLOBAL_CONFIG' },
-          select: { aiUsageMarkupPct: true },
-        });
         const creditAmount = estimateAIUsageCredit({
           aiModel: this.context.aiModel,
           inputTokens,
           outputTokens,
-          markupPct: config?.aiUsageMarkupPct ?? 100,
         });
         await debitClientCreditUsage({
           clientId: this.context.clientId,
