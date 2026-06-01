@@ -94,9 +94,6 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
   const [error, setError] = useState<string | null>(null);
   const [uploadingDocuments, setUploadingDocuments] = useState<Record<number, boolean>>({});
 
-  // Tariffs state for autocomplete
-  const [providerTariffs, setProviderTariffs] = useState<any[]>([]);
-
   // Form State
   const [formData, setFormData] = useState<any>({
     patient: { name: "", identifier: [], birthDate: "", gender: "" },
@@ -132,15 +129,6 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
     }));
     setStep(8);
   };
-
-  // Fetch tariffs when provider changes
-  useEffect(() => {
-    if (formData.extra.providerId) {
-      getTariffEntries({ providerId: formData.extra.providerId, limit: 1000 }).then(res => {
-        if (res.entries) setProviderTariffs(res.entries);
-      }).catch(console.error);
-    }
-  }, [formData.extra.providerId]);
 
   const documentOptions = REQUIRED_CLAIM_DOCUMENTS.map((documentType) => ({
     label: documentType,
@@ -540,16 +528,12 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
                   <input type="text" value={proc.code || ''} onChange={e => updateItem("procedures", i, "code", e.target.value)} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-sm font-mono text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Code..." />
                 </td>
                 <td className="px-4 py-2">
-                  <AutocompleteInput 
+                  <AsyncTariffInput 
                     value={proc.name || ''} 
                     onChange={val => handleProcedureNameChange(i, val)}
                     onSelect={opt => handleProcedureNameChange(i, opt.label, opt.value, opt.data?.basePrice)}
-                    options={providerTariffs.filter(t => t.category !== "OBAT").map(t => ({
-                      label: t.procedureName,
-                      value: t.procedureCode,
-                      subLabel: `${t.procedureCode} - ${t.category}`,
-                      data: t
-                    }))}
+                    providerId={formData.extra.providerId}
+                    excludeCategory="OBAT"
                     placeholder="Type or select from fee schedule..." 
                   />
                 </td>
@@ -592,16 +576,12 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
             {formData.medications?.map((med: any, i: number) => (
               <tr key={i}>
                 <td className="px-4 py-2">
-                  <AutocompleteInput 
+                  <AsyncTariffInput 
                     value={med.name || ''} 
                     onChange={val => handleMedicationNameChange(i, val)}
                     onSelect={opt => handleMedicationNameChange(i, opt.label, opt.data?.basePrice)}
-                    options={providerTariffs.filter(t => t.category === "OBAT").map(t => ({
-                      label: t.procedureName,
-                      value: t.procedureCode,
-                      subLabel: t.procedureCode,
-                      data: t
-                    }))}
+                    providerId={formData.extra.providerId}
+                    category="OBAT"
                     placeholder="Type or select drug..." 
                   />
                 </td>
@@ -782,6 +762,111 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
         onClose={() => setIsModalOpen(false)} 
         onImport={handleImport} 
       />
+    </div>
+  );
+}
+
+function AsyncTariffInput({
+  value,
+  onChange,
+  onSelect,
+  providerId,
+  category,
+  excludeCategory,
+  placeholder,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  onSelect?: (option: any) => void;
+  providerId: string;
+  category?: string;
+  excludeCategory?: string;
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [options, setOptions] = useState<{ label: string; value: string; subLabel?: string; data?: any }[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!providerId) return;
+    const fetchOptions = async () => {
+      setIsLoading(true);
+      try {
+        const res = await getTariffEntries({ 
+          providerId, 
+          search: value, 
+          limit: 20,
+          category,
+          excludeCategory
+        });
+        if (res.entries) {
+          setOptions(res.entries.map(t => ({
+            label: t.procedureName,
+            value: t.procedureCode,
+            subLabel: category === "OBAT" ? t.procedureCode : `${t.procedureCode} - ${t.category}`,
+            data: t
+          })));
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const handler = setTimeout(fetchOptions, 300);
+    return () => clearTimeout(handler);
+  }, [value, providerId, category, excludeCategory]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        className="w-full rounded-md border border-border bg-surface px-2 py-1 text-base sm:text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary"
+        placeholder={placeholder}
+      />
+      
+      {isOpen && (
+        <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border border-border bg-surface-elevated py-1 text-sm shadow-[0_4px_20px_-4px_rgba(0,0,0,0.3)]">
+          {isLoading && options.length === 0 ? (
+            <li className="px-3 py-1.5 text-text-subtle text-xs">Mencari...</li>
+          ) : options.length > 0 ? (
+            options.map((opt, i) => (
+              <li
+                key={i}
+                className="cursor-pointer px-3 py-1.5 hover:bg-primary/10 hover:text-primary transition-colors flex flex-col"
+                onClick={() => {
+                  onChange(opt.label);
+                  if (onSelect) onSelect(opt);
+                  setIsOpen(false);
+                }}
+              >
+                <div className="font-medium truncate">{opt.label}</div>
+                {opt.subLabel && <div className="text-[10px] text-text-subtle truncate">{opt.subLabel}</div>}
+              </li>
+            ))
+          ) : (
+            <li className="px-3 py-1.5 text-text-subtle text-xs">Tidak ditemukan</li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }

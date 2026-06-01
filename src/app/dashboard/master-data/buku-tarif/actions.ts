@@ -18,6 +18,7 @@ export type GetTariffEntriesParams = {
   limit?: number;
   sortField?: TariffSortField;
   sortDirection?: TariffSortDirection;
+  excludeCategory?: string;
 };
 
 function stringValue(value: unknown): string | undefined {
@@ -97,7 +98,11 @@ export async function getTariffEntries(params: GetTariffEntriesParams = {}) {
   const whereClause: Prisma.TariffEntryWhereInput = {};
 
   if (params.providerId && params.providerId !== "all") whereClause.providerId = params.providerId;
-  if (params.category && params.category !== "all") whereClause.category = params.category;
+  if (params.category && params.category !== "all") {
+    whereClause.category = params.category;
+  } else if (params.excludeCategory) {
+    whereClause.category = { not: params.excludeCategory };
+  }
   if (params.status === "active") whereClause.isActive = true;
   if (params.status === "inactive") whereClause.isActive = false;
 
