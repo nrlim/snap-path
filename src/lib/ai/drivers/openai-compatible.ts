@@ -389,13 +389,16 @@ Key distinctions: DISP SYRINGE → Non-Medication. EXAM GLOVE → Non-Medication
 NaCl 0.9% infusion → DRUG (pharmacological agent). Metronidazole infusion → DRUG.
 
 ANTI-HALLUCINATION RULES:
-- STRIP prices: divide by unit count (usually 10) to get per-tablet price
-- Ampoule/vial: price is per single ampoule/vial unit, NOT per box
-- Infusion bottle: price per bottle at specified volume (100ml ≠ 500ml)
-- Do NOT confuse concentrations: 2% lidocaine ≠ 5% lidocaine
-- Do NOT confuse volumes: 5ml ampoule ≠ 10ml vial
-- If the drug has multiple strengths available in Indonesia and input is unclear, use the most common strength for that drug class
-- Use the UPPER BOUND of any known price range for marketPriceMax`,
+1. "PFS" means Pre-Filled Syringe. Do not hallucinate it as a 500ml infusion bottle.
+2. If the drug dosage is in "mg/ml" (injection), NEVER guess the unit as a "500ml bottle" unless the name explicitly says "INFUSION" or "NaCl/RL". Injections are ampoules/vials/PFS (1-20ml).
+3. Do NOT aggressively guess brand names. "REMOPAIN" is Ketorolac (NSAID), NOT Remifentanil. If you are not 100% sure about a brand name, rely strictly on the genericName provided in the input, or return the original input name EXACTLY as-is.
+4. "100ml bottle" ≠ "500ml bottle" (different prices)
+5. "2%" ≠ "5%" concentration (different prices)
+6. NEVER alter the milligram (mg) strength. If the input says "250mg", the resolvedProductName MUST be 250mg, not 500mg.
+7. If the item is a complex compound or unknown supplement, use its functional name (e.g., "Multivitamin tablet") instead of hallucinating a random active ingredient.
+8. Return isNonMedication: true for non-drugs/medical supplies, marketPriceMax: 0 for those
+9. Use the UPPER BOUND of any known price range for marketPriceMax
+10. Return marketPriceMax: 0 ONLY when the active ingredient is genuinely unrecognized in Indonesia`,
 
       prompt: `Price lookup for Indonesian hospital claim validation:
 
@@ -520,6 +523,7 @@ ABBREVIATION MAP:
 INJ/INJEKSI→injection | INF/INFUS→infusion_bottle | TAB/TABLET→tablet | KAPS/CAP/CAPSULE→capsule
 AMP/AMPUL→ampoule | VL/VIAL→vial | SYR/SIRUP→syrup | SUSP→suspension | SUPP→suppository
 KRIM/CREAM→cream | GEL→gel | SALEP/OINT→ointment | LAR→solution | STRIP→strip | TTS→drops
+PFS→Pre-Filled Syringe (usually 1-3ml, NEVER a 500ml bottle)
 
 UNIT BASIS RULES:
 - Ampoule (<10ml): 1 unit = 1 ampoule | Vial (≥10ml or powder): 1 unit = 1 vial
@@ -540,14 +544,17 @@ B→ Nearest common strength (only if A failed)
 C→ Active ingredient + form only (only if A+B failed)
 D→ genericName field (only if A+B+C failed and genericName differs)
 
-ANTI-HALLUCINATION:
-- STRIP price ÷ unit count = per-tablet price (show math)
-- Ampoule/vial: price is per SINGLE unit, not per box
-- 100ml bottle ≠ 500ml bottle (different prices)
-- 2% ≠ 5% concentration (different prices)
-- Return isNonMedication: true for non-drugs/medical supplies, marketPriceMax: 0 for those
-- Return marketPriceMax: 0 ONLY when the active ingredient is genuinely unrecognized in Indonesia
-- NEVER skip an index — every drug must have a result entry`,
+ANTI-HALLUCINATION RULES:
+1. "PFS" means Pre-Filled Syringe. Do not hallucinate it as a 500ml infusion bottle.
+2. If the drug dosage is in "mg/ml" (injection), NEVER guess the unit as a "500ml bottle" unless the name explicitly says "INFUSION" or "NaCl/RL". Injections are ampoules/vials/PFS (1-20ml).
+3. Do NOT aggressively guess brand names. "REMOPAIN" is Ketorolac (NSAID), NOT Remifentanil. If you are not 100% sure about a brand name, rely strictly on the genericName provided in the input, or return it exactly as-is.
+4. "100ml bottle" ≠ "500ml bottle" (different prices)
+5. "2%" ≠ "5%" concentration (different prices)
+6. NEVER alter the milligram (mg) strength. If the input says "250mg", the resolvedProductName MUST be 250mg, not 500mg.
+7. If the item is a complex compound or unknown supplement, use its functional name (e.g., "Multivitamin tablet") instead of hallucinating a random active ingredient.
+8. Return isNonMedication: true for non-drugs/medical supplies, marketPriceMax: 0 for those
+9. Return marketPriceMax: 0 ONLY when the active ingredient is genuinely unrecognized in Indonesia
+10. NEVER skip an index — every drug must have a result entry`,
 
       prompt: `Price ALL ${drugs.length} drugs below for Indonesian hospital claim validation. Return one result per drug, maintaining index order.
 
