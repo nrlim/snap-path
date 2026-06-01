@@ -218,8 +218,8 @@ export async function aggregateAndSaveStep(
   const registeredTariffItems = tariffItems.filter((item: any) => item.status !== 'NOT_FOUND');
   const invalidRegisteredTariffItems = registeredTariffItems.filter((item: any) => item.status === 'OVER_THRESHOLD' || item.status === 'UNDER_PRICED');
   
-  // ALKES items are explicitly excluded from scoring logic:
-  const scorableDrugItems = drugItems.filter((item: any) => item.status !== 'ALKES');
+  // Non-Medication items are explicitly excluded from scoring logic:
+  const scorableDrugItems = drugItems.filter((item: any) => item.status !== 'NON_MEDICATION');
   const invalidDrugItems = scorableDrugItems.filter((item: any) => item.status === 'OVER_THRESHOLD' || item.status === 'UNDER_PRICED' || item.status === 'NOT_FOUND');
   
   const hasUnregisteredTariff = tariffItems.some((item: any) => item.status === 'NOT_FOUND');
