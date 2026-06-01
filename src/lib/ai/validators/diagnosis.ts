@@ -270,10 +270,13 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
   const medicationInappropriateCount = details.reduce((total, detail) => total + (detail.medicationFindings?.filter((item) => item.status === 'INAPPROPRIATE').length || 0), 0);
 
   // Convert diagnosis/procedure/medication findings into a readable 0-100 score.
+  // Do not let an unstructured AI score create a large hidden deduction when the
+  // validator did not return actionable findings for the score breakdown.
+  const hasActionableFindings = missingRequiredCount > 0 || irrelevantCount > 0 || medicationReviewCount > 0 || medicationInappropriateCount > 0;
   const ruleBasedDeduction = Math.min(100, (missingRequiredCount * 20) + (irrelevantCount * 8) + (medicationReviewCount * 4) + (medicationInappropriateCount * 10));
   const ruleBasedScore = Math.max(0, 100 - ruleBasedDeduction);
-  const finalScore = Math.min(aiScore, ruleBasedScore);
-  const finalValid = overallValid && missingRequiredCount === 0 && irrelevantCount === 0 && medicationInappropriateCount === 0 && finalScore >= 80;
+  const finalScore = hasActionableFindings ? Math.min(aiScore, ruleBasedScore) : ruleBasedScore;
+  const finalValid = missingRequiredCount === 0 && irrelevantCount === 0 && medicationReviewCount === 0 && medicationInappropriateCount === 0 && finalScore >= 80;
 
   if (finalValid) {
     try {

@@ -319,9 +319,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const diagnosisMedicationInappropriateCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'INAPPROPRIATE').length || 0), 0);
   const diagnosisMedicationIssueCount = diagnosisMedicationReviewCount + diagnosisMedicationInappropriateCount;
   const hasDiagnosisFindings = diagnosisMissingRequiredCount > 0 || diagnosisReviewRelevanceCount > 0 || diagnosisMedicationIssueCount > 0;
-  const diagnosisHasDeduction = result.diagnosisValidation
-    ? (!result.diagnosisValidation.isValid || hasDiagnosisFindings)
-    : false;
+  const diagnosisHasDeduction = hasDiagnosisFindings;
   const fallbackDiagnosisDeduction = diagnosisHasDeduction
     ? Math.min(25, Math.max(1, Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisReviewRelevanceCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3))))
     : 0;
@@ -387,7 +385,6 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     const maxScore = item.maxScore ?? item.maxDeduction;
     const shouldClearHiddenDiagnosisDeduction = (item.code === 'DIAGNOSIS_TREATMENT' || item.label === 'Diagnosis, tindakan & obat klinis')
       && item.deducted > 0
-      && result.diagnosisValidation?.isValid
       && !hasDiagnosisFindings;
     const deducted = shouldClearHiddenDiagnosisDeduction ? 0 : Math.max(0, item.deducted || 0);
     const earnedScore = shouldClearHiddenDiagnosisDeduction ? maxScore : (typeof item.score === 'number' ? item.score : Math.max(0, maxScore - deducted));

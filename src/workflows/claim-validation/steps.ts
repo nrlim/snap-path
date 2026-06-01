@@ -262,17 +262,14 @@ export async function aggregateAndSaveStep(
   const hasDiagnosisFindings = diagnosisMissingRequiredCount > 0 || diagnosisIrrelevantCount > 0 || diagnosisMedicationReviewCount > 0 || diagnosisMedicationInappropriateCount > 0;
   const diagnosisScore = typeof diagRes?.score === 'number' ? Math.max(0, Math.min(100, diagRes.score)) : (diagRes?.isValid ? 100 : 0);
   const diagnosisFindingDeduction = Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisIrrelevantCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3));
-  const diagnosisScoreDeduction = hasDiagnosisFindings || !diagRes?.isValid
+  // Only use the AI numeric score when there are actionable findings to explain
+  // the deduction. This prevents cases like “0 issue found” with a large score cut.
+  const diagnosisScoreDeduction = hasDiagnosisFindings
     ? Math.ceil(((100 - diagnosisScore) / 100) * 25)
     : 0;
-  const diagnosisDeduction = Math.min(
-    25,
-    Math.max(
-      !diagRes?.isValid ? 1 : 0,
-      diagnosisScoreDeduction,
-      diagnosisFindingDeduction,
-    ),
-  );
+  const diagnosisDeduction = hasDiagnosisFindings
+    ? Math.min(25, Math.max(diagnosisScoreDeduction, diagnosisFindingDeduction))
+    : 0;
 
   if (diagnosisDeduction > 0) {
     overallScore -= diagnosisDeduction;

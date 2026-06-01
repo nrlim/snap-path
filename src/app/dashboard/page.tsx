@@ -95,7 +95,6 @@ function getDisplayScore(outputResult: unknown): number | null {
   const items = Array.isArray(scoreBreakdown?.items) ? scoreBreakdown.items : []
   if (items.length === 0) return rawScore
 
-  const diagnosisValidation = asRecord(output?.diagnosisValidation)
   const findings = getDiagnosisFindingCounts(outputResult)
   const hasDiagnosisFindings = findings.missing > 0 || findings.relevance > 0 || findings.medication > 0
 
@@ -104,7 +103,7 @@ function getDisplayScore(outputResult: unknown): number | null {
     const maxScore = numberValue(item?.maxScore) ?? numberValue(item?.maxDeduction) ?? 0
     const deducted = numberValue(item?.deducted) ?? 0
     const isDiagnosisItem = item?.code === 'DIAGNOSIS_TREATMENT' || item?.label === 'Diagnosis, tindakan & obat klinis'
-    const shouldClearHiddenDiagnosisDeduction = isDiagnosisItem && deducted > 0 && diagnosisValidation?.isValid === true && !hasDiagnosisFindings
+    const shouldClearHiddenDiagnosisDeduction = isDiagnosisItem && deducted > 0 && !hasDiagnosisFindings
     const score = shouldClearHiddenDiagnosisDeduction
       ? maxScore
       : numberValue(item?.score) ?? Math.max(0, maxScore - deducted)

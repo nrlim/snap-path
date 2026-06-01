@@ -53,7 +53,6 @@ function getDisplayScore(outputResult: any) {
     const isDiagnosisItem = item.code === "DIAGNOSIS_TREATMENT" || item.label === "Diagnosis, tindakan & obat klinis";
     const shouldClearHiddenDiagnosisDeduction = isDiagnosisItem
       && (item.deducted || 0) > 0
-      && outputResult?.diagnosisValidation?.isValid
       && !hasDiagnosisFindings;
     const score = shouldClearHiddenDiagnosisDeduction
       ? maxScore
