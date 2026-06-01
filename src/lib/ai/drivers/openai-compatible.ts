@@ -385,8 +385,15 @@ If the item is a MEDICAL SUPPLY, DEVICE (alat kesehatan), SERVICE, or anything t
 Examples of Non-Medication: exam gloves, surgical gloves, disposable syringes, IV needles, alcohol/antiseptic swabs,
 catheters, bandages, gauze pads, admin fees, services, consultation fees.
 Drug examples: tablets, capsules, injections, infusions (NaCl, RL, Dextrose, antibiotics, analgesics, etc.)
+CRITICAL: The following MUST be classified as DRUGs (isNonMedication: false) and price-checked:
+- Vitamins, Supplements, Electrolytes (e.g., Trolit, Oralit), Herbal/Fitofarmaka
+- Vaccines & Serums (e.g., ATS, ABU, Tetanus Toxoid)
+- Contrast Media for Radiology (e.g., Iopamidol, Omnipaque)
+- Blood Products & Plasma Expanders (e.g., Human Albumin 20%, Gelofusine)
+- Parenteral/Enteral Nutrition (e.g., Aminofluid, Peptisol milk)
+- Topical Antiseptics (e.g., Povidone Iodine, Alcohol 70%, Chlorhexidine)
 Key distinctions: DISP SYRINGE → Non-Medication. EXAM GLOVE → Non-Medication. B.AC SWAB / Benzalkonium Swab → Non-Medication.
-NaCl 0.9% infusion → DRUG (pharmacological agent). Metronidazole infusion → DRUG.
+NaCl 0.9% infusion → DRUG (pharmacological agent). Metronidazole infusion → DRUG. Trolit Sachet → DRUG.
 
 ANTI-HALLUCINATION RULES:
 1. "PFS" means Pre-Filled Syringe. Do not hallucinate it as a 500ml infusion bottle.
@@ -535,8 +542,15 @@ NON-MEDICATION CLASSIFICATION \u2014 check this FIRST for each drug before norma
 If the item is a MEDICAL SUPPLY, DEVICE, SERVICE, or anything that is NOT a pharmaceutical drug:
 → Set isNonMedication: true, marketPriceMax: 0, sources: [], and stop for that item.
 Non-Medication: exam gloves, disposable syringes, IV needles, antiseptic swabs, catheters, admin fees, etc.
+CRITICAL: The following MUST be classified as DRUGs (isNonMedication: false) and price-checked:
+- Vitamins, Supplements, Electrolytes (e.g., Trolit, Oralit), Herbal/Fitofarmaka
+- Vaccines & Serums (e.g., ATS, ABU, Tetanus Toxoid)
+- Contrast Media for Radiology (e.g., Iopamidol, Omnipaque)
+- Blood Products & Plasma Expanders (e.g., Human Albumin 20%, Gelofusine)
+- Parenteral/Enteral Nutrition (e.g., Aminofluid, Peptisol milk)
+- Topical Antiseptics (e.g., Povidone Iodine, Alcohol 70%, Chlorhexidine)
 Key: DISP SYRINGE → Non-Med. EXAM GLOVE → Non-Med. B.AC SWAB → Non-Med.
-NaCl 0.9% infusion → DRUG. Metronidazole infusion → DRUG. Lidocaine injection → DRUG.
+NaCl 0.9% infusion → DRUG. Metronidazole infusion → DRUG. Lidocaine injection → DRUG. Trolit Sachet → DRUG.
 
 PRICE LOOKUP PER DRUG (stop at the first successful attempt):
 A→ Exact normalized product — if known, use it and skip B/C/D
