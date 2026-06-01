@@ -2,6 +2,74 @@ import prisma from '@/lib/db';
 import { ClaimValidationInput, ClaimValidationOutput } from '../types';
 import { getAIGateway } from '../gateway';
 
+type DiagnosisValidationDetail = ClaimValidationOutput['diagnosisValidation']['details'][number];
+type ProcedureFinding = NonNullable<DiagnosisValidationDetail['procedureFindings']>[number];
+
+function deriveDiagnosisCategory(icdCode: string) {
+  return icdCode.trim().toUpperCase().match(/^[A-Z]\d{2}/)?.[0] || 'UNCLASSIFIED';
+}
+
+function isHighConfidenceAppropriateFinding(finding: ProcedureFinding) {
+  return finding.status === 'APPROPRIATE' && finding.confidence !== 'LOW' && Boolean(finding.procedureCode);
+}
+
+async function saveAiApprovedDiagnosisProcedureMappings(details: DiagnosisValidationDetail[], claimedProcedureCodes: string[]) {
+  const uniqueClaimedCodes = Array.from(new Set(claimedProcedureCodes.filter(Boolean)));
+  if (uniqueClaimedCodes.length === 0) return;
+
+  for (const detail of details) {
+    const findings = detail.procedureFindings || [];
+    const findingByCode = new Map(findings.map((finding) => [finding.procedureCode, finding]));
+    const hasCompleteAiApproval = uniqueClaimedCodes.every((code) => {
+      const finding = findingByCode.get(code);
+      return finding ? isHighConfidenceAppropriateFinding(finding) : false;
+    });
+
+    if (!hasCompleteAiApproval) continue;
+    if ((detail.irrelevantProcedures?.length || 0) > 0 || (detail.unmatchedProcedures?.length || 0) > 0) continue;
+
+    const diagnosis = await prisma.diagnosisCode.upsert({
+      where: { icdCode: detail.diagnosisCode },
+      update: {
+        description: detail.diagnosisName || detail.diagnosisCode,
+        isActive: true,
+      },
+      create: {
+        icdCode: detail.diagnosisCode,
+        description: detail.diagnosisName || detail.diagnosisCode,
+        category: deriveDiagnosisCategory(detail.diagnosisCode),
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    for (const code of uniqueClaimedCodes) {
+      const finding = findingByCode.get(code);
+      if (!finding || !isHighConfidenceAppropriateFinding(finding)) continue;
+
+      const existing = await prisma.diagnosisProcedureMap.findFirst({
+        where: {
+          diagnosisId: diagnosis.id,
+          procedureCode: code,
+        },
+        select: { id: true },
+      });
+      if (existing) continue;
+
+      await prisma.diagnosisProcedureMap.create({
+        data: {
+          diagnosisId: diagnosis.id,
+          procedureCode: code,
+          procedureName: finding.procedureName || code,
+          isRequired: false,
+          confidence: finding.confidence === 'HIGH' ? 0.9 : 0.75,
+          source: 'AI_GENERATED',
+        },
+      });
+    }
+  }
+}
+
 export async function validateDiagnosisTreatment(input: ClaimValidationInput, jobId?: string): Promise<ClaimValidationOutput['diagnosisValidation']> {
   const { diagnoses, procedures } = input;
   const gateway = await getAIGateway({ clientId: input.clientId, providerId: input.providerId, jobId });
@@ -206,6 +274,14 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
   const ruleBasedScore = Math.max(0, 100 - ruleBasedDeduction);
   const finalScore = Math.min(aiScore, ruleBasedScore);
   const finalValid = overallValid && missingRequiredCount === 0 && irrelevantCount === 0 && medicationInappropriateCount === 0 && finalScore >= 80;
+
+  if (finalValid) {
+    try {
+      await saveAiApprovedDiagnosisProcedureMappings(details, claimedProcedureCodes);
+    } catch (error) {
+      console.error('Failed to cache AI-approved diagnosis-procedure mappings:', error);
+    }
+  }
 
   return {
     isValid: finalValid,

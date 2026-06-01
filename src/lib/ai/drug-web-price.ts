@@ -26,6 +26,8 @@ const TRUSTED_HOSTS = [
   'blibli.com',
   'tokopedia.com',
   'shopee.co.id',
+  'mims.com',
+  'satusehat.kemkes.go.id',
   'e-katalog.lkpp.go.id',
 ];
 
@@ -76,7 +78,22 @@ function buildDrugTerms(drug: { name: string; genericName?: string | null; dosag
     .filter((term) => term.length >= 4 && !stopWords.has(term) && !/^\d+$/.test(term))));
 }
 
-function extractMatchedPrices(text: string, drugTerms: string[]) {
+function calculateContextSimilarity(context: string, drugTerms: string[]) {
+  if (drugTerms.length === 0) return 0;
+  const normalizedContext = context.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+  const matchedTerms = drugTerms.filter((term) => normalizedContext.includes(term));
+  const coverage = matchedTerms.length / drugTerms.length;
+
+  // Stronger confidence when strength tokens such as 500mg, 1g, or 5ml match near the price.
+  const strengthTerms = drugTerms.filter((term) => /\d/.test(term));
+  const strengthCoverage = strengthTerms.length > 0
+    ? strengthTerms.filter((term) => normalizedContext.includes(term)).length / strengthTerms.length
+    : 1;
+
+  return (coverage * 0.75) + (strengthCoverage * 0.25);
+}
+
+function extractMatchedPrices(text: string, drugTerms: string[], minSimilarity = 0.6) {
   if (drugTerms.length === 0) return [];
 
   const normalizedText = text.toLowerCase();
@@ -90,10 +107,10 @@ function extractMatchedPrices(text: string, drugTerms: string[]) {
     const price = normalizePrice(match[1] || '');
     if (price < 100 || price > 5_000_000) continue;
 
-    const contextStart = Math.max(0, match.index - 260);
-    const contextEnd = Math.min(text.length, match.index + match[0].length + 260);
-    const context = text.slice(contextStart, contextEnd).toLowerCase();
-    if (drugTerms.some((term) => context.includes(term))) prices.add(price);
+    const contextStart = Math.max(0, match.index - 320);
+    const contextEnd = Math.min(text.length, match.index + match[0].length + 320);
+    const context = text.slice(contextStart, contextEnd);
+    if (calculateContextSimilarity(context, drugTerms) >= minSimilarity) prices.add(price);
   }
 
   return Array.from(prices);
@@ -153,20 +170,70 @@ function isTrustedUrl(url: string) {
   }
 }
 
-function buildQueryVariants(drug: { name: string; genericName?: string | null; dosage?: string | null }) {
-  const baseNames = Array.from(new Set([
-    drug.name,
-    drug.genericName || '',
-    [drug.genericName, drug.dosage].filter(Boolean).join(' '),
-    [drug.name, drug.dosage].filter(Boolean).join(' '),
-  ].map((value) => value.trim()).filter(Boolean)));
+type DrugSearchStage = {
+  name: 'exact' | 'generic' | 'relaxed';
+  queries: string[];
+  terms: string[];
+  minSimilarity: number;
+};
 
-  return Array.from(new Set(baseNames.flatMap((name) => [
+function uniqueNonEmpty(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function normalizeSearchPhrase(value: string) {
+  return value
+    .replace(/\b(tablet|tab|kapsul|capsule|cap|sirup|syrup|injeksi|injection|inj|vial|ampul|ampoule|infus|infusion|botol|bottle|strip)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildQueriesForName(name: string) {
+  return uniqueNonEmpty([
+    `"${name}" harga obat Indonesia`,
     `${name} harga obat Indonesia`,
     `${name} beli obat online`,
     `${name} apotek online`,
     `${name} Halodoc K24 Farmaku`,
-  ])));
+  ]);
+}
+
+function buildSearchStages(drug: { name: string; genericName?: string | null; dosage?: string | null }): DrugSearchStage[] {
+  const exactNames = uniqueNonEmpty([
+    [drug.name, drug.dosage || ''].filter(Boolean).join(' '),
+    drug.name,
+  ]);
+
+  const genericNames = uniqueNonEmpty([
+    [drug.genericName || '', drug.dosage || ''].filter(Boolean).join(' '),
+    drug.genericName || '',
+  ]);
+
+  const relaxedNames = uniqueNonEmpty([
+    normalizeSearchPhrase([drug.name, drug.dosage || ''].filter(Boolean).join(' ')),
+    normalizeSearchPhrase([drug.genericName || '', drug.dosage || ''].filter(Boolean).join(' ')),
+  ]).filter((name) => name.length >= 4);
+
+  return [
+    {
+      name: 'exact' as const,
+      queries: exactNames.flatMap(buildQueriesForName).slice(0, 6),
+      terms: buildDrugTerms({ name: drug.name, dosage: drug.dosage }),
+      minSimilarity: 0.6,
+    },
+    {
+      name: 'generic' as const,
+      queries: genericNames.flatMap(buildQueriesForName).slice(0, 5),
+      terms: buildDrugTerms({ name: drug.genericName || '', dosage: drug.dosage }),
+      minSimilarity: 0.65,
+    },
+    {
+      name: 'relaxed' as const,
+      queries: relaxedNames.flatMap(buildQueriesForName).slice(0, 4),
+      terms: buildDrugTerms({ name: relaxedNames.join(' '), dosage: drug.dosage }),
+      minSimilarity: 0.8,
+    },
+  ].filter((stage) => stage.queries.length > 0 && stage.terms.length > 0);
 }
 
 function buildDirectSearchUrls(query: string) {
@@ -180,6 +247,10 @@ function buildDirectSearchUrls(query: string) {
     `https://www.klikdokter.com/search?query=${encoded}`,
     `https://www.alodokter.com/search?s=${encoded}`,
     `https://www.sehatq.com/cari?keyword=${encoded}`,
+    `https://www.mims.com/indonesia/drug/search?q=${encoded}`,
+    `https://www.mims.com/indonesia/search?q=${encoded}`,
+    `https://satusehat.kemkes.go.id/sdmk/search?keyword=${encoded}`,
+    `https://satusehat.kemkes.go.id/platform/search?keyword=${encoded}`,
     `https://e-katalog.lkpp.go.id/id/search-produk?keyword=${encoded}`,
   ];
 }
@@ -212,10 +283,12 @@ async function searchTrustedDrugUrls(query: string) {
   return responses.flatMap((response) => response.status === 'fulfilled' ? extractUrls(response.value) : []);
 }
 
-export async function crawlIndonesianDrugPrice(drug: { name: string; genericName?: string | null; dosage?: string | null }): Promise<DrugWebPriceResult> {
-  const queryVariants = buildQueryVariants(drug);
-  const directUrls = queryVariants.slice(0, 3).flatMap(buildDirectSearchUrls);
-  const discoveredUrls = (await Promise.allSettled(queryVariants.slice(0, 4).map(searchTrustedDrugUrls)))
+async function collectCandidatesForStage(
+  drug: { name: string; genericName?: string | null; dosage?: string | null },
+  stage: DrugSearchStage,
+) {
+  const directUrls = stage.queries.slice(0, 3).flatMap(buildDirectSearchUrls);
+  const discoveredUrls = (await Promise.allSettled(stage.queries.slice(0, 3).map(searchTrustedDrugUrls)))
     .flatMap((result) => result.status === 'fulfilled' ? result.value : []);
 
   const results: DrugSearchResult[] = [...directUrls, ...discoveredUrls].map((url) => ({
@@ -229,26 +302,44 @@ export async function crawlIndonesianDrugPrice(drug: { name: string; genericName
     if (!result.url || seenUrls.has(result.url)) return false;
     seenUrls.add(result.url);
     return isTrustedUrl(result.url);
-  }).slice(0, 18);
+  }).slice(0, 12);
 
-  const candidates: Array<{ price: number; source: string }> = [];
-  const drugTerms = buildDrugTerms(drug);
-
-  const crawlResults = await Promise.allSettled(uniqueResults.slice(0, 12).map(async (result) => {
-    const snippetPrices = extractMatchedPrices(stripHtml(result.snippet || ''), drugTerms);
+  const crawlResults = await Promise.allSettled(uniqueResults.slice(0, 8).map(async (result) => {
+    const snippetPrices = extractMatchedPrices(stripHtml(result.snippet || ''), stage.terms, stage.minSimilarity);
     const pageText = await fetchPageText(result.url);
-    const pagePrices = extractMatchedPrices(pageText, drugTerms);
+    const pagePrices = extractMatchedPrices(pageText, stage.terms, stage.minSimilarity);
     return { result, prices: [...snippetPrices, ...pagePrices].filter((price, index, array) => array.indexOf(price) === index) };
   }));
 
+  const candidates: Array<{ price: number; source: string }> = [];
   for (const crawled of crawlResults) {
     if (crawled.status !== 'fulfilled') continue;
     const { result, prices } = crawled.value;
-    for (const price of prices.slice(0, 5)) {
+    for (const price of prices.slice(0, 4)) {
       candidates.push({
         price,
-        source: `${sourceNameFromUrl(result.url)} | ${result.title || drug.name} | internet crawl verification_v2 | listed price Rp ${price.toLocaleString('id-ID')} | unit conversion not available, treated as displayed unit price | Rp ${price.toLocaleString('id-ID')} | ${result.url}`,
+        source: `${sourceNameFromUrl(result.url)} | ${result.title || drug.name} | internet crawl verification_v2 retry_stage=${stage.name} | listed price Rp ${price.toLocaleString('id-ID')} | unit conversion not available, treated as displayed unit price | Rp ${price.toLocaleString('id-ID')} | ${result.url}`,
       });
+    }
+  }
+
+  return candidates;
+}
+
+export async function crawlIndonesianDrugPrice(drug: { name: string; genericName?: string | null; dosage?: string | null }): Promise<DrugWebPriceResult> {
+  const stages = buildSearchStages(drug).slice(0, 3);
+  let candidates: Array<{ price: number; source: string }> = [];
+  let resolvedStage: DrugSearchStage['name'] | null = null;
+
+  // Bounded retry strategy: exact brand/name first, generic second, relaxed keyword last.
+  // Each stage has finite query/url/fetch limits and fetchPageHtml has its own timeout,
+  // so the workflow cannot loop forever or get stuck on one drug.
+  for (const stage of stages) {
+    const stageCandidates = await collectCandidatesForStage(drug, stage);
+    if (stageCandidates.length > 0) {
+      candidates = stageCandidates;
+      resolvedStage = stage.name;
+      break;
     }
   }
 
@@ -267,7 +358,7 @@ export async function crawlIndonesianDrugPrice(drug: { name: string; genericName
     marketPriceMax,
     marketPriceAvg: prices.length >= 2 ? marketPriceAvg : null,
     sources: sorted.slice(-5).reverse().map((candidate) => candidate.source),
-    resolvedProductName: drug.genericName || drug.name,
+    resolvedProductName: resolvedStage === 'generic' ? (drug.genericName || drug.name) : drug.name,
     dosageForm: inferred.dosageForm,
     unitBasis: inferred.unitBasis,
   };
