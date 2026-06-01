@@ -29,6 +29,7 @@ const TRUSTED_HOSTS = [
   'mims.com',
   'satusehat.kemkes.go.id',
   'e-katalog.lkpp.go.id',
+  'google.com',
 ];
 
 function stripHtml(html: string) {
@@ -81,16 +82,19 @@ function buildDrugTerms(drug: { name: string; genericName?: string | null; dosag
 function calculateContextSimilarity(context: string, drugTerms: string[]) {
   if (drugTerms.length === 0) return 0;
   const normalizedContext = context.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-  const matchedTerms = drugTerms.filter((term) => normalizedContext.includes(term));
-  const coverage = matchedTerms.length / drugTerms.length;
-
-  // Stronger confidence when strength tokens such as 500mg, 1g, or 5ml match near the price.
   const strengthTerms = drugTerms.filter((term) => /\d/.test(term));
+  const nameTerms = drugTerms.filter((term) => !/\d/.test(term));
+
+  // Product-name match is mandatory signal. Strength/form match increases confidence,
+  // but many pharmacy cards omit strength near the displayed price even when the query is exact.
+  const nameCoverage = nameTerms.length > 0
+    ? nameTerms.filter((term) => normalizedContext.includes(term)).length / nameTerms.length
+    : 0;
   const strengthCoverage = strengthTerms.length > 0
     ? strengthTerms.filter((term) => normalizedContext.includes(term)).length / strengthTerms.length
     : 1;
 
-  return (coverage * 0.75) + (strengthCoverage * 0.25);
+  return (nameCoverage * 0.8) + (strengthCoverage * 0.2);
 }
 
 function extractMatchedPrices(text: string, drugTerms: string[], minSimilarity = 0.6) {
@@ -247,6 +251,7 @@ function buildDirectSearchUrls(query: string) {
     `https://www.klikdokter.com/search?query=${encoded}`,
     `https://www.alodokter.com/search?s=${encoded}`,
     `https://www.sehatq.com/cari?keyword=${encoded}`,
+    `https://www.google.com/search?q=${encoded}`,
     `https://www.mims.com/indonesia/drug/search?q=${encoded}`,
     `https://www.mims.com/indonesia/search?q=${encoded}`,
     `https://satusehat.kemkes.go.id/sdmk/search?keyword=${encoded}`,

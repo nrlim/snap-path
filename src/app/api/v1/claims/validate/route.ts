@@ -45,19 +45,26 @@ export async function POST(request: Request) {
     clientId = isPlatformDashboardUser ? payloadClientId : (clientId || null);
     providerId = typeof payload.providerId === 'string' && payload.providerId.trim() ? payload.providerId.trim() : null;
 
+    const provider = providerId
+      ? await prisma.provider.findUnique({ where: { id: providerId }, select: { id: true, clientId: true, isActive: true } })
+      : null;
+
+    // Super/platform admins may not be assigned to a client. When they run a workflow
+    // from dashboard and select a provider, derive the client from that provider.
+    if (isPlatformDashboardUser && !clientId && provider?.clientId) {
+      clientId = provider.clientId;
+    }
+
     if (!clientId) {
       return NextResponse.json(
-        { error: 'Client wajib dipilih agar penggunaan request dapat dicatat.', code: 'CLIENT_REQUIRED' },
+        { error: 'Client wajib dipilih atau pilih provider yang terhubung ke client agar penggunaan request dapat dicatat.', code: 'CLIENT_REQUIRED' },
         { status: 400 },
       );
     }
 
     const resolvedClientId = clientId;
 
-    const [client, provider] = await Promise.all([
-      prisma.client.findUnique({ where: { id: resolvedClientId }, select: { id: true, isActive: true } }),
-      providerId ? prisma.provider.findUnique({ where: { id: providerId }, select: { id: true, clientId: true, isActive: true } }) : Promise.resolve(null),
-    ]);
+    const client = await prisma.client.findUnique({ where: { id: resolvedClientId }, select: { id: true, isActive: true } });
 
     if (!client?.isActive) {
       return NextResponse.json(
