@@ -1,12 +1,14 @@
 import prisma from '@/lib/db';
 import { DrugPriceCheckInput, DrugPriceCheckOutput } from '../types';
-import { crawlIndonesianDrugPrice } from '../drug-web-price';
 import { getAIGateway } from '../gateway';
 
-const CACHE_TTL_DAYS = 7;
-const AI_CACHE_TTL_DAYS = 3; // AI knowledge-based prices expire sooner than crawl-verified
+// AI knowledge-based cache TTL (3 days). Entries are refreshed by always calling AI
+// and only updated when the AI returns a different price from what's cached.
+const AI_CACHE_TTL_DAYS = 3;
 const AI_KNOWLEDGE_SOURCE_TAG = 'ai_knowledge_v1';
-const CRAWL_VERIFIED_SOURCE_TAG = 'verification_v2';
+
+// Maximum number of drugs per batch AI call.
+const BATCH_SIZE = 15;
 
 function getMedicationUnitPrice(med: any) {
   return Number(med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0);
@@ -21,149 +23,184 @@ function getMedicationTotalPrice(med: any) {
 export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string): Promise<DrugPriceCheckOutput> {
   const { providerId, medications } = input;
 
-  // Fetch Threshold Config
-  const thresholdRecord = await prisma.thresholdConfig.findUnique({
-    where: {
-      providerId_category: {
-        providerId,
-        category: 'DRUG_PRICE'
-      }
-    }
-  });
+  // ── STEP 1: Parallel — fetch threshold config + all cache entries at once ──
+  const now = new Date();
+  const [thresholdRecord, ...cacheEntries] = await Promise.all([
+    prisma.thresholdConfig.findUnique({
+      where: { providerId_category: { providerId, category: 'DRUG_PRICE' } },
+    }),
+    ...medications.map((med) =>
+      prisma.drugPriceCache.findFirst({
+        where: { drugName: med.name, expiresAt: { gt: now } },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ),
+  ]);
 
   const thresholdPct = thresholdRecord?.thresholdPct ?? 0;
-  let hasOverThreshold = false;
-  let hasUnderPriced = false;
-  
-  const items: DrugPriceCheckOutput['items'] = [];
 
-  for (const med of medications) {
-    // 1. Check Cache
-    const cacheEntry = await prisma.drugPriceCache.findFirst({
-      where: {
-        drugName: med.name,
-        expiresAt: { gt: new Date() } // not expired
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+  // ── STEP 2: Always call AI batch — even if cache exists ────────────────────
+  // AI is the primary source of truth. Cache only serves as fallback and as a
+  // "last known price" to avoid unnecessary DB writes (skip update if same price).
+  type AiResult = {
+    marketPriceMax: number;
+    marketPriceAvg: number | null;
+    sources: string[];
+    resolvedProductName?: string;
+    dosageForm?: string;
+    unitBasis?: string;
+  };
 
-    let marketPriceMax = 0;
-    let sources: string[] = [];
-    let cachedAt: string | null = null;
-    let resolvedProductName: string | undefined;
-    let dosageForm: string | undefined;
-    let unitBasis: string | undefined;
-    let statusSource: "CACHE_HIT" | "NOT_FOUND" | "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" = 'NOT_FOUND';
+  const aiResults: (AiResult | null)[] = new Array(medications.length).fill(null);
 
+  const gateway = await getAIGateway({ clientId: input.clientId, providerId });
+
+  for (let batchStart = 0; batchStart < medications.length; batchStart += BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, medications.length);
+    const batchDrugs = medications.slice(batchStart, batchEnd).map((m) => ({
+      name: m.name,
+      genericName: m.genericName || null,
+      dosage: m.dosage || null,
+    }));
+
+    try {
+      const batchResult = await gateway.searchDrugMarketPriceBatch(batchDrugs);
+      const batchData: any[] = Array.isArray(batchResult?.data) ? batchResult.data : [];
+
+      batchData.forEach((aiData, batchPos) => {
+        const medIndex = batchStart + batchPos;
+        const aiPrice = Number(aiData?.marketPriceMax ?? 0);
+        const aiSources: string[] = Array.isArray(aiData?.sources) ? aiData.sources : [];
+
+        if (aiPrice > 0 && aiSources.some((s) => s.includes(AI_KNOWLEDGE_SOURCE_TAG))) {
+          aiResults[medIndex] = {
+            marketPriceMax: aiPrice,
+            marketPriceAvg: typeof aiData?.marketPriceAvg === 'number' ? aiData.marketPriceAvg : null,
+            sources: aiSources,
+            resolvedProductName: aiData?.resolvedProductName || undefined,
+            dosageForm: aiData?.dosageForm || undefined,
+            unitBasis: aiData?.unitBasis || undefined,
+          };
+        }
+      });
+    } catch (aiError) {
+      console.error(`[checkDrugPrices] Batch AI lookup failed (batch ${Math.floor(batchStart / BATCH_SIZE) + 1}):`, aiError);
+      // Non-fatal: fall back to cache for drugs in this batch.
+    }
+  }
+
+  // ── STEP 3: Reconcile AI results with cache — smart update ─────────────────
+  // For each drug:
+  //   - If AI returned a price AND it differs from cached price → update cache
+  //   - If AI returned a price AND it matches cached price → skip DB write
+  //   - If AI returned 0 → use cached price if available (graceful fallback)
+  const persistPromises: Promise<any>[] = [];
+
+  type FinalPrice = {
+    marketPriceMax: number;
+    sources: string[];
+    resolvedProductName?: string;
+    dosageForm?: string;
+    unitBasis?: string;
+    cachedAt: string | null;
+  };
+
+  const finalPrices: FinalPrice[] = medications.map((med, i) => {
+    const aiResult = aiResults[i];
+    const cacheEntry = cacheEntries[i];
+    const cachedPrice = cacheEntry?.marketPriceMax ?? 0;
     const cachedSources = cacheEntry?.sources as string[] | undefined;
-    // Accept cache entries from either crawl-verified or AI knowledge-based lookups
-    const isValidCache = Array.isArray(cachedSources) && cachedSources.length > 0 &&
-      cachedSources.some((s) => s.includes(CRAWL_VERIFIED_SOURCE_TAG) || s.includes(AI_KNOWLEDGE_SOURCE_TAG));
+    const hasValidCache = cachedPrice > 0 && Array.isArray(cachedSources) && cachedSources.length > 0;
 
-    if (cacheEntry && isValidCache) {
-      marketPriceMax = cacheEntry.marketPriceMax;
-      sources = cachedSources;
-      cachedAt = cacheEntry.fetchedAt.toISOString();
-      statusSource = 'CACHE_HIT';
-    } else {
-      // 2. Cache miss → try web crawl first (fast, free, no AI tokens).
-      // In practice this almost always returns 0 because pharmacy sites are JS-rendered
-      // SPAs that block server-side fetching — the AI fallback below handles those cases.
-      try {
-        const crawled = await crawlIndonesianDrugPrice({
-          name: med.name,
-          genericName: med.genericName || null,
-          dosage: med.dosage || null,
-        });
+    // AI succeeded → use AI result
+    if (aiResult && aiResult.marketPriceMax > 0) {
+      const priceChanged = aiResult.marketPriceMax !== cachedPrice;
 
-        marketPriceMax = crawled.marketPriceMax || 0;
-        sources = crawled.sources;
-        resolvedProductName = crawled.resolvedProductName || resolvedProductName;
-        dosageForm = crawled.dosageForm || dosageForm;
-        unitBasis = crawled.unitBasis || unitBasis;
+      if (priceChanged) {
+        // AI price differs from cache (or no cache exists) → write/update cache
+        const expiresAt = new Date(now);
+        expiresAt.setDate(now.getDate() + AI_CACHE_TTL_DAYS);
 
-        if (marketPriceMax > 0 && crawled.sources.some((s) => s.includes(CRAWL_VERIFIED_SOURCE_TAG))) {
-          const now = new Date();
-          const expiresAt = new Date();
-          expiresAt.setDate(now.getDate() + CACHE_TTL_DAYS);
-
-          await prisma.drugPriceCache.create({
-            data: {
-              drugName: med.name,
-              drugGenericName: med.genericName,
-              marketPriceMax,
-              marketPriceAvg: crawled.marketPriceAvg,
-              sources,
+        persistPromises.push(
+          prisma.drugPriceCache.upsert({
+            where: {
+              // Use drugName as the unique key for upsert; if no existing record,
+              // Prisma creates a new one. If one exists, it's updated.
+              id: cacheEntry?.id ?? '',
+            },
+            update: {
+              marketPriceMax: aiResult.marketPriceMax,
+              marketPriceAvg: aiResult.marketPriceAvg,
+              sources: aiResult.sources,
               fetchedAt: now,
               expiresAt,
             },
-          });
-          cachedAt = now.toISOString();
-        }
-      } catch (crawlError) {
-        console.error(`[checkDrugPrices] Web crawl failed for ${med.name}:`, crawlError);
+            create: {
+              drugName: med.name,
+              drugGenericName: med.genericName,
+              marketPriceMax: aiResult.marketPriceMax,
+              marketPriceAvg: aiResult.marketPriceAvg,
+              sources: aiResult.sources,
+              fetchedAt: now,
+              expiresAt,
+            },
+          }).catch((err) => {
+            console.error(`[checkDrugPrices] Cache upsert failed for ${med.name}:`, err);
+          }),
+        );
       }
+      // else: price is the same → skip DB write, save latency
 
-      // 3. AI knowledge fallback — runs when web crawl returns no price.
-      // The AI model uses training knowledge of Indonesian pharmacy prices (K24Klik, Halodoc,
-      // Farmaku, MIMS, e-Katalog, HET/HNA data) to provide a reference price.
-      // This covers virtually all drugs in the Indonesian formulary since they were in training data.
-      if (marketPriceMax === 0) {
-        try {
-          const gateway = await getAIGateway({ clientId: input.clientId, providerId });
-          const aiResult = await gateway.searchDrugMarketPrice({
-            name: med.name,
-            genericName: med.genericName || null,
-            dosage: med.dosage || null,
-          });
-
-          const aiData = aiResult?.data;
-          const aiPrice = Number(aiData?.marketPriceMax ?? 0);
-          const aiSources: string[] = Array.isArray(aiData?.sources) ? aiData.sources : [];
-          const isAiKnowledgeResult = aiSources.some((s: string) => s.includes(AI_KNOWLEDGE_SOURCE_TAG));
-
-          if (aiPrice > 0 && isAiKnowledgeResult) {
-            marketPriceMax = aiPrice;
-            sources = aiSources;
-            resolvedProductName = aiData?.resolvedProductName || resolvedProductName;
-            dosageForm = aiData?.dosageForm || dosageForm;
-            unitBasis = aiData?.unitBasis || unitBasis;
-
-            // Cache AI-sourced prices with a shorter TTL (3 days) since they come from training
-            // knowledge rather than a live crawl, and may be less precise.
-            const now = new Date();
-            const expiresAt = new Date();
-            expiresAt.setDate(now.getDate() + AI_CACHE_TTL_DAYS);
-
-            await prisma.drugPriceCache.create({
-              data: {
-                drugName: med.name,
-                drugGenericName: med.genericName,
-                marketPriceMax,
-                marketPriceAvg: typeof aiData?.marketPriceAvg === 'number' ? aiData.marketPriceAvg : null,
-                sources,
-                fetchedAt: now,
-                expiresAt,
-              },
-            });
-            cachedAt = now.toISOString();
-          }
-        } catch (aiError) {
-          console.error(`[checkDrugPrices] AI knowledge fallback failed for ${med.name}:`, aiError);
-        }
-      }
+      return {
+        marketPriceMax: aiResult.marketPriceMax,
+        sources: aiResult.sources,
+        resolvedProductName: aiResult.resolvedProductName,
+        dosageForm: aiResult.dosageForm,
+        unitBasis: aiResult.unitBasis,
+        cachedAt: priceChanged ? now.toISOString() : (cacheEntry?.fetchedAt?.toISOString() ?? now.toISOString()),
+      };
     }
 
+    // AI returned 0 or failed → fall back to cache
+    if (hasValidCache) {
+      return {
+        marketPriceMax: cachedPrice,
+        sources: cachedSources!,
+        cachedAt: cacheEntry!.fetchedAt.toISOString(),
+      };
+    }
+
+    // No AI result AND no cache → NOT_FOUND
+    return {
+      marketPriceMax: 0,
+      sources: [],
+      cachedAt: null,
+    };
+  });
+
+  // Fire all cache writes in parallel — non-blocking.
+  if (persistPromises.length > 0) {
+    await Promise.allSettled(persistPromises);
+  }
+
+  // ── STEP 4: Build output items ─────────────────────────────────────────────
+  let hasOverThreshold = false;
+  let hasUnderPriced = false;
+  const items: DrugPriceCheckOutput['items'] = [];
+
+  for (let i = 0; i < medications.length; i++) {
+    const med = medications[i];
+    const fp = finalPrices[i];
     const claimedUnitPrice = getMedicationUnitPrice(med);
     const claimedTotal = getMedicationTotalPrice(med);
 
-    if (marketPriceMax === 0) {
+    if (fp.marketPriceMax === 0) {
       items.push({
         name: med.name,
         genericName: med.genericName || null,
-        resolvedProductName,
-        dosageForm,
-        unitBasis,
+        resolvedProductName: fp.resolvedProductName,
+        dosageForm: fp.dosageForm,
+        unitBasis: fp.unitBasis,
         quantity: med.quantity,
         claimedUnitPrice,
         claimedTotal,
@@ -172,58 +209,46 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         expectedTotal: 0,
         status: 'NOT_FOUND',
         variancePct: 0,
-        sources,
-        cachedAt: null
+        sources: fp.sources,
+        cachedAt: null,
       });
       continue;
     }
 
-    const marketPriceMaxWithThreshold = marketPriceMax * (1 + (thresholdPct / 100));
-    
-    let variancePct = 0;
+    const marketPriceMaxWithThreshold = fp.marketPriceMax * (1 + thresholdPct / 100);
+    let variancePct = ((claimedUnitPrice - fp.marketPriceMax) / fp.marketPriceMax) * 100;
     let status: DrugPriceCheckOutput['items'][0]['status'] = 'WITHIN_RANGE';
 
     if (claimedUnitPrice > marketPriceMaxWithThreshold) {
       status = 'OVER_THRESHOLD';
-      variancePct = ((claimedUnitPrice - marketPriceMax) / marketPriceMax) * 100;
       hasOverThreshold = true;
-    } else {
-      variancePct = ((claimedUnitPrice - marketPriceMax) / marketPriceMax) * 100;
-      if (variancePct < -20) {
-        status = 'UNDER_PRICED';
-        hasUnderPriced = true;
-      }
+    } else if (variancePct < -20) {
+      status = 'UNDER_PRICED';
+      hasUnderPriced = true;
     }
 
     items.push({
       name: med.name,
       genericName: med.genericName || null,
-      resolvedProductName,
-      dosageForm,
-      unitBasis,
+      resolvedProductName: fp.resolvedProductName,
+      dosageForm: fp.dosageForm,
+      unitBasis: fp.unitBasis,
       quantity: med.quantity,
       claimedUnitPrice,
       claimedTotal,
-      marketPriceMax,
+      marketPriceMax: fp.marketPriceMax,
       marketPriceMaxWithThreshold,
       expectedTotal: marketPriceMaxWithThreshold * (med.quantity || 1),
       status,
       variancePct,
-      sources,
-      cachedAt
+      sources: fp.sources,
+      cachedAt: fp.cachedAt,
     });
   }
 
   let overallStatus: DrugPriceCheckOutput['status'] = 'VALID';
   if (hasOverThreshold || hasUnderPriced) overallStatus = 'WARNING';
-  if (items.some(i => i.status === 'NOT_FOUND')) overallStatus = 'WARNING';
+  if (items.some((i) => i.status === 'NOT_FOUND')) overallStatus = 'WARNING';
 
-  return {
-    jobId,
-    status: overallStatus,
-    items,
-    thresholdConfig: {
-      thresholdPct
-    }
-  };
+  return { jobId, status: overallStatus, items, thresholdConfig: { thresholdPct } };
 }

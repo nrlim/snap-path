@@ -316,12 +316,12 @@ Be conservative and clinically precise: false irrelevant flags are harmful. If u
 
   async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
-      marketPriceMax: z.number().describe('Highest verified UNIT price in IDR for the smallest dispensable unit. Return 0 if no reliable knowledge is available.'),
-      marketPriceAvg: z.number().nullable().describe('Average verified UNIT price in IDR, or null if fewer than two comparable price points are available.'),
-      sources: z.array(z.string()).describe('Source evidence array. Each entry: "ai_knowledge_v1 | product_name strength form | reference_sites | package_context | unit_conversion | per_unit_price_IDR | training_data"'),
-      resolvedProductName: z.string().describe('The exact product name and specification that was matched, e.g. "Ringer Lactate Infusion 500ml (Generic)" or "Ceftriaxone 1g Injection Vial (Generic)"'),
-      dosageForm: z.string().describe('The dosage form identified: tablet, capsule, syrup, injection_vial, injection_ampoule, infusion_bottle, cream, etc.'),
-      unitBasis: z.string().describe('What constitutes one "unit" for the price: "per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", etc.'),
+      marketPriceMax: z.number().describe('Highest verified UNIT price in IDR. Return 0 ONLY if the active ingredient is completely unrecognized in Indonesia.'),
+      marketPriceAvg: z.number().nullable().describe('Average UNIT price in IDR, or null if only one data point available.'),
+      sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion_math | per_unit_IDR | training_data"'),
+      resolvedProductName: z.string().describe('Canonical product name after normalization, e.g. "Lidocaine HCl 2% 5ml Ampoule" or "Ceftriaxone 1g Injection Vial"'),
+      dosageForm: z.string().describe('Dosage form: tablet, capsule, syrup, injection_vial, injection_ampoule, infusion_bottle, cream, suppository, etc.'),
+      unitBasis: z.string().describe('Unit basis for pricing: "per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", "per tube", etc.'),
     });
 
     const drugContext = typeof drug === 'string'
@@ -336,89 +336,248 @@ Be conservative and clinically precise: false irrelevant flags are harmful. If u
       model: this.ai(this.defaultModel),
       schema,
       experimental_repairText: repairJsonOnlyText,
-      system: `You are a senior Indonesian hospital pharmacist and drug pricing analyst. Your SOLE PURPOSE is to provide accurate market reference prices for medications so the system can detect OVERCHARGE or UNDERCHARGE in hospital insurance claims.
+      system: `You are a senior Indonesian hospital pharmacist specializing in drug pricing for JKN/BPJS claim audits. Your task is to provide market reference prices from your training knowledge of Indonesian drug prices so the system can detect OVERCHARGE or UNDERCHARGE.
 
-ROLE CONTEXT:
-- Hospital claims list medications with brand or generic names + unit prices
-- You provide the fair market reference price for the SAME unit basis
-- The system compares: claimed price vs your reference → flag if overcharged (>threshold) or suspiciously undercharged
-- You cannot browse the web. Use your training knowledge of Indonesian drug prices.
+CRITICAL: You are processing drug entries from Indonesian hospital information systems (SIMRS). These systems often embed dosage/volume/concentration directly in the drug name field in non-standard ways. You MUST normalize the name before searching.
 
-YOUR REFERENCE SOURCES (training knowledge, in priority order):
-1. Online pharmacy retail: K24Klik.com, Halodoc, Farmaku, Lifepack, GoApotik, KimiaFarma.co.id
-2. E-commerce pharmacy stores: Tokopedia, Shopee official pharmacy sellers
-3. MIMS Indonesia (mims.com/indonesia) — drug monographs with indicative pricing
-4. SATUSEHAT / Formularium Nasional / FORNAS — national formulary regulated pricing
-5. e-Katalog LKPP (e-katalog.lkpp.go.id) — government procurement baseline pricing
-6. HET (Harga Eceran Tertinggi) Kemenkes regulations
-7. HNA (Harga Netto Apotek) + hospital markup norms: 10-30% for generics, up to 50% for branded
+INDONESIAN HOSPITAL DRUG NAMING CONVENTIONS:
+Drug names from SIMRS often look like these — you must parse them correctly:
+- "LIDOCAINE HCL 5ML 2%" → Active: Lidocaine HCl, Strength: 2%, Volume: 5ml, Form: injection ampoule
+- "CEFTRIAXONE INJ 1G" → Active: Ceftriaxone, Strength: 1g, Form: injection vial
+- "NACL 0,9% 100ML" → Active: NaCl 0.9%, Volume: 100ml, Form: infusion bottle
+- "AMOX 500MG KAPS" → Active: Amoxicillin, Strength: 500mg, Form: capsule
+- "OMEPRAZOL INJ 40MG" → Active: Omeprazole, Strength: 40mg, Form: injection vial
+- "RL 500 ML" or "RINGER LAKTAT 500ML" → Ringer Lactate 500ml infusion bottle
+- "DEXAMETHASONE 5MG/ML 1ML AMP" → Active: Dexamethasone, Strength: 5mg/ml×1ml=5mg, Form: ampoule
+- "METRONIDAZOLE INF 500MG/100ML" → Active: Metronidazole 500mg/100ml, Form: infusion bottle
 
-PRICING MODE — KNOWLEDGE-BASED AI REFERENCE:
-- You CANNOT browse the internet, so use your training data knowledge of Indonesian drug prices.
-- If you have reliable training knowledge of this drug's Indonesian retail price range, provide it.
-- Use the UPPER BOUND of any known price range as marketPriceMax (conservative for fraud detection).
-- Format source entries as: "ai_knowledge_v1 | {resolved_product} | K24Klik/Halodoc/Farmaku | {package_info_known} | {conversion_math} | {per_unit_price_IDR} | training_data"
+INDONESIAN ABBREVIATIONS TO NORMALIZE:
+- INJ / INJEKSI → injection (determine vial vs ampoule by volume: <10ml=ampoule, ≥10ml=vial)
+- INF / INFUS / INFUSION → infusion bottle (IV bag)
+- TAB / TABLET → tablet
+- KAPS / KAP / CAP / CAPSULE → capsule
+- AMP / AMPUL / AMPOULE → ampoule
+- VL / VIAL → vial
+- SYR / SIRUP / SYRUP → syrup bottle
+- SUSP / SUSPENSI → suspension bottle
+- SUPP / SUPPOSITORIA → suppository
+- KRIM / CREAM → cream tube
+- GEL → gel tube
+- SALEP / OINT → ointment tube
+- LAR / LARUTAN → solution
+- STRIP → strip (contains multiple tablets/capsules, usually 10)
+- BTL / BOTOL → bottle
+- TTS / TETES → drops (eye/ear/nasal)
+- OBT KUMUR → mouthwash/gargle
+- PLSTR / PATCH → transdermal patch
 
-BRAND vs GENERIC RESOLUTION:
-- BRAND names (e.g. "Sanmol"=Paracetamol, "Kalnex"=Tranexamic Acid): identify generic, price the brand
-- GENERIC names: price the generic; note branded equivalent as context if known
-- Return marketPriceMax from the specified type (brand if brand, generic if generic)
+REFERENCE SOURCES (from training knowledge):
+1. K24Klik, Halodoc, Farmaku, GoApotik, Lifepack, KimiaFarma — retail pharmacy prices
+2. MIMS Indonesia — professional drug database with price ranges
+3. e-Katalog LKPP — government procurement baseline (floor price)
+4. HET/HNA Kemenkes — regulated maximum retail price
+5. Hospital markup norms: +10-30% above HNA for generics; up to +50% for branded
 
-ANTI-HALLUCINATION — STRICTLY ENFORCE:
-- Do NOT confuse package price with unit price (strip of 10 tabs → divide by 10; vial of 50ml → 1 vial price)
-- Do NOT confuse strengths: 500mg ≠ 250mg ≠ 1g. These have significantly different prices.
-- Do NOT confuse dosage forms: tablet ≠ injection vial ≠ infusion bottle ≠ ampoule
-- Do NOT fabricate drug names, brands, or prices not present in Indonesian market
-- Do NOT reuse one price across multiple different drugs — each must be independently evaluated
-- Do NOT confuse packaging size: 100ml bottle ≠ 500ml bottle
-- If you are GENUINELY UNCERTAIN (unrecognized drug, ambiguous strength, unknown in Indonesia): return marketPriceMax: 0
+ANTI-HALLUCINATION RULES:
+- STRIP prices: divide by unit count (usually 10) to get per-tablet price
+- Ampoule/vial: price is per single ampoule/vial unit, NOT per box
+- Infusion bottle: price per bottle at specified volume (100ml ≠ 500ml)
+- Do NOT confuse concentrations: 2% lidocaine ≠ 5% lidocaine
+- Do NOT confuse volumes: 5ml ampoule ≠ 10ml vial
+- If the drug has multiple strengths available in Indonesia and input is unclear, use the most common strength for that drug class
+- Use the UPPER BOUND of any known price range for marketPriceMax`,
 
-RETURN 0 WHEN:
-- Drug name is completely unrecognized or not available in Indonesia
-- Strength/form is ambiguous and you cannot determine unit basis
-- You would be guessing rather than applying knowledge`,
-      prompt: `Research the Indonesian market reference price for this medication to validate a hospital claim:
+      prompt: `Price lookup for Indonesian hospital claim validation:
 
+INPUT:
 ${JSON.stringify(drugContext, null, 2)}
 
-STEP 1 — IDENTIFY PRODUCT:
-- Parse: active ingredient, strength/concentration, dosage form
-- Determine brand vs generic. Identify generic equivalent for branded drugs.
-- "Strip" in the name → unit is per strip (typically 10 tabs). "Tablet"/"Tab" alone → per tablet.
+--- STEP 0: NORMALIZE THE DRUG NAME ---
+Hospital SIMRS systems embed dosage info in the name field. Parse all components:
+- What is the active ingredient (generic INN name)?
+- What is the strength/concentration? (mg, g, %, mg/ml, IU, etc.)
+- What is the volume or package size? (ml, mg per vial, etc.)
+- What dosage form abbreviation is present? (INJ/INF/TAB/KAPS/AMP/VL/SYR/etc.)
+- Is there a brand name? What is the generic equivalent?
+- Normalize: map abbreviated form to canonical form (e.g. INJ → injection_vial or injection_ampoule)
 
-STEP 2 — DETERMINE UNIT BASIS:
-- "Tablet/Tab" (no Strip) → per tablet
-- "Strip" → per strip (usually 10 tablets; note conversion explicitly)
-- "Injection/Inj Vial" → per vial
-- "Injection/Inj Ampoule/Amp" → per ampoule
-- "IV Fluid/Infus/Infusion/RL/NaCl/Dextrose" → per bottle (specify volume)
-- "Syrup/Suspensi/Drops" → per bottle
-- "Capsule/Cap" (no Strip) → per capsule
-- "Krim/Salep/Gel" → per tube
+--- STEP 1: DETERMINE UNIT BASIS ---
+Based on normalized form, determine what 1 "unit" means for hospital billing:
+- Injection ampoule (<10ml): 1 unit = 1 ampoule
+- Injection vial (≥10ml or powder for reconstitution): 1 unit = 1 vial
+- Infusion bag/bottle: 1 unit = 1 bottle at specified volume
+- Tablet/Capsule (no Strip): 1 unit = 1 tablet/capsule
+- Strip: 1 unit = 1 strip (typically 10 tablets — note the count and show division math)
+- Syrup/Suspension: 1 unit = 1 bottle
+- Cream/Gel/Ointment: 1 unit = 1 tube
 
-STEP 3 — RECALL INDONESIAN MARKET PRICE:
-- From your training knowledge, recall the retail price range in Indonesian pharmacies
-- Common generics (Paracetamol, Amoxicillin, Ceftriaxone, Omeprazole, Ranitidine, Metformin,
-  Amlodipine, Captopril, Ringer Lactate, NaCl 0.9%, Dexamethasone, Ketorolac, Ondansetron,
-  Furosemide, etc.) — you should know approximate Indonesian prices
-- Show explicit unit conversion math: e.g. "strip Rp 8.000 / 10 tab = Rp 800/tab"
-- Use the UPPER BOUND of the known price range for marketPriceMax
+--- STEP 2: PRICE LOOKUP (stop at the first successful attempt) ---
 
-STEP 4 — VALIDATE YOUR KNOWLEDGE:
-- Are you confident this drug exists in Indonesian market with this strength/form? → provide price
-- Is the drug name, strength, or form ambiguous/unrecognizable? → return marketPriceMax: 0
-- Would you be fabricating/guessing? → return marketPriceMax: 0
+ATTEMPT A — Exact normalized product:
+Recall Indonesian pharmacy price for: {active_ingredient} {strength} {form}
+→ If you know this exact product's price, USE IT and stop. Do NOT continue to B/C/D.
 
-OUTPUT:
-- marketPriceMax = highest known UNIT price (IDR) from training knowledge; 0 if uncertain
-- marketPriceAvg = average of known unit price range (null if only one data point)
-- sources: "ai_knowledge_v1 | {resolved_product} | {reference_sites} | {package_info} | {conversion} | {per_unit_IDR} | training_data"
-- resolvedProductName = exact product matched (e.g. "Amoxicillin 500mg Capsule (Generic)")
-- If NO reliable knowledge → marketPriceMax: 0, marketPriceAvg: null, sources: []`,
+ATTEMPT B — Nearest common strength (ONLY if A yielded no result):
+If the stated strength is unusual, use the nearest standard Indonesian strength.
+→ If found, USE IT and stop.
+
+ATTEMPT C — Active ingredient + form only (ONLY if A and B both failed):
+Use the most common Indonesian strength for this active ingredient + form.
+→ If found, USE IT and stop.
+
+ATTEMPT D — genericName field (ONLY if A/B/C all failed and genericName differs from name):
+Try the genericName field as a completely separate lookup.
+
+PRICE RECALL HINTS for common Indonesian hospital drugs:
+- Paracetamol 500mg tab: Rp 200–500/tab (generic)
+- Amoxicillin 500mg cap: Rp 500–1.500/cap (generic)
+- Ceftriaxone 1g inj vial: Rp 8.000–25.000/vial (generic)
+- Cefotaxime 1g inj vial: Rp 8.000–20.000/vial
+- Omeprazole 20mg/40mg inj: Rp 15.000–45.000/vial; oral: Rp 500–2.000/cap
+- Ranitidine 25mg/ml 2ml amp: Rp 2.000–5.000/amp
+- Ondansetron 4mg/2ml amp: Rp 3.000–10.000/amp; 8mg/4ml: Rp 5.000–15.000/amp
+- Ketorolac 30mg/ml 1ml amp: Rp 3.000–8.000/amp
+- Dexamethasone 5mg/ml 1ml amp: Rp 1.500–5.000/amp
+- Metronidazole 500mg/100ml inf: Rp 8.000–20.000/bottle
+- NaCl 0.9% 100ml: Rp 5.000–15.000/bottle; 500ml: Rp 8.000–20.000/bottle
+- Ringer Lactate 500ml: Rp 8.000–20.000/bottle; 1000ml: Rp 12.000–30.000/bottle
+- Dextrose 5% 500ml: Rp 10.000–22.000/bottle
+- Furosemide 10mg/ml 2ml amp: Rp 1.500–4.000/amp; oral 40mg tab: Rp 200–500/tab
+- Lidocaine HCl 2% 5ml amp: Rp 3.000–8.000/amp; 2% 20ml vial: Rp 8.000–20.000/vial
+- Metformin 500mg tab: Rp 300–800/tab (generic)
+- Amlodipine 5mg/10mg tab: Rp 300–1.500/tab
+- Captopril 12.5mg/25mg tab: Rp 200–600/tab
+- Diazepam 5mg/ml 2ml amp: Rp 2.000–6.000/amp
+- Tramadol 50mg cap: Rp 1.500–4.000/cap; 100mg/2ml amp: Rp 5.000–12.000/amp
+- Vitamin C 200mg/ml 5ml amp: Rp 2.000–6.000/amp
+- Vitamin B complex tab: Rp 200–500/tab
+- Antacid suspension (per bottle): Rp 8.000–25.000/bottle
+- Salbutamol 2.5mg/2.5ml nebul: Rp 3.000–8.000/respule
+- Insulin Novorapid/Apidra/Humalog 100IU/ml 3ml: Rp 80.000–120.000/cartridge
+- Albumin 20% 100ml: Rp 350.000–600.000/bottle
+- Heparin 5000IU/ml 1ml amp: Rp 15.000–35.000/amp
+
+--- STEP 3: OUTPUT ---
+- marketPriceMax: Use the upper bound of the recalled price range (conservative for fraud detection)
+- marketPriceAvg: Middle of the known range; null if only one price point known
+- resolvedProductName: Canonical name after normalization (e.g. "Lidocaine HCl 2% 5ml Injection Ampoule")
+- sources: ONE entry per recall attempt that yielded a result:
+  "ai_knowledge_v1 | {resolvedProductName} | K24Klik/Halodoc/Farmaku/eLKPP | {package_context} | {conversion_math_if_needed} | {per_unit_IDR} | training_data"
+- Return marketPriceMax: 0 ONLY if the active ingredient is completely unrecognized OR unavailable in Indonesia`,
       temperature: 0.1,
     });
 
     return { data: object, usage: usage as any };
+  }
+
+  async searchDrugMarketPriceBatch(drugs: Array<{ name: string; genericName?: string | null; dosage?: string | null }>): Promise<{ data: any[]; usage?: Usage }> {
+    // Batch pricing: send all drugs in one AI call rather than N sequential calls.
+    // This is the primary latency optimization — reduces N AI round-trips to 1.
+    const schema = z.object({
+      results: z.array(z.object({
+        index: z.number().int().describe('Zero-based index matching the position in the input drugs array'),
+        marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 ONLY if active ingredient is completely unrecognized in Indonesia.'),
+        marketPriceAvg: z.number().nullable().describe('Average UNIT price in IDR, or null if only one data point.'),
+        sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion | per_unit_IDR | training_data"'),
+        resolvedProductName: z.string().describe('Canonical name after SIMRS normalization, e.g. "Ceftriaxone 1g Injection Vial"'),
+        dosageForm: z.string().describe('tablet, capsule, injection_vial, injection_ampoule, infusion_bottle, syrup_bottle, cream, etc.'),
+        unitBasis: z.string().describe('"per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", "per tube", etc.'),
+      })).describe('One result object per drug input, in index order.'),
+    });
+
+    const drugsJson = JSON.stringify(drugs.map((d, i) => ({ index: i, ...d })), null, 2);
+
+    const { object, usage } = await generateObject({
+      model: this.ai(this.defaultModel),
+      schema,
+      experimental_repairText: repairJsonOnlyText,
+      system: `You are a senior Indonesian hospital pharmacist specializing in drug pricing for JKN/BPJS claim audits. You MUST return a price result for EVERY drug in the input list, maintaining the same index order.
+
+CRITICAL: Drug entries are from Indonesian hospital SIMRS that embed dosage/volume/concentration in the drug name field non-standardly. You MUST normalize each name before pricing.
+
+INDONESIAN HOSPITAL DRUG NAMING CONVENTIONS — parse each name:
+- "LIDOCAINE HCL 5ML 2%" → Lidocaine HCl 2% 5ml, Form: injection_ampoule
+- "CEFTRIAXONE INJ 1G" → Ceftriaxone 1g, Form: injection_vial
+- "NACL 0,9% 100ML" → NaCl 0.9% 100ml, Form: infusion_bottle
+- "AMOX 500MG KAPS" → Amoxicillin 500mg, Form: capsule
+- "OMEPRAZOL INJ 40MG" → Omeprazole 40mg, Form: injection_vial
+- "RL 500 ML" → Ringer Lactate 500ml, Form: infusion_bottle
+- "DEXAMETHASONE 5MG/ML 1ML AMP" → Dexamethasone 5mg/ml×1ml=5mg, Form: injection_ampoule
+- "METRONIDAZOLE INF 500MG/100ML" → Metronidazole 500mg/100ml, Form: infusion_bottle
+
+ABBREVIATION MAP:
+INJ/INJEKSI→injection | INF/INFUS→infusion_bottle | TAB/TABLET→tablet | KAPS/CAP/CAPSULE→capsule
+AMP/AMPUL→ampoule | VL/VIAL→vial | SYR/SIRUP→syrup | SUSP→suspension | SUPP→suppository
+KRIM/CREAM→cream | GEL→gel | SALEP/OINT→ointment | LAR→solution | STRIP→strip | TTS→drops
+
+UNIT BASIS RULES:
+- Ampoule (<10ml): 1 unit = 1 ampoule | Vial (≥10ml or powder): 1 unit = 1 vial
+- Infusion bag: 1 unit = 1 bottle at stated volume | Tablet/Cap (no STRIP): 1 unit = 1 tab/cap
+- STRIP: 1 unit = 1 strip (usually 10 tabs — show division math explicitly)
+- Syrup/Suspension: 1 unit = 1 bottle | Cream/Gel/Ointment: 1 unit = 1 tube
+
+PRICE LOOKUP PER DRUG (stop at the first successful attempt):
+A→ Exact normalized product — if known, use it and skip B/C/D
+B→ Nearest common strength (only if A failed)
+C→ Active ingredient + form only (only if A+B failed)
+D→ genericName field (only if A+B+C failed and genericName differs)
+
+ANTI-HALLUCINATION:
+- STRIP price ÷ unit count = per-tablet price (show math)
+- Ampoule/vial: price is per SINGLE unit, not per box
+- 100ml bottle ≠ 500ml bottle (different prices)
+- 2% ≠ 5% concentration (different prices)
+- Return 0 ONLY when active ingredient is genuinely unrecognized in Indonesia
+- NEVER skip an index — every drug must have a result entry`,
+
+      prompt: `Price ALL ${drugs.length} drugs below for Indonesian hospital claim validation. Return one result per drug, maintaining index order.
+
+INPUT DRUGS:
+${drugsJson}
+
+PRICE REFERENCE TABLE (Indonesian retail market, use UPPER BOUND as marketPriceMax):
+Paracetamol 500mg tab: Rp 200–500/tab | Amoxicillin 500mg cap: Rp 500–1.500/cap
+Ceftriaxone 1g vial: Rp 8.000–25.000/vial | Cefotaxime 1g vial: Rp 8.000–20.000/vial
+Omeprazole 40mg inj: Rp 15.000–45.000/vial | Omeprazole 20mg cap: Rp 500–2.000/cap
+Ranitidine 25mg/ml 2ml amp: Rp 2.000–5.000/amp | Ondansetron 4mg/2ml amp: Rp 3.000–10.000
+Ondansetron 8mg/4ml amp: Rp 5.000–15.000/amp | Ketorolac 30mg/ml 1ml amp: Rp 3.000–8.000
+Dexamethasone 5mg/ml 1ml amp: Rp 1.500–5.000/amp | Metronidazole 500mg/100ml inf: Rp 8.000–20.000
+NaCl 0.9% 100ml: Rp 5.000–15.000 | NaCl 0.9% 500ml: Rp 8.000–20.000
+Ringer Lactate 500ml: Rp 8.000–20.000 | Ringer Lactate 1000ml: Rp 12.000–30.000
+Dextrose 5% 500ml: Rp 10.000–22.000 | Furosemide 10mg/ml 2ml amp: Rp 1.500–4.000
+Furosemide 40mg tab: Rp 200–500/tab | Lidocaine HCl 2% 5ml amp: Rp 3.000–8.000
+Lidocaine HCl 2% 20ml vial: Rp 8.000–20.000 | Metformin 500mg tab: Rp 300–800
+Amlodipine 5mg/10mg tab: Rp 300–1.500 | Captopril 12.5/25mg tab: Rp 200–600
+Diazepam 5mg/ml 2ml amp: Rp 2.000–6.000 | Tramadol 50mg cap: Rp 1.500–4.000
+Tramadol 100mg/2ml amp: Rp 5.000–12.000 | Vitamin C 200mg/ml 5ml amp: Rp 2.000–6.000
+Vitamin B complex tab: Rp 200–500 | Antacid suspension/bottle: Rp 8.000–25.000
+Salbutamol 2.5mg/2.5ml nebule: Rp 3.000–8.000 | Albumin 20% 100ml: Rp 350.000–600.000
+Heparin 5000IU/ml 1ml amp: Rp 15.000–35.000 | Insulin rapid-acting 3ml cartridge: Rp 80.000–120.000
+Spironolactone 25mg tab: Rp 300–800 | Bisoprolol 5mg tab: Rp 500–2.000
+Simvastatin 20mg tab: Rp 300–1.000 | Atorvastatin 20mg tab: Rp 1.000–4.000
+Tranexamic acid 500mg/5ml amp: Rp 8.000–20.000 | Ciprofloxacin 200mg/100ml inf: Rp 15.000–35.000
+Ciprofloxacin 500mg tab: Rp 800–3.000 | Gentamicin 40mg/ml 2ml amp: Rp 3.000–8.000
+
+For each drug:
+1. Normalize SIMRS name → canonical form
+2. Determine unit basis
+3. Recall Indonesian market price using reference table above or training knowledge
+4. Format source: "ai_knowledge_v1 | {resolved_product} | K24Klik/Halodoc/Farmaku/eLKPP | {package_context} | {conversion_if_any} | {per_unit_IDR} | training_data"
+5. Return 0 ONLY for genuinely unrecognized active ingredients`,
+      temperature: 0.1,
+    });
+
+    // Map results array back by index, filling any gaps with empty fallback
+    const resultMap = new Map<number, any>();
+    for (const r of (object as any).results ?? []) {
+      resultMap.set(Number(r.index), r);
+    }
+    const data = drugs.map((_, i) => resultMap.get(i) ?? {
+      index: i, marketPriceMax: 0, marketPriceAvg: null, sources: [],
+      resolvedProductName: '', dosageForm: 'unknown', unitBasis: 'unknown',
+    });
+
+    return { data, usage: usage as any };
   }
 
   async generateClinicalPathway(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }> {
