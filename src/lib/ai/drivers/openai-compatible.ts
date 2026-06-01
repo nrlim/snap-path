@@ -232,8 +232,16 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
         diagnosisCode: z.string(),
         diagnosisName: z.string().describe('Human-readable name of the diagnosis'),
         clinicalSummary: z.string().describe('Brief 2-3 sentence clinical summary of this condition for admision context'),
-        matchedProcedures: z.array(z.string()).describe('Claimed procedures that are clinically relevant to this diagnosis'),
-        unmatchedProcedures: z.array(z.string()).describe('Only procedures that are clearly irrelevant after clinical reasoning. Do not include procedures merely because they are absent from local mapping.'),
+        matchedProcedures: z.array(z.string()).describe('Claimed procedures that are clinically relevant to this diagnosis. Include code and name when available.'),
+        unmatchedProcedures: z.array(z.string()).describe('Only claimed procedures that are clearly irrelevant after clinical reasoning. Do not include procedures merely because they are absent from local mapping.'),
+        procedureFindings: z.array(z.object({
+          procedureCode: z.string(),
+          procedureName: z.string(),
+          status: z.enum(['APPROPRIATE', 'REVIEW_NEEDED', 'INAPPROPRIATE']),
+          reason: z.string().describe('Specific clinical rationale for the status, tied to diagnosis, procedure purpose, and available claim context'),
+          againstDiagnosis: z.string().describe('Diagnosis/code being assessed'),
+          confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Use HIGH only when the relationship is clear from standard clinical practice or clearly unrelated')
+        })).describe('One finding for every claimed procedure against this diagnosis. Use REVIEW_NEEDED when clinical context is insufficient.'),
         irrelevantProcedures: z.array(z.object({
           procedureCode: z.string(),
           procedureName: z.string(),
@@ -270,8 +278,37 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
       model: this.ai(this.defaultModel),
       schema,
       experimental_repairText: repairJsonOnlyText,
-      prompt: `Return ONLY raw JSON matching the schema. Do not use markdown.\n\nYou are a clinical pathway validation expert for Indonesian healthcare (JKN/BPJS context). Analyze the following claim for medical necessity and diagnosis-treatment appropriateness:\n\n${JSON.stringify(payload, null, 2)}\n\nFor each diagnosis:\n1. Assess whether each CLAIMED procedure is clinically relevant to the diagnosis.\n2. Assess whether each CLAIMED medication is appropriate for the diagnosis, including supportive therapy, symptom control, antibiotics, fluids, chronic medication continuation, and route/formulation context.\n3. Mark a procedure as irrelevant ONLY if there is no plausible diagnostic, therapeutic, monitoring, administrative admission, imaging, laboratory, nursing, or supportive-care relationship to the diagnosis.\n4. Mark a medication as INAPPROPRIATE only when it clearly has no plausible relation to the diagnosis or common inpatient supportive care. If it could depend on symptoms/comorbidity/lab results, use REVIEW_NEEDED.\n5. Do NOT mark a procedure irrelevant merely because it is absent from a local mapping table or uses a local hospital code. If uncertain, treat it as relevant/needs context, not irrelevant.\n6. For every irrelevant procedure or medication finding, provide a specific reason and state which diagnosis it is being compared against.\n7. Missing required procedures must be truly required by standard pathway. Suggested procedures are advisory only and must not be labeled required.\n8. For suggested procedures, explain why they may be considered, but make clear they are not yet claimed.\n9. Provide a brief clinical summary of the condition for admission context.\nBase your analysis on standard Indonesian medical guidelines and clinical pathways. Be conservative: false irrelevant flags are harmful for users. Use a constructive, recovery-oriented tone: frame findings as clear actions to improve clinical completeness and claim readiness without hiding clinical risk.`,
-      temperature: this.temperature,
+      prompt: `Return ONLY raw JSON matching the schema. Do not use markdown.
+
+You are a senior clinical pathway reviewer for Indonesian healthcare claims (JKN/BPJS and hospital billing context). Your task is to perform a clinically sound fallback review when local diagnosis-procedure mapping is absent or incomplete.
+
+CLAIM PAYLOAD:
+${JSON.stringify(payload, null, 2)}
+
+CORE PRINCIPLES:
+1. Do NOT use hardcoded diagnosis-procedure mappings. Base your review on clinical reasoning, standard pathway logic, and the actual claim context only.
+2. Local lookup/mapping data, if present in the payload, is supporting evidence only. If it is absent/empty/incomplete, perform direct AI clinical review; absence from mapping is NEVER evidence of non-compliance.
+3. Assess every CLAIMED procedure against every relevant diagnosis using the procedure name, code, encounter type, admission context, medications, documents, LOS/outcome notes, and common inpatient workflow.
+4. Consider broad legitimate relationships: diagnostic workup, therapeutic treatment, monitoring, nursing/supportive care, admission/administrative care, labs, imaging, surgery/anesthesia, rehabilitation, discharge planning, and complication/comorbidity management.
+5. Mark a procedure APPROPRIATE when there is a plausible clinical or operational relationship to the diagnosis/admission.
+6. Mark REVIEW_NEEDED when the procedure could be appropriate but depends on missing clinical context such as symptoms, severity, lab/imaging results, procedure notes, comorbidity, complication, route, or timing.
+7. Mark INAPPROPRIATE only when the procedure is clearly unrelated to the diagnosis/admission and you can explain why. Use HIGH confidence only for clearly unrelated cases.
+8. Do not penalize local hospital procedure codes, uncommon names, bundled services, or non-standard code systems. Use the description/name as the main semantic signal when code systems are local.
+9. Missing required procedures must be conservative. Use REQUIRED only when a standard pathway strongly requires the item for safe care in this encounter. Common/optional items should go to suggestedProcedures, not missingRequiredProcedures.
+10. Medication findings should include supportive therapy, symptom control, antibiotics, fluids, chronic medication continuation, prophylaxis, and comorbidity context. Use REVIEW_NEEDED if indication depends on undocumented context.
+
+OUTPUT REQUIREMENTS PER DIAGNOSIS:
+- procedureFindings: include one finding for each claimed procedure.
+- matchedProcedures: include procedures assessed as APPROPRIATE.
+- unmatchedProcedures and irrelevantProcedures: include only procedures assessed as INAPPROPRIATE with MEDIUM/HIGH confidence.
+- missingRequiredProcedures: include only REQUIRED items; do not put COMMON/OPTIONAL suggestions here.
+- suggestedProcedures: advisory only, never mandatory.
+- notes: briefly summarize clinical review rationale and any missing context.
+- isValid should be false only when there is at least one true REQUIRED missing item, one clearly INAPPROPRIATE procedure/medication with MEDIUM/HIGH confidence, or other material clinical inconsistency.
+- score should reflect severity: keep high scores for plausible care with context gaps; reduce more for clear unrelated procedures or missing required critical care.
+
+Be conservative and clinically precise: false irrelevant flags are harmful. If uncertain, choose REVIEW_NEEDED with a concrete reason instead of INAPPROPRIATE.`,
+      temperature: Math.min(this.temperature, 0.2),
     });
 
     return { data: object, usage: usage as any };
@@ -322,34 +359,20 @@ BRAND vs GENERIC RESOLUTION:
 - Return marketPriceMax based on the BRAND price if brand is specified, generic price if generic is specified
 - Include both brand and generic sources when available for comparison
 
-CRITICAL REFERENCE RANGES (Indonesian market, per dispensable UNIT):
-┌──────────────────────────────────────────┬───────────────────────────┐
-│ Drug                                     │ Price Range (IDR/unit)    │
-├──────────────────────────────────────────┼───────────────────────────┤
-│ IV Fluid RL/NaCl 500ml bottle            │ 10.000 - 30.000/bottle   │
-│ Paracetamol 500mg tab (generic)          │ 300 - 1.500/tab          │
-│ Paracetamol 500mg tab (Sanmol/branded)   │ 1.000 - 3.500/tab        │
-│ Paracetamol Syrup 60ml                   │ 8.000 - 25.000/bottle    │
-│ Ceftriaxone 1g inj vial (generic)        │ 25.000 - 80.000/vial     │
-│ Amoxicillin 500mg cap (generic)          │ 500 - 2.000/cap          │
-│ Omeprazole 20mg cap (generic)            │ 800 - 3.000/cap          │
-│ Ranitidine 150mg tab (generic)           │ 300 - 1.500/tab          │
-│ Metformin 500mg tab (generic)            │ 300 - 1.200/tab          │
-│ Ciprofloxacin 500mg tab (generic)        │ 500 - 3.000/tab          │
-│ Ondansetron 4mg inj amp                  │ 5.000 - 25.000/amp       │
-│ Ketorolac 30mg inj amp                   │ 5.000 - 20.000/amp       │
-│ Asam Traneksamat 500mg inj amp           │ 5.000 - 25.000/amp       │
-│ Lansoprazole 30mg cap (generic)          │ 800 - 4.000/cap          │
-│ Cefixime 100mg cap (generic)             │ 1.000 - 5.000/cap        │
-│ Metronidazole 500mg infusion bottle      │ 15.000 - 40.000/bottle   │
-└──────────────────────────────────────────┴───────────────────────────┘
-These are SANITY CHECK guidelines. If your result exceeds 3x the upper range, you MUST explain WHY (originator brand, special formulation, import-only, etc).
+EVIDENCE-ONLY PRICING RULES:
+- Return prices ONLY when you can cite a concrete source and product match.
+- Do NOT use memory, generic market ranges, training-data estimates, or sanity-check ranges as the final price.
+- Do NOT reuse one price across different drugs unless each drug has its own source evidence showing that exact price.
+- Do NOT infer or "shoot" a price from similar medications. Similar active ingredients, brands, strengths, dosage forms, or package sizes are not acceptable substitutes.
+- If the exact drug/strength/form cannot be matched to a reliable source, return marketPriceMax: 0, marketPriceAvg: null, sources: [].
+- If a page shows many products, use only prices located near the matched product name/strength/form.
 
 ANTI-HALLUCINATION RULES:
-- If you have NO reliable knowledge of the price → return marketPriceMax: 0
-- Do NOT invent URLs, pharmacy names, or prices
+- If you have NO reliable source evidence → return marketPriceMax: 0
+- Do NOT invent URLs, pharmacy names, product names, or prices
 - Do NOT confuse package price with unit price (a STRIP of 10 tablets is NOT 1 tablet)
-- Do NOT confuse different strengths (500mg ≠ 250mg ≠ 1g)`,
+- Do NOT confuse different strengths (500mg ≠ 250mg ≠ 1g)
+- Do NOT output a non-zero price unless sources contains at least one verifiable source string for the matched product`,
       prompt: `Research the Indonesian market price for this medication to validate a hospital claim:
 
 ${JSON.stringify(drugContext, null, 2)}
@@ -371,23 +394,24 @@ STEP 2 — DETERMINE UNIT BASIS:
 
 STEP 3 — RESEARCH PRICING (check sources in this order):
 - Online pharmacies: K24Klik, Halodoc, Farmaku, Lifepack, GoApotik, KimiaFarma.co.id
-- E-commerce platforms: Tokopedia, Shopee, Blibli (look for official or reputable pharmacy stores)
-- MIMS Indonesia (mims.com/indonesia): look up the drug monograph for indicative pricing, available formulations, and manufacturer info
-- SATUSEHAT / FORNAS (satusehat.kemkes.go.id): check if the drug is listed in the national formulary with regulated price ceiling
-- e-Katalog LKPP (e-katalog.lkpp.go.id): government procurement baseline price
-- For branded drugs: also get the generic version price for comparison
+- E-commerce platforms: Tokopedia, Shopee, Blibli (only official/reputable pharmacy stores)
+- MIMS Indonesia (mims.com/indonesia): use only if it gives product/formulation and price evidence
+- SATUSEHAT / FORNAS (satusehat.kemkes.go.id): use only if it gives a regulated ceiling/procurement price for the exact item
+- e-Katalog LKPP (e-katalog.lkpp.go.id): government procurement baseline price for the exact item
+- For branded drugs: compare generic only as supporting context; do not replace brand price with generic price unless the claim is generic
 - Convert ALL prices to the determined unit basis with explicit math
 
-STEP 4 — SANITY CHECK:
-- Compare against the reference table in system prompt
-- If your price is >3x the upper range → re-verify or explain
-- If your price is <0.3x the lower range → re-verify (possible wrong product match)
+STEP 4 — SOURCE VALIDATION:
+- Accept a price only if product name/active ingredient, strength, dosage form, and package size match the claim context.
+- Reject prices from unrelated product cards, ads, shipping fees, consultation fees, or general catalog pages with no product proximity.
+- If available evidence is ambiguous or only gives broad ranges without product match, return 0 instead of estimating.
 
 OUTPUT:
-- marketPriceMax = highest verified UNIT price (matching the unit basis)
-- marketPriceAvg = average of verified prices (null if <2 sources)
-- sources: each entry = "source | product_matched | package_info | package_price_IDR | conversion_math | per_unit_price_IDR | URL"
-- If NO reliable data found → marketPriceMax: 0, marketPriceAvg: null, sources: []`,
+- marketPriceMax = highest verified UNIT price from accepted source evidence only
+- marketPriceAvg = average of accepted verified unit prices (null if <2 sources)
+- sources: each entry = "source | product_matched | package_info | package_price_IDR | conversion_math | per_unit_price_IDR | URL_or_page_title"
+- If NO reliable data found → marketPriceMax: 0, marketPriceAvg: null, sources: []
+- Never output marketPriceMax > 0 with an empty sources array`,
       temperature: 0.1,
     });
 

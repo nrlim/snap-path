@@ -17,6 +17,8 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
   }
 
   const formatProcedure = (code: string, name?: string | null) => name ? `${code} — ${name}` : code;
+  const mapHasRequiredOrPositiveEvidence = (detail: ClaimValidationOutput['diagnosisValidation']['details'][number]) =>
+    (detail.matchedProcedures?.length || 0) > 0 || (detail.missingRequiredProcedures?.length || 0) > 0;
 
   let overallValid = true;
 
@@ -48,30 +50,19 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
 
     const mappedCodes = mapEntries.map(m => m.procedureCode);
 
-    // Local mapping is used as a positive match and required-procedure source only.
-    // Absence from mapping must not automatically mean irrelevant; AI must justify irrelevance.
+    // Local mapping is used only as positive evidence and required-procedure source.
+    // If the lookup table has no/incomplete data, do not create DB-only review findings;
+    // let the AI clinical fallback assess each claimed procedure based on clinical context.
     const matchedCodes = claimedProcedureCodes.filter(c => mappedCodes.includes(c));
-    const unmappedCodes = claimedProcedureCodes.filter(c => !mappedCodes.includes(c));
     const matchedWithNames = matchedCodes.map(c => formatProcedure(c, inputProcNameMap[c]));
-    const unmappedWithNames = unmappedCodes.map(c => formatProcedure(c, inputProcNameMap[c]));
-    const procedureFindings = [
-      ...matchedCodes.map((code) => ({
-        procedureCode: code,
-        procedureName: inputProcNameMap[code] || code,
-        status: 'APPROPRIATE' as const,
-        reason: `Tindakan ini sesuai dengan mapping lokal diagnosis ${diag.code}.`,
-        againstDiagnosis: diag.code,
-        confidence: 'MEDIUM' as const,
-      })),
-      ...unmappedCodes.map((code) => ({
-        procedureCode: code,
-        procedureName: inputProcNameMap[code] || code,
-        status: 'REVIEW_NEEDED' as const,
-        reason: `Tindakan ini belum ada di mapping lokal diagnosis ${diag.code}. Ini bukan berarti tidak relevan; perlu dinilai berdasarkan konteks klinis dan alasan AI.`,
-        againstDiagnosis: diag.code,
-        confidence: 'LOW' as const,
-      })),
-    ];
+    const procedureFindings = matchedCodes.map((code) => ({
+      procedureCode: code,
+      procedureName: inputProcNameMap[code] || code,
+      status: 'APPROPRIATE' as const,
+      reason: `Tindakan ini sesuai dengan mapping lokal diagnosis ${diag.code}.`,
+      againstDiagnosis: diag.code,
+      confidence: 'MEDIUM' as const,
+    }));
 
     details.push({
       diagnosisCode: diag.code,
@@ -93,8 +84,8 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
         };
       }),
       suggestedProcedures: [],
-      notes: unmappedWithNames.length
-        ? `Ada ${unmappedWithNames.length} tindakan yang belum ada di mapping lokal diagnosis ini. Tindakan tersebut tidak otomatis dianggap tidak relevan dan perlu dinilai berdasarkan konteks klinis.`
+      notes: mapEntries.length === 0
+        ? 'Lookup table mapping tindakan-diagnosis belum memiliki data untuk diagnosis ini; clinical review dilakukan oleh AI berdasarkan konteks klaim, tanpa hardcoded mapping.'
         : ''
     });
   }
@@ -102,7 +93,17 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
   // 2. AI-based holistic validation
   let aiScore = 100;
   try {
-    const { data } = await gateway.validateDiagnosisTreatment(input);
+    const { data } = await gateway.validateDiagnosisTreatment({
+      ...input,
+      clinicalReviewMode: 'AI_FALLBACK_WHEN_LOCAL_MAPPING_ABSENT_OR_INCOMPLETE',
+      localMappingCoverage: details.map((detail) => ({
+        diagnosisCode: detail.diagnosisCode,
+        diagnosisName: detail.diagnosisName,
+        hasLocalMapping: mapHasRequiredOrPositiveEvidence(detail),
+        locallyMatchedProcedures: detail.matchedProcedures,
+        locallyRequiredMissingProcedures: detail.missingRequiredProcedures,
+      })),
+    });
     aiScore = data.score;
     overallValid = overallValid && data.isValid;
 
@@ -113,14 +114,25 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
         existing.notes = aiDetail.notes;
         if (aiDetail.diagnosisName) existing.diagnosisName = aiDetail.diagnosisName;
         if (aiDetail.clinicalSummary) existing.clinicalSummary = aiDetail.clinicalSummary;
+        if (Array.isArray(aiDetail.procedureFindings) && aiDetail.procedureFindings.length) {
+          const aiProcedureFindings = aiDetail.procedureFindings
+            .filter((item: any) => item?.procedureCode && item?.procedureName && item?.reason)
+            .map((item: any) => ({
+              procedureCode: String(item.procedureCode),
+              procedureName: String(item.procedureName || inputProcNameMap[item.procedureCode] || item.procedureCode),
+              status: item.status === 'INAPPROPRIATE' ? 'INAPPROPRIATE' as const : item.status === 'APPROPRIATE' ? 'APPROPRIATE' as const : 'REVIEW_NEEDED' as const,
+              reason: String(item.reason),
+              againstDiagnosis: String(item.againstDiagnosis || existing.diagnosisCode),
+              confidence: item.confidence === 'HIGH' ? 'HIGH' as const : item.confidence === 'LOW' ? 'LOW' as const : 'MEDIUM' as const,
+            }));
+          const localFindings = existing.procedureFindings || [];
+          const mergedByCode = new Map(localFindings.map((finding) => [finding.procedureCode, finding]));
+          for (const finding of aiProcedureFindings) mergedByCode.set(finding.procedureCode, finding);
+          existing.procedureFindings = Array.from(mergedByCode.values());
+        }
         if (Array.isArray(aiDetail.matchedProcedures) && aiDetail.matchedProcedures.length) {
           const mergedMatched = new Set([...(existing.matchedProcedures || []), ...aiDetail.matchedProcedures]);
           existing.matchedProcedures = Array.from(mergedMatched);
-          existing.procedureFindings = (existing.procedureFindings || []).map((finding) => {
-            const display = `${finding.procedureCode} — ${finding.procedureName}`;
-            const isMatchedByAi = aiDetail.matchedProcedures.some((value: string) => value.includes(finding.procedureCode) || value === display || value === finding.procedureName);
-            return isMatchedByAi ? { ...finding, status: 'APPROPRIATE' as const, reason: 'AI menilai tindakan ini masih relevan terhadap diagnosis.', confidence: 'MEDIUM' as const } : finding;
-          });
         }
         if (Array.isArray(aiDetail.medicationFindings) && aiDetail.medicationFindings.length) {
           existing.medicationFindings = aiDetail.medicationFindings

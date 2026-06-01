@@ -282,8 +282,13 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         cachedAt: null,
       };
     });
-  const drugIssues = (drugItems as LooseValidationItem[]).filter((d) => d.status && d.status !== "WITHIN_RANGE").length;
-  const tariffIssues = (tariffItems as LooseValidationItem[]).filter((t) => t.status && t.status !== "WITHIN_RANGE").length;
+  const registeredTariffItems = (tariffItems as LooseValidationItem[]).filter((t) => t.status !== "NOT_FOUND");
+  const invalidRegisteredTariffItems = registeredTariffItems.filter((t) => t.status === "OVER_THRESHOLD" || t.status === "UNDER_PRICED");
+  const invalidDrugItems = (drugItems as LooseValidationItem[]).filter((d) => d.status === "OVER_THRESHOLD" || d.status === "UNDER_PRICED" || d.status === "NOT_FOUND");
+  const drugIssues = invalidDrugItems.length;
+  const tariffIssues = invalidRegisteredTariffItems.length;
+  const fallbackTariffDeduction = registeredTariffItems.length > 0 ? Math.min(20, Math.ceil((tariffIssues / registeredTariffItems.length) * 20)) : 0;
+  const fallbackDrugDeduction = drugItems.length > 0 ? Math.min(20, Math.ceil((drugIssues / drugItems.length) * 20)) : 0;
   const unmatchedProcedures = (diagDetails as LooseValidationItem[]).reduce((acc, d) => acc + (d.unmatchedProcedures?.length || 0), 0);
 
   // Calculate detailed summary metrics
@@ -320,8 +325,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const fallbackDiagnosisDeduction = diagnosisHasDeduction
     ? Math.min(25, Math.max(1, Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisReviewRelevanceCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3))))
     : 0;
-  const tariffHasDeduction = ["WARNING", "INVALID"].includes(result.tariffValidation?.status);
-  const drugHasDeduction = ["WARNING", "INVALID"].includes(result.drugPriceValidation?.status);
+  const tariffHasDeduction = fallbackTariffDeduction > 0;
+  const drugHasDeduction = fallbackDrugDeduction > 0;
   const documentHasDeduction = result.documentValidation ? !result.documentValidation.isValid : false;
   const hasUnregisteredTariff = (tariffItems as LooseValidationItem[]).some((item) => item.status === "NOT_FOUND");
   const hasDrugReferenceUnavailable = (drugItems as LooseValidationItem[]).some((item) => item.status === "NOT_FOUND");
@@ -337,17 +342,17 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     {
       label: "Tarif tindakan terdaftar",
       maxDeduction: 20,
-      deducted: tariffHasDeduction ? 20 : 0,
+      deducted: fallbackTariffDeduction,
       reason: tariffHasDeduction
-        ? `${tariffIssues || tariffOver} item tindakan terdaftar melewati batas threshold.`
+        ? `${tariffIssues || tariffOver}/${registeredTariffItems.length} item tindakan terdaftar tidak sesuai threshold. Pengurangan skor dihitung proporsional.`
         : "Item tindakan yang terdaftar berada dalam threshold master fee schedule.",
     },
     {
       label: "Harga obat referensi internet",
       maxDeduction: 20,
-      deducted: drugHasDeduction ? 20 : 0,
+      deducted: fallbackDrugDeduction,
       reason: drugHasDeduction
-        ? (hasDrugReferenceUnavailable ? `${drugIssues} item obat belum memiliki referensi harga internet yang dapat diverifikasi.` : `${drugIssues} item obat melewati threshold atau jauh di bawah referensi.`)
+        ? (hasDrugReferenceUnavailable ? `${drugIssues}/${drugItems.length} item obat perlu review; sebagian referensi harga internet belum dapat diverifikasi.` : `${drugIssues}/${drugItems.length} item obat melewati threshold atau jauh di bawah referensi.`)
         : "Item obat yang memiliki referensi harga internet berada dalam threshold."
     },
     {

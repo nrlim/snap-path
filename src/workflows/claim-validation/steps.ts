@@ -214,8 +214,17 @@ export async function aggregateAndSaveStep(
 
   const tariffItems = tariffRes?.items || [];
   const drugItems = drugRes?.items || [];
+  const registeredTariffItems = tariffItems.filter((item: any) => item.status !== 'NOT_FOUND');
+  const invalidRegisteredTariffItems = registeredTariffItems.filter((item: any) => item.status === 'OVER_THRESHOLD' || item.status === 'UNDER_PRICED');
+  const invalidDrugItems = drugItems.filter((item: any) => item.status === 'OVER_THRESHOLD' || item.status === 'UNDER_PRICED' || item.status === 'NOT_FOUND');
   const hasUnregisteredTariff = tariffItems.some((item: any) => item.status === 'NOT_FOUND');
   const hasDrugReferenceUnavailable = drugItems.some((item: any) => item.status === 'NOT_FOUND');
+  const tariffDeduction = registeredTariffItems.length > 0
+    ? Math.min(20, Math.ceil((invalidRegisteredTariffItems.length / registeredTariffItems.length) * 20))
+    : 0;
+  const drugPriceDeduction = drugItems.length > 0
+    ? Math.min(20, Math.ceil((invalidDrugItems.length / drugItems.length) * 20))
+    : 0;
   
   const losDeduction = losRes?.deduction || 0;
   
@@ -265,18 +274,18 @@ export async function aggregateAndSaveStep(
     scoreBreakdown.items[0].reason = `Perlu review klinis: ${diagnosisMissingRequiredCount} prosedur wajib belum diklaim, ${diagnosisIrrelevantCount} tindakan perlu review relevansi, dan ${diagnosisMedicationReviewCount + diagnosisMedicationInappropriateCount} obat perlu review kesesuaian terhadap diagnosis.`;
     status = diagnosisDeduction >= 15 ? 'REVIEW_NEEDED' : 'WARNING';
   }
-  if (tariffRes.status === 'WARNING' || tariffRes.status === 'INVALID') {
-    overallScore -= 20;
-    scoreBreakdown.items[1].deducted = 20;
-    scoreBreakdown.items[1].reason = 'Ada item tindakan terdaftar yang melewati threshold master fee schedule.';
+  if (tariffDeduction > 0) {
+    overallScore -= tariffDeduction;
+    scoreBreakdown.items[1].deducted = tariffDeduction;
+    scoreBreakdown.items[1].reason = `${invalidRegisteredTariffItems.length}/${registeredTariffItems.length} item tindakan terdaftar tidak sesuai threshold master fee schedule. Pengurangan dihitung proporsional per item, bukan penuh 20 poin.`;
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
-  if (drugRes && (drugRes.status === 'WARNING' || drugRes.status === 'INVALID')) {
-    overallScore -= 20;
-    scoreBreakdown.items[2].deducted = 20;
+  if (drugPriceDeduction > 0) {
+    overallScore -= drugPriceDeduction;
+    scoreBreakdown.items[2].deducted = drugPriceDeduction;
     scoreBreakdown.items[2].reason = hasDrugReferenceUnavailable
-      ? 'Ada item obat yang belum berhasil ditemukan referensi harga internetnya, sehingga perlu review manual.'
-      : 'Ada item obat yang melewati threshold market reference atau jauh di bawah referensi.';
+      ? `${invalidDrugItems.length}/${drugItems.length} item obat perlu review harga/referensi internet; sebagian referensi belum berhasil ditemukan. Pengurangan dihitung proporsional per item, bukan penuh 20 poin.`
+      : `${invalidDrugItems.length}/${drugItems.length} item obat melewati threshold atau jauh di bawah referensi. Pengurangan dihitung proporsional per item, bukan penuh 20 poin.`;
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
   if (!docRes.isValid) {

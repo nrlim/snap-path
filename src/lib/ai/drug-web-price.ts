@@ -62,6 +62,43 @@ function extractPrices(text: string) {
   return Array.from(prices);
 }
 
+function buildDrugTerms(drug: { name: string; genericName?: string | null; dosage?: string | null }) {
+  const stopWords = new Set([
+    'harga', 'obat', 'indonesia', 'beli', 'online', 'apotek', 'tablet', 'tab', 'kapsul', 'capsule', 'cap',
+    'sirup', 'syrup', 'injeksi', 'injection', 'inj', 'vial', 'ampul', 'ampoule', 'infus', 'infusion',
+    'botol', 'bottle', 'strip', 'dan', 'atau', 'with', 'mg', 'ml', 'gram', 'generic', 'generik',
+  ]);
+  const raw = [drug.name, drug.genericName || '', drug.dosage || ''].join(' ').toLowerCase();
+  return Array.from(new Set(raw
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((term) => term.trim())
+    .filter((term) => term.length >= 4 && !stopWords.has(term) && !/^\d+$/.test(term))));
+}
+
+function extractMatchedPrices(text: string, drugTerms: string[]) {
+  if (drugTerms.length === 0) return [];
+
+  const normalizedText = text.toLowerCase();
+  if (!drugTerms.some((term) => normalizedText.includes(term))) return [];
+
+  const prices = new Set<number>();
+  const pricePattern = /(?:Rp\.?|IDR)\s*([0-9]{1,3}(?:[.\s][0-9]{3})+|[0-9]{4,9})(?:,\d{2})?/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = pricePattern.exec(text)) !== null) {
+    const price = normalizePrice(match[1] || '');
+    if (price < 100 || price > 5_000_000) continue;
+
+    const contextStart = Math.max(0, match.index - 260);
+    const contextEnd = Math.min(text.length, match.index + match[0].length + 260);
+    const context = text.slice(contextStart, contextEnd).toLowerCase();
+    if (drugTerms.some((term) => context.includes(term))) prices.add(price);
+  }
+
+  return Array.from(prices);
+}
+
 function inferDosageForm(drugName: string) {
   const name = drugName.toLowerCase();
   if (/infus|infusion|ringer|nacl|rl\b/.test(name)) return { dosageForm: 'infusion_bottle', unitBasis: 'per bottle' };
@@ -195,11 +232,12 @@ export async function crawlIndonesianDrugPrice(drug: { name: string; genericName
   }).slice(0, 18);
 
   const candidates: Array<{ price: number; source: string }> = [];
+  const drugTerms = buildDrugTerms(drug);
 
   const crawlResults = await Promise.allSettled(uniqueResults.slice(0, 12).map(async (result) => {
-    const snippetPrices = extractPrices(stripHtml(result.snippet || ''));
+    const snippetPrices = extractMatchedPrices(stripHtml(result.snippet || ''), drugTerms);
     const pageText = await fetchPageText(result.url);
-    const pagePrices = extractPrices(pageText);
+    const pagePrices = extractMatchedPrices(pageText, drugTerms);
     return { result, prices: [...snippetPrices, ...pagePrices].filter((price, index, array) => array.indexOf(price) === index) };
   }));
 
@@ -209,7 +247,7 @@ export async function crawlIndonesianDrugPrice(drug: { name: string; genericName
     for (const price of prices.slice(0, 5)) {
       candidates.push({
         price,
-        source: `${sourceNameFromUrl(result.url)} | ${result.title || drug.name} | internet crawl | listed price Rp ${price.toLocaleString('id-ID')} | unit conversion not available, treated as displayed unit price | Rp ${price.toLocaleString('id-ID')} | ${result.url}`,
+        source: `${sourceNameFromUrl(result.url)} | ${result.title || drug.name} | internet crawl verification_v2 | listed price Rp ${price.toLocaleString('id-ID')} | unit conversion not available, treated as displayed unit price | Rp ${price.toLocaleString('id-ID')} | ${result.url}`,
       });
     }
   }

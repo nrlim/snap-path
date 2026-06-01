@@ -51,9 +51,12 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     let unitBasis: string | undefined;
     let statusSource: "CACHE_HIT" | "NOT_FOUND" | "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" = 'NOT_FOUND';
 
-    if (cacheEntry) {
+    const cachedSources = cacheEntry?.sources as string[] | undefined;
+    const isVerifiedCache = Array.isArray(cachedSources) && cachedSources.some((source) => source.includes('verification_v2'));
+
+    if (cacheEntry && isVerifiedCache) {
       marketPriceMax = cacheEntry.marketPriceMax;
-      sources = cacheEntry.sources as string[];
+      sources = cachedSources;
       cachedAt = cacheEntry.fetchedAt.toISOString();
       statusSource = 'CACHE_HIT';
     } else {
@@ -72,7 +75,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         dosageForm = crawled.dosageForm || dosageForm;
         unitBasis = crawled.unitBasis || unitBasis;
 
-        if (marketPriceMax > 0) {
+        if (marketPriceMax > 0 && crawled.sources.some((source) => source.includes('verification_v2'))) {
           const now = new Date();
           const expiresAt = new Date();
           expiresAt.setDate(now.getDate() + CACHE_TTL_DAYS);
