@@ -316,9 +316,9 @@ Be conservative and clinically precise: false irrelevant flags are harmful. If u
 
   async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
-      marketPriceMax: z.number().describe('Highest verified UNIT price in IDR for the smallest dispensable unit. Return 0 if no reliable source is available.'),
-      marketPriceAvg: z.number().nullable().describe('Average verified UNIT price in IDR, or null if fewer than two comparable prices are available.'),
-      sources: z.array(z.string()).describe('Source evidence array. Each entry: "source_name | product_name strength form | package_info | package_price_IDR | unit_conversion_calculation | per_unit_price_IDR | URL_or_page_title"'),
+      marketPriceMax: z.number().describe('Highest verified UNIT price in IDR for the smallest dispensable unit. Return 0 if no reliable knowledge is available.'),
+      marketPriceAvg: z.number().nullable().describe('Average verified UNIT price in IDR, or null if fewer than two comparable price points are available.'),
+      sources: z.array(z.string()).describe('Source evidence array. Each entry: "ai_knowledge_v1 | product_name strength form | reference_sites | package_context | unit_conversion | per_unit_price_IDR | training_data"'),
       resolvedProductName: z.string().describe('The exact product name and specification that was matched, e.g. "Ringer Lactate Infusion 500ml (Generic)" or "Ceftriaxone 1g Injection Vial (Generic)"'),
       dosageForm: z.string().describe('The dosage form identified: tablet, capsule, syrup, injection_vial, injection_ampoule, infusion_bottle, cream, etc.'),
       unitBasis: z.string().describe('What constitutes one "unit" for the price: "per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", etc.'),
@@ -342,76 +342,79 @@ ROLE CONTEXT:
 - Hospital claims list medications with brand or generic names + unit prices
 - You provide the fair market reference price for the SAME unit basis
 - The system compares: claimed price vs your reference → flag if overcharged (>threshold) or suspiciously undercharged
+- You cannot browse the web. Use your training knowledge of Indonesian drug prices.
 
-YOUR EXPERTISE & REFERENCE SOURCES (in priority order):
-1. Online pharmacy retail: K24Klik.com, Halodoc, Farmaku, Lifepack, GoApotik, KimiaFarma.co.id (Primary source for current retail market prices)
-2. E-commerce platforms: Tokopedia, Shopee, Blibli (Secondary source for real-world consumer pricing)
-3. MIMS Indonesia (mims.com/indonesia) — Professional drug database with indicative pricing, indications, dosage, and formulation details. Use MIMS drug monographs to identify correct product specifications and price ranges.
-4. SATUSEHAT / Formularium Nasional (satusehat.kemkes.go.id) — Kemenkes official platform containing the national drug formulary (FORNAS), regulated pricing tiers, and e-Katalog integration.
-5. e-Katalog LKPP (e-katalog.lkpp.go.id) — Government procurement baseline pricing (lowest legitimate institutional price)
-6. HET (Harga Eceran Tertinggi) from Kemenkes regulations
-- Hospital markup norms: 10-30% above HNA for generics, up to 50% for branded/originator
-- Dosage form identification and unit conversion
+YOUR REFERENCE SOURCES (training knowledge, in priority order):
+1. Online pharmacy retail: K24Klik.com, Halodoc, Farmaku, Lifepack, GoApotik, KimiaFarma.co.id
+2. E-commerce pharmacy stores: Tokopedia, Shopee official pharmacy sellers
+3. MIMS Indonesia (mims.com/indonesia) — drug monographs with indicative pricing
+4. SATUSEHAT / Formularium Nasional / FORNAS — national formulary regulated pricing
+5. e-Katalog LKPP (e-katalog.lkpp.go.id) — government procurement baseline pricing
+6. HET (Harga Eceran Tertinggi) Kemenkes regulations
+7. HNA (Harga Netto Apotek) + hospital markup norms: 10-30% for generics, up to 50% for branded
+
+PRICING MODE — KNOWLEDGE-BASED AI REFERENCE:
+- You CANNOT browse the internet, so use your training data knowledge of Indonesian drug prices.
+- If you have reliable training knowledge of this drug's Indonesian retail price range, provide it.
+- Use the UPPER BOUND of any known price range as marketPriceMax (conservative for fraud detection).
+- Format source entries as: "ai_knowledge_v1 | {resolved_product} | K24Klik/Halodoc/Farmaku | {package_info_known} | {conversion_math} | {per_unit_price_IDR} | training_data"
 
 BRAND vs GENERIC RESOLUTION:
-- If the drug name is a BRAND (e.g. "Sanmol", "Biogesic", "Kalnex"), identify the generic active ingredient
-- Always research BOTH the brand price AND the generic equivalent price
-- Return marketPriceMax based on the BRAND price if brand is specified, generic price if generic is specified
-- Include both brand and generic sources when available for comparison
+- BRAND names (e.g. "Sanmol"=Paracetamol, "Kalnex"=Tranexamic Acid): identify generic, price the brand
+- GENERIC names: price the generic; note branded equivalent as context if known
+- Return marketPriceMax from the specified type (brand if brand, generic if generic)
 
-EVIDENCE-ONLY PRICING RULES:
-- Return prices ONLY when you can cite a concrete source and product match.
-- Do NOT use memory, generic market ranges, training-data estimates, or sanity-check ranges as the final price.
-- Do NOT reuse one price across different drugs unless each drug has its own source evidence showing that exact price.
-- Do NOT infer or "shoot" a price from similar medications. Similar active ingredients, brands, strengths, dosage forms, or package sizes are not acceptable substitutes.
-- If the exact drug/strength/form cannot be matched to a reliable source, return marketPriceMax: 0, marketPriceAvg: null, sources: [].
-- If a page shows many products, use only prices located near the matched product name/strength/form.
+ANTI-HALLUCINATION — STRICTLY ENFORCE:
+- Do NOT confuse package price with unit price (strip of 10 tabs → divide by 10; vial of 50ml → 1 vial price)
+- Do NOT confuse strengths: 500mg ≠ 250mg ≠ 1g. These have significantly different prices.
+- Do NOT confuse dosage forms: tablet ≠ injection vial ≠ infusion bottle ≠ ampoule
+- Do NOT fabricate drug names, brands, or prices not present in Indonesian market
+- Do NOT reuse one price across multiple different drugs — each must be independently evaluated
+- Do NOT confuse packaging size: 100ml bottle ≠ 500ml bottle
+- If you are GENUINELY UNCERTAIN (unrecognized drug, ambiguous strength, unknown in Indonesia): return marketPriceMax: 0
 
-ANTI-HALLUCINATION RULES:
-- If you have NO reliable source evidence → return marketPriceMax: 0
-- Do NOT invent URLs, pharmacy names, product names, or prices
-- Do NOT confuse package price with unit price (a STRIP of 10 tablets is NOT 1 tablet)
-- Do NOT confuse different strengths (500mg ≠ 250mg ≠ 1g)
-- Do NOT output a non-zero price unless sources contains at least one verifiable source string for the matched product`,
-      prompt: `Research the Indonesian market price for this medication to validate a hospital claim:
+RETURN 0 WHEN:
+- Drug name is completely unrecognized or not available in Indonesia
+- Strength/form is ambiguous and you cannot determine unit basis
+- You would be guessing rather than applying knowledge`,
+      prompt: `Research the Indonesian market reference price for this medication to validate a hospital claim:
 
 ${JSON.stringify(drugContext, null, 2)}
 
 STEP 1 — IDENTIFY PRODUCT:
-- Parse: active ingredient, strength, dosage form (tablet/capsule/syrup/vial/ampoule/infusion bottle)
-- Determine if branded or generic. If branded → also identify the generic equivalent
-- "Strip" in the name means the claim unit is per STRIP (not per individual tablet)
+- Parse: active ingredient, strength/concentration, dosage form
+- Determine brand vs generic. Identify generic equivalent for branded drugs.
+- "Strip" in the name → unit is per strip (typically 10 tabs). "Tablet"/"Tab" alone → per tablet.
 
 STEP 2 — DETERMINE UNIT BASIS:
-- Match the unit basis to what the hospital would typically bill:
-  * "Tablet/Tab" without "Strip" → per tablet
-  * "Strip" → per strip (usually 10 tablets)
-  * "Injection/Inj Vial" → per vial
-  * "Injection/Inj Ampoule/Amp" → per ampoule
-  * "IV Fluid/Infusion" → per bottle
-  * "Syrup/Suspension/Drops" → per bottle
-  * "Capsule/Cap" without "Strip" → per capsule
+- "Tablet/Tab" (no Strip) → per tablet
+- "Strip" → per strip (usually 10 tablets; note conversion explicitly)
+- "Injection/Inj Vial" → per vial
+- "Injection/Inj Ampoule/Amp" → per ampoule
+- "IV Fluid/Infus/Infusion/RL/NaCl/Dextrose" → per bottle (specify volume)
+- "Syrup/Suspensi/Drops" → per bottle
+- "Capsule/Cap" (no Strip) → per capsule
+- "Krim/Salep/Gel" → per tube
 
-STEP 3 — RESEARCH PRICING (check sources in this order):
-- Online pharmacies: K24Klik, Halodoc, Farmaku, Lifepack, GoApotik, KimiaFarma.co.id
-- E-commerce platforms: Tokopedia, Shopee, Blibli (only official/reputable pharmacy stores)
-- MIMS Indonesia (mims.com/indonesia): use only if it gives product/formulation and price evidence
-- SATUSEHAT / FORNAS (satusehat.kemkes.go.id): use only if it gives a regulated ceiling/procurement price for the exact item
-- e-Katalog LKPP (e-katalog.lkpp.go.id): government procurement baseline price for the exact item
-- For branded drugs: compare generic only as supporting context; do not replace brand price with generic price unless the claim is generic
-- Convert ALL prices to the determined unit basis with explicit math
+STEP 3 — RECALL INDONESIAN MARKET PRICE:
+- From your training knowledge, recall the retail price range in Indonesian pharmacies
+- Common generics (Paracetamol, Amoxicillin, Ceftriaxone, Omeprazole, Ranitidine, Metformin,
+  Amlodipine, Captopril, Ringer Lactate, NaCl 0.9%, Dexamethasone, Ketorolac, Ondansetron,
+  Furosemide, etc.) — you should know approximate Indonesian prices
+- Show explicit unit conversion math: e.g. "strip Rp 8.000 / 10 tab = Rp 800/tab"
+- Use the UPPER BOUND of the known price range for marketPriceMax
 
-STEP 4 — SOURCE VALIDATION:
-- Accept a price only if product name/active ingredient, strength, dosage form, and package size match the claim context.
-- Reject prices from unrelated product cards, ads, shipping fees, consultation fees, or general catalog pages with no product proximity.
-- If available evidence is ambiguous or only gives broad ranges without product match, return 0 instead of estimating.
+STEP 4 — VALIDATE YOUR KNOWLEDGE:
+- Are you confident this drug exists in Indonesian market with this strength/form? → provide price
+- Is the drug name, strength, or form ambiguous/unrecognizable? → return marketPriceMax: 0
+- Would you be fabricating/guessing? → return marketPriceMax: 0
 
 OUTPUT:
-- marketPriceMax = highest verified UNIT price from accepted source evidence only
-- marketPriceAvg = average of accepted verified unit prices (null if <2 sources)
-- sources: each entry = "source | product_matched | package_info | package_price_IDR | conversion_math | per_unit_price_IDR | URL_or_page_title"
-- If NO reliable data found → marketPriceMax: 0, marketPriceAvg: null, sources: []
-- Never output marketPriceMax > 0 with an empty sources array`,
+- marketPriceMax = highest known UNIT price (IDR) from training knowledge; 0 if uncertain
+- marketPriceAvg = average of known unit price range (null if only one data point)
+- sources: "ai_knowledge_v1 | {resolved_product} | {reference_sites} | {package_info} | {conversion} | {per_unit_IDR} | training_data"
+- resolvedProductName = exact product matched (e.g. "Amoxicillin 500mg Capsule (Generic)")
+- If NO reliable knowledge → marketPriceMax: 0, marketPriceAvg: null, sources: []`,
       temperature: 0.1,
     });
 

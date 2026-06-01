@@ -1,8 +1,12 @@
 import prisma from '@/lib/db';
 import { DrugPriceCheckInput, DrugPriceCheckOutput } from '../types';
 import { crawlIndonesianDrugPrice } from '../drug-web-price';
+import { getAIGateway } from '../gateway';
 
 const CACHE_TTL_DAYS = 7;
+const AI_CACHE_TTL_DAYS = 3; // AI knowledge-based prices expire sooner than crawl-verified
+const AI_KNOWLEDGE_SOURCE_TAG = 'ai_knowledge_v1';
+const CRAWL_VERIFIED_SOURCE_TAG = 'verification_v2';
 
 function getMedicationUnitPrice(med: any) {
   return Number(med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0);
@@ -52,16 +56,19 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     let statusSource: "CACHE_HIT" | "NOT_FOUND" | "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" = 'NOT_FOUND';
 
     const cachedSources = cacheEntry?.sources as string[] | undefined;
-    const isVerifiedCache = Array.isArray(cachedSources) && cachedSources.some((source) => source.includes('verification_v2'));
+    // Accept cache entries from either crawl-verified or AI knowledge-based lookups
+    const isValidCache = Array.isArray(cachedSources) && cachedSources.length > 0 &&
+      cachedSources.some((s) => s.includes(CRAWL_VERIFIED_SOURCE_TAG) || s.includes(AI_KNOWLEDGE_SOURCE_TAG));
 
-    if (cacheEntry && isVerifiedCache) {
+    if (cacheEntry && isValidCache) {
       marketPriceMax = cacheEntry.marketPriceMax;
       sources = cachedSources;
       cachedAt = cacheEntry.fetchedAt.toISOString();
       statusSource = 'CACHE_HIT';
     } else {
-      // 2. Cache miss -> direct internet crawl from public Indonesian pharmacy/catalog pages.
-      // No third-party search API keys are required for drug price lookup.
+      // 2. Cache miss → try web crawl first (fast, free, no AI tokens).
+      // In practice this almost always returns 0 because pharmacy sites are JS-rendered
+      // SPAs that block server-side fetching — the AI fallback below handles those cases.
       try {
         const crawled = await crawlIndonesianDrugPrice({
           name: med.name,
@@ -75,7 +82,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         dosageForm = crawled.dosageForm || dosageForm;
         unitBasis = crawled.unitBasis || unitBasis;
 
-        if (marketPriceMax > 0 && crawled.sources.some((source) => source.includes('verification_v2'))) {
+        if (marketPriceMax > 0 && crawled.sources.some((s) => s.includes(CRAWL_VERIFIED_SOURCE_TAG))) {
           const now = new Date();
           const expiresAt = new Date();
           expiresAt.setDate(now.getDate() + CACHE_TTL_DAYS);
@@ -93,8 +100,57 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
           });
           cachedAt = now.toISOString();
         }
-      } catch (error) {
-        console.error(`Failed to crawl drug price for ${med.name}:`, error);
+      } catch (crawlError) {
+        console.error(`[checkDrugPrices] Web crawl failed for ${med.name}:`, crawlError);
+      }
+
+      // 3. AI knowledge fallback — runs when web crawl returns no price.
+      // The AI model uses training knowledge of Indonesian pharmacy prices (K24Klik, Halodoc,
+      // Farmaku, MIMS, e-Katalog, HET/HNA data) to provide a reference price.
+      // This covers virtually all drugs in the Indonesian formulary since they were in training data.
+      if (marketPriceMax === 0) {
+        try {
+          const gateway = await getAIGateway({ clientId: input.clientId, providerId });
+          const aiResult = await gateway.searchDrugMarketPrice({
+            name: med.name,
+            genericName: med.genericName || null,
+            dosage: med.dosage || null,
+          });
+
+          const aiData = aiResult?.data;
+          const aiPrice = Number(aiData?.marketPriceMax ?? 0);
+          const aiSources: string[] = Array.isArray(aiData?.sources) ? aiData.sources : [];
+          const isAiKnowledgeResult = aiSources.some((s: string) => s.includes(AI_KNOWLEDGE_SOURCE_TAG));
+
+          if (aiPrice > 0 && isAiKnowledgeResult) {
+            marketPriceMax = aiPrice;
+            sources = aiSources;
+            resolvedProductName = aiData?.resolvedProductName || resolvedProductName;
+            dosageForm = aiData?.dosageForm || dosageForm;
+            unitBasis = aiData?.unitBasis || unitBasis;
+
+            // Cache AI-sourced prices with a shorter TTL (3 days) since they come from training
+            // knowledge rather than a live crawl, and may be less precise.
+            const now = new Date();
+            const expiresAt = new Date();
+            expiresAt.setDate(now.getDate() + AI_CACHE_TTL_DAYS);
+
+            await prisma.drugPriceCache.create({
+              data: {
+                drugName: med.name,
+                drugGenericName: med.genericName,
+                marketPriceMax,
+                marketPriceAvg: typeof aiData?.marketPriceAvg === 'number' ? aiData.marketPriceAvg : null,
+                sources,
+                fetchedAt: now,
+                expiresAt,
+              },
+            });
+            cachedAt = now.toISOString();
+          }
+        } catch (aiError) {
+          console.error(`[checkDrugPrices] AI knowledge fallback failed for ${med.name}:`, aiError);
+        }
       }
     }
 
