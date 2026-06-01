@@ -317,7 +317,7 @@ Be conservative and clinically precise: false irrelevant flags are harmful. If u
   async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
       isAlkes: z.boolean().describe('true if this item is a medical supply/device (alat kesehatan), NOT a pharmaceutical drug. Examples: gloves, syringes, swabs, catheters, bandages, IV lines, needles, gauze.'),
-      marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 ONLY if the active ingredient is completely unrecognized in Indonesia, OR if isAlkes is true.'),
+      marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 ONLY if the item is completely unrecognized in Indonesia.'),
       marketPriceAvg: z.number().nullable().describe('Average UNIT price in IDR, or null if only one data point available.'),
       sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion_math | per_unit_IDR | training_data"'),
       resolvedProductName: z.string().describe('Canonical product name after normalization, e.g. "Lidocaine HCl 2% 5ml Ampoule" or "Ceftriaxone 1g Injection Vial"'),
@@ -487,9 +487,9 @@ PRICE RECALL HINTS for common Indonesian hospital drugs:
       results: z.array(z.object({
         index: z.number().int().describe('Zero-based index matching the position in the input drugs array'),
         isAlkes: z.boolean().describe('true if item is a medical supply/device (alat kesehatan), NOT a pharmaceutical drug. Examples: gloves, syringes, swabs, catheters, bandages, IV needles.'),
-        marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 if isAlkes is true, or if active ingredient is completely unrecognized in Indonesia.'),
+        marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 ONLY if item is completely unrecognized in Indonesia.'),
         marketPriceAvg: z.number().nullable().describe('Average UNIT price in IDR, or null if only one data point.'),
-        sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion | per_unit_IDR | training_data". Empty array if isAlkes.'),
+        sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion | per_unit_IDR | training_data"'),
         resolvedProductName: z.string().describe('Canonical name after SIMRS normalization, e.g. "Ceftriaxone 1g Injection Vial"'),
         dosageForm: z.string().describe('tablet, capsule, injection_vial, injection_ampoule, infusion_bottle, syrup_bottle, cream, glove, syringe, swab, catheter, bandage, etc.'),
         unitBasis: z.string().describe('"per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", "per tube", "per pair", "per piece", etc.'),
@@ -547,7 +547,7 @@ ANTI-HALLUCINATION:
 - 100ml bottle ≠ 500ml bottle (different prices)
 - 2% ≠ 5% concentration (different prices)
 - Return isAlkes: true for medical supplies, marketPriceMax: 0 for those
-- Return marketPriceMax: 0 ONLY when active ingredient is genuinely unrecognized in Indonesia
+- Return marketPriceMax: 0 ONLY when the active ingredient is genuinely unrecognized in Indonesia
 - NEVER skip an index — every drug must have a result entry`,
 
       prompt: `Price ALL ${drugs.length} drugs below for Indonesian hospital claim validation. Return one result per drug, maintaining index order.

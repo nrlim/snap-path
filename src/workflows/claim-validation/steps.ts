@@ -214,16 +214,22 @@ export async function aggregateAndSaveStep(
 
   const tariffItems = tariffRes?.items || [];
   const drugItems = drugRes?.items || [];
+  
   const registeredTariffItems = tariffItems.filter((item: any) => item.status !== 'NOT_FOUND');
   const invalidRegisteredTariffItems = registeredTariffItems.filter((item: any) => item.status === 'OVER_THRESHOLD' || item.status === 'UNDER_PRICED');
-  const invalidDrugItems = drugItems.filter((item: any) => item.status === 'OVER_THRESHOLD' || item.status === 'UNDER_PRICED' || item.status === 'NOT_FOUND');
+  
+  // ALKES items are explicitly excluded from scoring logic:
+  const scorableDrugItems = drugItems.filter((item: any) => item.status !== 'ALKES');
+  const invalidDrugItems = scorableDrugItems.filter((item: any) => item.status === 'OVER_THRESHOLD' || item.status === 'UNDER_PRICED' || item.status === 'NOT_FOUND');
+  
   const hasUnregisteredTariff = tariffItems.some((item: any) => item.status === 'NOT_FOUND');
-  const hasDrugReferenceUnavailable = drugItems.some((item: any) => item.status === 'NOT_FOUND');
+  const hasDrugReferenceUnavailable = scorableDrugItems.some((item: any) => item.status === 'NOT_FOUND');
+  
   const tariffDeduction = registeredTariffItems.length > 0
     ? Math.min(20, Math.ceil((invalidRegisteredTariffItems.length / registeredTariffItems.length) * 20))
     : 0;
-  const drugPriceDeduction = drugItems.length > 0
-    ? Math.min(20, Math.ceil((invalidDrugItems.length / drugItems.length) * 20))
+  const drugPriceDeduction = scorableDrugItems.length > 0
+    ? Math.min(20, Math.ceil((invalidDrugItems.length / scorableDrugItems.length) * 20))
     : 0;
   
   const losDeduction = losRes?.deduction || 0;

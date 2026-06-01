@@ -71,6 +71,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         const medIndex = batchStart + batchPos;
         if (medIndex === undefined || medIndex >= medications.length) return;
 
+        const aiPrice = Number(aiData?.marketPriceMax ?? 0);
+        const aiSources: string[] = Array.isArray(aiData?.sources) ? [...aiData.sources] : [];
+
         // ALKES (alat kesehatan) — medical supply/device, not a drug.
         // Skip cache and scoring; mark separately for UI display.
         if (aiData?.isAlkes === true) {
@@ -84,9 +87,6 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
           };
           return;
         }
-
-        const aiPrice = Number(aiData?.marketPriceMax ?? 0);
-        const aiSources: string[] = Array.isArray(aiData?.sources) ? aiData.sources : [];
 
         if (aiPrice > 0 && aiSources.some((s) => s.includes(AI_KNOWLEDGE_SOURCE_TAG))) {
           aiResults[medIndex] = {
@@ -111,6 +111,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
   //   - If AI returned a price AND it matches cached price → skip DB write
   //   - If AI returned 0 → use cached price if available (graceful fallback)
   const persistPromises: Promise<any>[] = [];
+  const persistedDrugNames = new Set<string>();
 
   type FinalPrice = {
     marketPriceMax: number;
@@ -145,7 +146,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     if (aiResult && aiResult.marketPriceMax > 0) {
       const priceChanged = aiResult.marketPriceMax !== cachedPrice;
 
-      if (priceChanged) {
+      if (priceChanged && !persistedDrugNames.has(med.name)) {
+        persistedDrugNames.add(med.name);
+
         // AI price differs from cache (or no cache exists) → write/update cache
         const expiresAt = new Date(now);
         expiresAt.setDate(now.getDate() + AI_CACHE_TTL_DAYS);
@@ -153,8 +156,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         persistPromises.push(
           prisma.drugPriceCache.upsert({
             where: {
-              // Use drugName as the unique key for upsert; if no existing record,
-              // Prisma creates a new one. If one exists, it's updated.
+              // Prisma creates a new one if id is not found. If one exists, it's updated.
               id: cacheEntry?.id ?? '',
             },
             update: {
@@ -178,7 +180,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
           }),
         );
       }
-      // else: price is the same → skip DB write, save latency
+      // else: price is the same or already queued for write → skip DB write, save latency
 
       return {
         marketPriceMax: aiResult.marketPriceMax,
