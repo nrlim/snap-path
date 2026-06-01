@@ -316,12 +316,13 @@ Be conservative and clinically precise: false irrelevant flags are harmful. If u
 
   async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
-      marketPriceMax: z.number().describe('Highest verified UNIT price in IDR. Return 0 ONLY if the active ingredient is completely unrecognized in Indonesia.'),
+      isAlkes: z.boolean().describe('true if this item is a medical supply/device (alat kesehatan), NOT a pharmaceutical drug. Examples: gloves, syringes, swabs, catheters, bandages, IV lines, needles, gauze.'),
+      marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 ONLY if the active ingredient is completely unrecognized in Indonesia, OR if isAlkes is true.'),
       marketPriceAvg: z.number().nullable().describe('Average UNIT price in IDR, or null if only one data point available.'),
       sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion_math | per_unit_IDR | training_data"'),
       resolvedProductName: z.string().describe('Canonical product name after normalization, e.g. "Lidocaine HCl 2% 5ml Ampoule" or "Ceftriaxone 1g Injection Vial"'),
-      dosageForm: z.string().describe('Dosage form: tablet, capsule, syrup, injection_vial, injection_ampoule, infusion_bottle, cream, suppository, etc.'),
-      unitBasis: z.string().describe('Unit basis for pricing: "per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", "per tube", etc.'),
+      dosageForm: z.string().describe('Dosage form: tablet, capsule, syrup, injection_vial, injection_ampoule, infusion_bottle, cream, suppository, etc. For ALKES: glove, syringe, swab, catheter, bandage, etc.'),
+      unitBasis: z.string().describe('Unit basis for pricing: "per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", "per tube", "per pair", "per piece", etc.'),
     });
 
     const drugContext = typeof drug === 'string'
@@ -377,6 +378,15 @@ REFERENCE SOURCES (from training knowledge):
 3. e-Katalog LKPP — government procurement baseline (floor price)
 4. HET/HNA Kemenkes — regulated maximum retail price
 5. Hospital markup norms: +10-30% above HNA for generics; up to +50% for branded
+
+ALKES CLASSIFICATION — check this FIRST before any normalization:
+If the item is a MEDICAL SUPPLY or DEVICE (alat kesehatan), NOT a pharmaceutical drug:
+→ Set isAlkes: true, marketPriceMax: 0, sources: [], and stop immediately.
+ALKES examples: exam gloves, surgical gloves, disposable syringes, IV needles, alcohol/antiseptic swabs,
+catheters, bandages, gauze pads, IV tubing/infusion sets, nasogastric tubes, wound dressings.
+Drug examples: tablets, capsules, injections, infusions (NaCl, RL, Dextrose, antibiotics, analgesics, etc.)
+Key distinctions: DISP SYRINGE → ALKES. EXAM GLOVE → ALKES. B.AC SWAB / Benzalkonium Swab → ALKES.
+NaCl 0.9% infusion → DRUG (pharmacological agent). Metronidazole infusion → DRUG.
 
 ANTI-HALLUCINATION RULES:
 - STRIP prices: divide by unit count (usually 10) to get per-tablet price
@@ -476,12 +486,13 @@ PRICE RECALL HINTS for common Indonesian hospital drugs:
     const schema = z.object({
       results: z.array(z.object({
         index: z.number().int().describe('Zero-based index matching the position in the input drugs array'),
-        marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 ONLY if active ingredient is completely unrecognized in Indonesia.'),
+        isAlkes: z.boolean().describe('true if item is a medical supply/device (alat kesehatan), NOT a pharmaceutical drug. Examples: gloves, syringes, swabs, catheters, bandages, IV needles.'),
+        marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 if isAlkes is true, or if active ingredient is completely unrecognized in Indonesia.'),
         marketPriceAvg: z.number().nullable().describe('Average UNIT price in IDR, or null if only one data point.'),
-        sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion | per_unit_IDR | training_data"'),
+        sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion | per_unit_IDR | training_data". Empty array if isAlkes.'),
         resolvedProductName: z.string().describe('Canonical name after SIMRS normalization, e.g. "Ceftriaxone 1g Injection Vial"'),
-        dosageForm: z.string().describe('tablet, capsule, injection_vial, injection_ampoule, infusion_bottle, syrup_bottle, cream, etc.'),
-        unitBasis: z.string().describe('"per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", "per tube", etc.'),
+        dosageForm: z.string().describe('tablet, capsule, injection_vial, injection_ampoule, infusion_bottle, syrup_bottle, cream, glove, syringe, swab, catheter, bandage, etc.'),
+        unitBasis: z.string().describe('"per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", "per tube", "per pair", "per piece", etc.'),
       })).describe('One result object per drug input, in index order.'),
     });
 
@@ -516,6 +527,14 @@ UNIT BASIS RULES:
 - STRIP: 1 unit = 1 strip (usually 10 tabs — show division math explicitly)
 - Syrup/Suspension: 1 unit = 1 bottle | Cream/Gel/Ointment: 1 unit = 1 tube
 
+ALKES CLASSIFICATION \u2014 check this FIRST for each drug before normalization:
+If the item is a MEDICAL SUPPLY or DEVICE (alat kesehatan), NOT a pharmaceutical drug:
+→ Set isAlkes: true, marketPriceMax: 0, sources: [], and stop for that item.
+ALKES: exam gloves, surgical gloves, disposable syringes, IV needles, antiseptic swabs,
+catheters, bandages, gauze, IV tubing, infusion sets, nasogastric tubes, wound dressings.
+Key: DISP SYRINGE → ALKES. EXAM GLOVE → ALKES. B.AC SWAB → ALKES.
+NaCl 0.9% infusion → DRUG. Metronidazole infusion → DRUG. Lidocaine injection → DRUG.
+
 PRICE LOOKUP PER DRUG (stop at the first successful attempt):
 A→ Exact normalized product — if known, use it and skip B/C/D
 B→ Nearest common strength (only if A failed)
@@ -527,7 +546,8 @@ ANTI-HALLUCINATION:
 - Ampoule/vial: price is per SINGLE unit, not per box
 - 100ml bottle ≠ 500ml bottle (different prices)
 - 2% ≠ 5% concentration (different prices)
-- Return 0 ONLY when active ingredient is genuinely unrecognized in Indonesia
+- Return isAlkes: true for medical supplies, marketPriceMax: 0 for those
+- Return marketPriceMax: 0 ONLY when active ingredient is genuinely unrecognized in Indonesia
 - NEVER skip an index — every drug must have a result entry`,
 
       prompt: `Price ALL ${drugs.length} drugs below for Indonesian hospital claim validation. Return one result per drug, maintaining index order.

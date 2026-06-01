@@ -247,7 +247,7 @@ export interface DrugPriceCheckOutput {
     marketPriceMax: number;
     marketPriceMaxWithThreshold: number;
     expectedTotal: number;
-    status: "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" | "NOT_FOUND" | "CACHE_HIT";
+    status: "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" | "NOT_FOUND" | "CACHE_HIT" | "ALKES";
     variancePct: number;
     sources: string[];
     cachedAt: string | null;

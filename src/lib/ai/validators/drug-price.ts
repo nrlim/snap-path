@@ -69,6 +69,22 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
 
       batchData.forEach((aiData, batchPos) => {
         const medIndex = batchStart + batchPos;
+        if (medIndex === undefined || medIndex >= medications.length) return;
+
+        // ALKES (alat kesehatan) — medical supply/device, not a drug.
+        // Skip cache and scoring; mark separately for UI display.
+        if (aiData?.isAlkes === true) {
+          aiResults[medIndex] = {
+            marketPriceMax: 0,
+            marketPriceAvg: null,
+            sources: ['alkes'],
+            resolvedProductName: aiData?.resolvedProductName || undefined,
+            dosageForm: aiData?.dosageForm || undefined,
+            unitBasis: aiData?.unitBasis || undefined,
+          };
+          return;
+        }
+
         const aiPrice = Number(aiData?.marketPriceMax ?? 0);
         const aiSources: string[] = Array.isArray(aiData?.sources) ? aiData.sources : [];
 
@@ -111,6 +127,19 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     const cachedPrice = cacheEntry?.marketPriceMax ?? 0;
     const cachedSources = cacheEntry?.sources as string[] | undefined;
     const hasValidCache = cachedPrice > 0 && Array.isArray(cachedSources) && cachedSources.length > 0;
+
+    // ALKES detected by AI — medical supply, not a drug. Skip cache entirely.
+    const isAlkes = aiResult !== null && Array.isArray(aiResult.sources) && aiResult.sources.includes('alkes');
+    if (isAlkes) {
+      return {
+        marketPriceMax: 0,
+        sources: ['alkes'],
+        resolvedProductName: aiResult!.resolvedProductName,
+        dosageForm: aiResult!.dosageForm,
+        unitBasis: aiResult!.unitBasis,
+        cachedAt: null,
+      };
+    }
 
     // AI succeeded → use AI result
     if (aiResult && aiResult.marketPriceMax > 0) {
@@ -194,6 +223,29 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     const claimedUnitPrice = getMedicationUnitPrice(med);
     const claimedTotal = getMedicationTotalPrice(med);
 
+    const isAlkesItem = fp.sources.includes('alkes');
+
+    if (isAlkesItem) {
+      items.push({
+        name: med.name,
+        genericName: med.genericName || null,
+        resolvedProductName: fp.resolvedProductName,
+        dosageForm: fp.dosageForm,
+        unitBasis: fp.unitBasis,
+        quantity: med.quantity,
+        claimedUnitPrice,
+        claimedTotal,
+        marketPriceMax: 0,
+        marketPriceMaxWithThreshold: 0,
+        expectedTotal: 0,
+        status: 'ALKES',
+        variancePct: 0,
+        sources: fp.sources,
+        cachedAt: null,
+      });
+      continue;
+    }
+
     if (fp.marketPriceMax === 0) {
       items.push({
         name: med.name,
@@ -248,6 +300,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
 
   let overallStatus: DrugPriceCheckOutput['status'] = 'VALID';
   if (hasOverThreshold || hasUnderPriced) overallStatus = 'WARNING';
+  // ALKES items are excluded from NOT_FOUND warning — they are expected to have no drug price reference.
   if (items.some((i) => i.status === 'NOT_FOUND')) overallStatus = 'WARNING';
 
   return { jobId, status: overallStatus, items, thresholdConfig: { thresholdPct } };

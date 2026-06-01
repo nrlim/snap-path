@@ -860,6 +860,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           const isDrugOver = item.status === "OVER_THRESHOLD" || item.status === "OVER_PRICED";
                           const isDrugUnder = item.status === "UNDER_PRICED";
                           const isDrugNotFound = item.status === "NOT_FOUND";
+                          const isDrugAlkes = item.status === "ALKES";
                           const drugVariancePct = item.variancePct ?? 0;
                           const drugClaimedTotal = getDrugClaimedTotal(item);
                           const drugClaimedUnit = getDrugClaimedUnit(item);
@@ -893,7 +894,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 ) : null}
                               </td>
                               <td className="px-4 py-3 text-right font-mono text-xs">
-                                {isDrugNotFound ? '—' : (
+                                {isDrugNotFound || isDrugAlkes ? '—' : (
                                   <span className={drugVariancePct > 0 ? 'text-red-500' : drugVariancePct < -15 ? 'text-yellow-500' : 'text-green-600'}>
                                     {drugVariancePct > 0 ? '+' : ''}{drugVariancePct.toFixed(1)}%
                                   </span>
@@ -904,6 +905,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                   <span className="inline-flex items-center rounded-md bg-red-500/10 px-2 py-1 text-xs font-bold text-red-600 ring-1 ring-inset ring-red-500/20">⚠ Overcharge</span>
                                 ) : isDrugUnder ? (
                                   <span className="inline-flex items-center rounded-md bg-yellow-500/10 px-2 py-1 text-xs font-bold text-yellow-600 ring-1 ring-inset ring-yellow-500/20">↓ Undercharge</span>
+                                ) : isDrugAlkes ? (
+                                  <span className="inline-flex items-center rounded-md bg-slate-500/10 px-2 py-1 text-xs font-medium text-slate-500 ring-1 ring-inset ring-slate-500/20">Alat Kesehatan</span>
                                 ) : isDrugNotFound ? (
                                   <span className="inline-flex items-center rounded-md bg-orange-500/10 px-2 py-1 text-xs font-bold text-orange-600 ring-1 ring-inset ring-orange-500/20">Referensi belum tersedia</span>
                                 ) : (
