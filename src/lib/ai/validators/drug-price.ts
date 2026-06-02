@@ -9,6 +9,89 @@ const AI_KNOWLEDGE_SOURCE_TAG = 'ai_knowledge_v1';
 
 // Maximum number of drugs per batch AI call.
 const BATCH_SIZE = 15;
+const KFA_MASTER_SOURCE_TAG = 'master_data_kfa';
+const DRUG_SEARCH_STOPWORDS = new Set([
+  'inj', 'injeksi', 'inf', 'infus', 'tablet', 'tab', 'kaps', 'kap', 'capsule', 'cap',
+  'amp', 'ampul', 'vial', 'vl', 'sirup', 'syrup', 'syr', 'susp', 'cream', 'krim',
+  'salep', 'gel', 'strip', 'pcs', 'unit', 'botol', 'btl', 'ml', 'mg', 'gram', 'gr',
+]);
+
+function getJsonStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function normalizeSearchText(value: unknown): string {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getSearchTokens(med: any): string[] {
+  const normalized = normalizeSearchText(`${med.name || ''} ${med.genericName || ''}`);
+  return Array.from(new Set(normalized.split(' ').filter((token) => token.length >= 3 && !DRUG_SEARCH_STOPWORDS.has(token)))).slice(0, 5);
+}
+
+function scoreMasterDrugCandidate(med: any, candidate: { drugName: string; drugGenericName: string | null; sources: unknown }) {
+  const sources = getJsonStringArray(candidate.sources);
+  if (!sources.some((source) => source.includes(KFA_MASTER_SOURCE_TAG))) return -1;
+
+  const medText = normalizeSearchText(`${med.name || ''} ${med.genericName || ''}`);
+  const candidateName = normalizeSearchText(candidate.drugName);
+  const candidateGeneric = normalizeSearchText(candidate.drugGenericName || '');
+  const candidateText = `${candidateName} ${candidateGeneric}`.trim();
+  const tokens = getSearchTokens(med);
+
+  let score = 0;
+  if (candidateName === normalizeSearchText(med.name)) score += 100;
+  if (candidateGeneric && candidateGeneric === normalizeSearchText(med.genericName)) score += 80;
+  if (candidateText.includes(medText) || medText.includes(candidateName)) score += 45;
+  for (const token of tokens) {
+    if (candidateName.includes(token)) score += 12;
+    if (candidateGeneric.includes(token)) score += 8;
+  }
+
+  return score;
+}
+
+async function findKfaMasterDrugPrice(med: any, now: Date) {
+  const tokens = getSearchTokens(med);
+  if (tokens.length === 0) return null;
+
+  const candidates = await prisma.drugPriceCache.findMany({
+    where: {
+      expiresAt: { gt: now },
+      OR: tokens.flatMap((token) => [
+        { drugName: { contains: token, mode: 'insensitive' as const } },
+        { drugGenericName: { contains: token, mode: 'insensitive' as const } },
+      ]),
+    },
+    orderBy: [{ fetchedAt: 'desc' }, { createdAt: 'desc' }],
+    take: 50,
+  });
+
+  let best: (typeof candidates)[number] | null = null;
+  let bestScore = 0;
+  for (const candidate of candidates) {
+    const score = scoreMasterDrugCandidate(med, candidate);
+    if (score > bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+
+  if (!best || bestScore < 12 || best.marketPriceMax <= 0) return null;
+
+  return {
+    marketPriceMax: best.marketPriceMax,
+    sources: getJsonStringArray(best.sources),
+    resolvedProductName: best.drugName,
+    dosageForm: undefined,
+    unitBasis: undefined,
+    cachedAt: best.fetchedAt.toISOString(),
+  };
+}
 
 function getMedicationUnitPrice(med: any) {
   return Number(med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0);
@@ -23,25 +106,26 @@ function getMedicationTotalPrice(med: any) {
 export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string): Promise<DrugPriceCheckOutput> {
   const { providerId, medications } = input;
 
-  // ── STEP 1: Parallel — fetch threshold config + all cache entries at once ──
+  // ── STEP 1: Parallel — fetch threshold config, AI cache, and KFA master data ──
   const now = new Date();
-  const [thresholdRecord, ...cacheEntries] = await Promise.all([
+  const [thresholdRecord, cacheEntries, masterEntries] = await Promise.all([
     prisma.thresholdConfig.findUnique({
       where: { providerId_category: { providerId, category: 'DRUG_PRICE' } },
     }),
-    ...medications.map((med) =>
+    Promise.all(medications.map((med) =>
       prisma.drugPriceCache.findFirst({
         where: { drugName: med.name, expiresAt: { gt: now } },
         orderBy: { createdAt: 'desc' },
       }),
-    ),
+    )),
+    Promise.all(medications.map((med) => findKfaMasterDrugPrice(med, now))),
   ]);
 
   const thresholdPct = thresholdRecord?.thresholdPct ?? 0;
 
-  // ── STEP 2: Always call AI batch — even if cache exists ────────────────────
-  // AI is the primary source of truth. Cache only serves as fallback and as a
-  // "last known price" to avoid unnecessary DB writes (skip update if same price).
+  // ── STEP 2: KFA master data is the first source of truth ───────────────────
+  // If a medication is found in local Master Obat KFA, use it immediately and do
+  // not call the online/AI price lookup for that item.
   type AiResult = {
     marketPriceMax: number;
     marketPriceAvg: number | null;
@@ -53,22 +137,28 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
 
   const aiResults: (AiResult | null)[] = new Array(medications.length).fill(null);
 
-  const gateway = await getAIGateway({ clientId: input.clientId, providerId });
+  const aiLookupIndexes = medications
+    .map((_, index) => index)
+    .filter((index) => !masterEntries[index]);
+  const gateway = aiLookupIndexes.length > 0 ? await getAIGateway({ clientId: input.clientId, providerId }) : null;
 
-  for (let batchStart = 0; batchStart < medications.length; batchStart += BATCH_SIZE) {
-    const batchEnd = Math.min(batchStart + BATCH_SIZE, medications.length);
-    const batchDrugs = medications.slice(batchStart, batchEnd).map((m) => ({
-      name: m.name,
-      genericName: m.genericName || null,
-      dosage: m.dosage || null,
-    }));
+  for (let batchStart = 0; batchStart < aiLookupIndexes.length; batchStart += BATCH_SIZE) {
+    const batchIndexes = aiLookupIndexes.slice(batchStart, batchStart + BATCH_SIZE);
+    const batchDrugs = batchIndexes.map((index) => {
+      const med = medications[index];
+      return {
+        name: med.name,
+        genericName: med.genericName || null,
+        dosage: med.dosage || null,
+      };
+    });
 
     try {
-      const batchResult = await gateway.searchDrugMarketPriceBatch(batchDrugs);
+      const batchResult = await gateway!.searchDrugMarketPriceBatch(batchDrugs);
       const batchData: any[] = Array.isArray(batchResult?.data) ? batchResult.data : [];
 
       batchData.forEach((aiData, batchPos) => {
-        const medIndex = batchStart + batchPos;
+        const medIndex = batchIndexes[batchPos];
         if (medIndex === undefined || medIndex >= medications.length) return;
 
         const aiPrice = Number(aiData?.marketPriceMax ?? 0);
@@ -105,8 +195,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     }
   }
 
-  // ── STEP 3: Reconcile AI results with cache — smart update ─────────────────
+  // ── STEP 3: Reconcile master data, AI results, and cache ──────────────────
   // For each drug:
+  //   - If KFA master data matched → use it and stop (no internet/AI lookup)
   //   - If AI returned a price AND it differs from cached price → update cache
   //   - If AI returned a price AND it matches cached price → skip DB write
   //   - If AI returned 0 → use cached price if available (graceful fallback)
@@ -123,6 +214,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
   };
 
   const finalPrices: FinalPrice[] = medications.map((med, i) => {
+    const masterEntry = masterEntries[i];
+    if (masterEntry) return masterEntry;
+
     const aiResult = aiResults[i];
     const cacheEntry = cacheEntries[i];
     const cachedPrice = cacheEntry?.marketPriceMax ?? 0;

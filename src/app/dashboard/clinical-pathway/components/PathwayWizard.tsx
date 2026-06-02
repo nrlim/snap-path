@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import PathwayImportModal from "./PathwayImportModal";
-import { getTariffEntries } from "../../master-data/buku-tarif/actions";
+import { searchTariffEntriesForWizard } from "../../master-data/buku-tarif/actions";
 import { REQUIRED_CLAIM_DOCUMENTS } from "@/lib/claim-documents";
 import { calculateLosDays } from "@/lib/los";
 
@@ -116,17 +116,26 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
   });
 
   const handleImport = (parsed: any) => {
-    // Try to extract extra fields if they exist in some custom way, otherwise keep defaults
-    setFormData((prev: any) => ({
-      ...prev,
-      patient: parsed.patient || prev.patient,
-      encounter: parsed.encounter || prev.encounter,
-      diagnoses: parsed.diagnoses || [],
-      procedures: parsed.procedures || [],
-      medications: parsed.medications || [],
-      documents: parsed.documents || [],
-      extra: { ...prev.extra, ...(parsed.extra || {}) }
-    }));
+    // Try to extract extra fields if they exist in some custom way, otherwise keep defaults.
+    // Keep the selected dashboard provider unless the imported providerId is one of the known provider IDs.
+    setFormData((prev: any) => {
+      const importedExtra = parsed.extra || {};
+      const importedProviderId = typeof importedExtra.providerId === "string" ? importedExtra.providerId : "";
+      const safeProviderId = providers.some((provider) => provider.id === importedProviderId)
+        ? importedProviderId
+        : prev.extra.providerId;
+
+      return {
+        ...prev,
+        patient: parsed.patient || prev.patient,
+        encounter: parsed.encounter || prev.encounter,
+        diagnoses: parsed.diagnoses || [],
+        procedures: parsed.procedures || [],
+        medications: parsed.medications || [],
+        documents: parsed.documents || [],
+        extra: { ...prev.extra, ...importedExtra, providerId: safeProviderId }
+      };
+    });
     setStep(8);
   };
 
@@ -820,27 +829,29 @@ function AsyncTariffInput({
   }, []);
 
   useEffect(() => {
-    if (!providerId) return;
+    if (!providerId) {
+      setOptions([]);
+      return;
+    }
     const fetchOptions = async () => {
       setIsLoading(true);
       try {
-        const res = await getTariffEntries({ 
+        const entries = await searchTariffEntriesForWizard({ 
           providerId, 
           search: value, 
-          limit: 20,
+          limit: 30,
           category,
           excludeCategory
         });
-        if (res.entries) {
-          setOptions(res.entries.map(t => ({
-            label: t.procedureName,
-            value: t.procedureCode,
-            subLabel: category === "OBAT" ? t.procedureCode : `${t.procedureCode} - ${t.category}`,
-            data: t
-          })));
-        }
+        setOptions(entries.map(t => ({
+          label: t.procedureName,
+          value: t.procedureCode,
+          subLabel: category === "OBAT" ? t.procedureCode : `${t.procedureCode} - ${t.category}`,
+          data: t
+        })));
       } catch (e) {
         console.error(e);
+        setOptions([]);
       } finally {
         setIsLoading(false);
       }

@@ -372,6 +372,9 @@ INDONESIAN ABBREVIATIONS TO NORMALIZE:
 - OBT KUMUR → mouthwash/gargle
 - PLSTR / PATCH → transdermal patch
 
+LOOKUP PRIORITY CONTEXT:
+The application checks local Master Obat KFA before calling you. If a drug reached this prompt, local KFA master data was not found or was insufficient. Do not claim to have checked KFA directly; use online Indonesian pharmacy / public market knowledge only.
+
 REFERENCE SOURCES (from training knowledge):
 1. K24Klik, Halodoc, Farmaku, GoApotik, Lifepack, KimiaFarma — retail pharmacy prices
 2. MIMS Indonesia — professional drug database with price ranges
@@ -553,6 +556,7 @@ Key: DISP SYRINGE → Non-Med. EXAM GLOVE → Non-Med. B.AC SWAB → Non-Med.
 NaCl 0.9% infusion → DRUG. Metronidazole infusion → DRUG. Lidocaine injection → DRUG. Trolit Sachet → DRUG.
 
 PRICE LOOKUP PER DRUG (stop at the first successful attempt):
+Context: local Master Obat KFA lookup already ran before this AI call and did not return a usable price for these items. Use online pharmacy / public market knowledge only.
 A→ Exact normalized product — if known, use it and skip B/C/D
 B→ Nearest common strength (only if A failed)
 C→ Active ingredient + form only (only if A+B failed)

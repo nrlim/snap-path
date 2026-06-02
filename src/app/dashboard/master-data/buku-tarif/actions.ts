@@ -147,6 +147,72 @@ export async function getTariffEntries(params: GetTariffEntriesParams = {}) {
   return { entries, total, totalPages: Math.max(1, Math.ceil(total / limit)), summary: { active, inactive } };
 }
 
+type WizardTariffSearchParams = Pick<GetTariffEntriesParams, "providerId" | "category" | "excludeCategory" | "search" | "limit">;
+
+function buildTariffSearchOr(query: string): Prisma.TariffEntryWhereInput[] {
+  const contains = { contains: query, mode: "insensitive" as const };
+  return [
+    { procedureCode: contains },
+    { procedureName: contains },
+    { category: contains },
+    { subcategory: contains },
+    { serviceCode: contains },
+    { unit: contains },
+    { regionCode: contains },
+    { currency: contains },
+    { notes: contains },
+    { provider: { name: contains } },
+  ];
+}
+
+export async function searchTariffEntriesForWizard(params: WizardTariffSearchParams = {}) {
+  const user = await getAuthenticatedUser();
+  if (!user || !params.providerId || params.providerId === "all") return [];
+
+  const limit = Math.min(50, Math.max(1, Number(params.limit) || 20));
+  const query = params.search?.trim();
+  const whereClause: Prisma.TariffEntryWhereInput = {
+    providerId: params.providerId,
+    isActive: true,
+  };
+
+  if (params.category && params.category !== "all") {
+    whereClause.category = { equals: params.category, mode: "insensitive" };
+  } else if (params.excludeCategory) {
+    whereClause.NOT = [{ category: { equals: params.excludeCategory, mode: "insensitive" } }];
+  }
+
+  if (!isPlatformAdminRole(user.role)) {
+    if (!user.clientId) return [];
+    whereClause.provider = { clientId: user.clientId };
+  }
+
+  const entries = await prisma.tariffEntry.findMany({
+    where: query ? { ...whereClause, OR: buildTariffSearchOr(query) } : whereClause,
+    include: { provider: { select: { name: true } } },
+    take: limit,
+    orderBy: [{ procedureName: "asc" }, { createdAt: "desc" }],
+  });
+
+  const tokens = query?.split(/\s+/).filter((token) => token.length >= 2) || [];
+  if (!query || entries.length >= limit || tokens.length <= 1) return entries;
+
+  const tokenEntries = await prisma.tariffEntry.findMany({
+    where: {
+      ...whereClause,
+      AND: tokens.map((token) => ({ OR: buildTariffSearchOr(token) })),
+    },
+    include: { provider: { select: { name: true } } },
+    take: limit,
+    orderBy: [{ procedureName: "asc" }, { createdAt: "desc" }],
+  });
+
+  const merged = new Map<string, (typeof entries)[number]>();
+  for (const entry of entries) merged.set(entry.id, entry);
+  for (const entry of tokenEntries) merged.set(entry.id, entry);
+  return Array.from(merged.values()).slice(0, limit);
+}
+
 export async function getProviders() {
   const user = await getAuthenticatedUser();
   if (!user) return [];
