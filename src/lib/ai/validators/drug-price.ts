@@ -137,10 +137,8 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
 
   // ── STEP 1: Parallel — fetch threshold config, exact master references and local medical-item master data ──
   const now = new Date();
-  const [thresholdRecord, exactMasterEntries, masterEntries] = await Promise.all([
-    prisma.thresholdConfig.findUnique({
-      where: { providerId_category: { providerId, category: 'DRUG_PRICE' } },
-    }),
+  const [config, exactMasterEntries, masterEntries] = await Promise.all([
+    prisma.systemConfig.findUnique({ where: { id: 'GLOBAL_CONFIG' } }),
     Promise.all(medications.map((med) =>
       prisma.medicalItemPriceMaster.findFirst({
         where: { itemName: med.name, expiresAt: { gt: now } },
@@ -150,7 +148,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     Promise.all(medications.map((med) => findMedicalMasterItemPrice(med, now))),
   ]);
 
-  const thresholdPct = thresholdRecord?.thresholdPct ?? 0;
+  const thresholdPct = config?.thresholdObatPct ?? 10;
 
   const hasValidReferenceEntry = (index: number) => {
     const referenceEntry = exactMasterEntries[index];
@@ -304,7 +302,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     if (claimedUnitPrice > marketPriceMaxWithThreshold) {
       status = 'OVER_THRESHOLD';
       hasOverThreshold = true;
-    } else if (variancePct < -20) {
+    } else if (variancePct < -thresholdPct) {
       status = 'UNDER_PRICED';
       hasUnderPriced = true;
     }

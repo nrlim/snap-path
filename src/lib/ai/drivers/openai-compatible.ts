@@ -520,7 +520,7 @@ Rules:
     return { data: object, usage: usage as any };
   }
 
-  async estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }> {
+  async estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string, thresholds?: { overstayDays?: number; understayDays?: number }): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
       estimatedLos: z.number().describe('Standard expected LOS in days for an uncomplicated inpatient case.'),
       minLos: z.number().describe('Minimum LOS for mild/uncomplicated cases with rapid clinical improvement.'),
@@ -571,6 +571,11 @@ STAY STATUS LOGIC:
 
 Return ONLY raw JSON matching the schema. Do not use markdown, prose, headings, or tables. All user-facing text in Bahasa Indonesia.`,
       prompt: `Return ONLY this JSON shape: {"estimatedLos": number, "minLos": number, "maxLos": number, "stayStatusThresholds": {"overstayDays": number, "understayDays": number}, "therapyRecommendation": {"phases": [{"phase": string, "dayRange": string, "keyActivities": string[]}], "criticalPathItems": string[]}, "justification": string, "references": string[]}.
+
+Configured SnapPath review thresholds:
+- overstayDays: ${thresholds?.overstayDays ?? 'not configured'}
+- understayDays: ${thresholds?.understayDays ?? 'not configured'}
+Use these configured thresholds in stayStatusThresholds when provided. If not provided, choose clinically reasonable thresholds and justify them.
 
 Estimate the standard Length of Stay (LOS) for:
 Diagnosis Code: ${diagnosisCode}

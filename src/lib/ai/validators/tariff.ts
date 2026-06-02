@@ -137,18 +137,10 @@ async function resolveMasterTariff(proc: any, providerId: string, requestedCateg
 export async function validateTariffPrice(input: TariffValidationInput, jobId: string): Promise<TariffValidationOutput> {
   const { providerId, procedures, encounterType } = input;
 
-  // Fetch Threshold Config
-  const thresholdRecord = await prisma.thresholdConfig.findUnique({
-    where: {
-      providerId_category: {
-        providerId,
-        category: 'TARIFF'
-      }
-    }
-  });
-
-  const thresholdPct = thresholdRecord?.thresholdPct ?? 0;
-  const maxAbsoluteIdr = thresholdRecord?.maxAbsoluteIdr ?? null;
+  // Fetch global threshold configuration from SystemConfig.
+  const config = await prisma.systemConfig.findUnique({ where: { id: 'GLOBAL_CONFIG' } });
+  const thresholdPct = config?.thresholdTindakanPct ?? 10;
+  const maxAbsoluteIdr = null;
 
   let totalExpected = 0;
   let totalClaimed = 0;
@@ -202,7 +194,7 @@ export async function validateTariffPrice(input: TariffValidationInput, jobId: s
     if (variancePct > thresholdPct) {
       status = 'OVER_THRESHOLD';
       hasOverThreshold = true;
-    } else if (expectedTotal > 0 && variancePct < -20) { // arbitrary under-price check
+    } else if (expectedTotal > 0 && variancePct < -thresholdPct) {
       status = 'UNDER_PRICED';
       hasUnderPriced = true;
     }

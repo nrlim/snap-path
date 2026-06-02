@@ -164,27 +164,11 @@ model Provider {
 
   apiUsageLogs      ApiUsageLog[]
   tariffBook        TariffEntry[]
-  thresholdConfigs  ThresholdConfig[]
   claimJobs         ClaimJob[]
 
   @@index([clientId])
   @@unique([clientId, code])
   @@map("snp_provider")
-}
-
-model ThresholdConfig {
-  id              String   @id @default(uuid())
-  providerId      String
-  provider        Provider @relation(fields: [providerId], references: [id])
-  category        String   // "TARIFF" | "DRUG_PRICE" | "PATHWAY"
-  thresholdPct    Float    // e.g., 10.0 = 10%
-  maxAbsoluteIdr  Float?   // Optional absolute threshold in IDR
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@unique([providerId, category])
-  @@map("snp_threshold_config")
 }
 
 // === MASTER DATA: TARIFF BOOK ===

@@ -25,8 +25,12 @@ export async function validateLos(payload: any, jobId: string): Promise<LosValid
   }
 
   const { code: diagnosisCode, name, description } = primaryDiag;
-  const diagnosisName = description || name || "Unknown Diagnosis";
+  const diagnosisName = name || description || "Unknown Diagnosis";
   const providerType = payload.providerType;
+
+  const config = await prisma.systemConfig.findUnique({ where: { id: 'GLOBAL_CONFIG' } });
+  const configuredOverstayDays = config?.thresholdLosDays ?? 1;
+  const configuredUnderstayDays = config?.thresholdLosDays ?? 1;
 
   // 1. Check for existing template in DB
   const existingPathways = await prisma.clinicalPathway.findMany({
@@ -64,7 +68,7 @@ export async function validateLos(payload: any, jobId: string): Promise<LosValid
     // 2. Fallback to AI estimation via deep research
     const gateway = await getAIGateway({ clientId: payload.clientId, providerId: payload.providerId, jobId });
     try {
-      const { data } = await gateway.estimateDiagnosisLos(diagnosisCode, diagnosisName);
+      const { data } = await gateway.estimateDiagnosisLos(diagnosisCode, diagnosisName, { overstayDays: configuredOverstayDays, understayDays: configuredUnderstayDays });
       expectedLos = data.estimatedLos;
       minLos = data.minLos;
       maxLos = data.maxLos;
@@ -80,12 +84,14 @@ export async function validateLos(payload: any, jobId: string): Promise<LosValid
     }
   }
 
-  // Fetch threshold configuration — use AI-provided thresholds if available, else fall back to global config
-  const config = await prisma.systemConfig.findUnique({
-    where: { id: 'GLOBAL_CONFIG' }
-  });
-  const thresholdLosDays = stayStatusThresholds?.overstayDays ?? config?.thresholdLosDays ?? 1;
-  const understayThresholdDays = stayStatusThresholds?.understayDays ?? 1;
+  // Use SystemConfig thresholds as source of truth. AI receives the same thresholds
+  // and should echo them in stayStatusThresholds for traceability.
+  const thresholdLosDays = configuredOverstayDays;
+  const understayThresholdDays = configuredUnderstayDays;
+  stayStatusThresholds = {
+    overstayDays: thresholdLosDays,
+    understayDays: understayThresholdDays,
+  };
 
   // Calculate Variance & Deduction
   const varianceDays = actualLos - expectedLos;

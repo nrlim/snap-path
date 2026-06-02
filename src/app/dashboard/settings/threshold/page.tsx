@@ -10,7 +10,9 @@ export default async function ThresholdPage() {
 
   const config = await prisma.systemConfig.findUnique({
     where: { id: "GLOBAL_CONFIG" }
-  }) || {
+  });
+
+  const fallbackConfig = config || {
     aiProvider: "vercel-ai-gateway",
     aiGatewayUrl: "",
     aiModel: "gpt-4o-mini",
@@ -23,7 +25,7 @@ export default async function ThresholdPage() {
 
   return (
     <div className="w-full pb-10">
-      <ThresholdForm config={config} />
+      <ThresholdForm config={fallbackConfig} />
     </div>
   )
 }

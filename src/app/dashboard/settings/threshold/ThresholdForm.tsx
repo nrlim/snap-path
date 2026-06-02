@@ -1,8 +1,8 @@
 "use client";
 
-import React from 'react';
-import { updateThresholdConfig } from '../actions';
-import { useUI } from '@/components/providers/UIProvider';
+import React from "react";
+import { updateThresholdConfig } from "../actions";
+import { useUI } from "@/components/providers/UIProvider";
 
 export default function ThresholdForm({ config }: { config: any }) {
   const { showLoading, hideLoading, showNotification, showConfirm } = useUI();
@@ -10,27 +10,27 @@ export default function ThresholdForm({ config }: { config: any }) {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
+
     showConfirm({
-      title: "Save Configuration",
-      message: "Are you sure you want to update the Threshold configuration?",
-      confirmText: "Yes, Save",
-      cancelText: "Cancel",
+      title: "Simpan Threshold",
+      message: "Simpan konfigurasi threshold global di SystemConfig?",
+      confirmText: "Ya, Simpan",
+      cancelText: "Batal",
       onConfirm: async () => {
-        showLoading("Saving configuration...");
+        showLoading("Menyimpan konfigurasi...");
         try {
           const res = await updateThresholdConfig(formData);
-          if (res.success) {
-            showNotification({ type: 'success', title: 'Success', message: 'Configuration updated successfully.' });
-          } else {
-            showNotification({ type: 'error', title: 'Error', message: res.error || 'Failed to update configuration.' });
-          }
-        } catch (error) {
-          showNotification({ type: 'error', title: 'Error', message: 'An unexpected error occurred.' });
+          showNotification({
+            type: res.success ? "success" : "error",
+            title: res.success ? "Berhasil" : "Gagal",
+            message: res.success ? "Threshold berhasil disimpan." : res.error || "Gagal menyimpan konfigurasi.",
+          });
+        } catch {
+          showNotification({ type: "error", title: "Error", message: "Terjadi kesalahan tak terduga." });
         } finally {
           hideLoading();
         }
-      }
+      },
     });
   };
 
@@ -38,57 +38,45 @@ export default function ThresholdForm({ config }: { config: any }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">Threshold Clinical Pathway</h1>
-          <p className="text-sm text-text-subtle mt-1">
-            Set global tolerance limits for Clinical Pathway validations.
+          <h1 className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-2xl font-bold tracking-tight text-transparent">Threshold Clinical Pathway</h1>
+          <p className="mt-1 max-w-3xl text-sm text-text-subtle">
+            Atur global tolerance limit untuk validasi tarif tindakan, obat/farmalkes, dan LOS. Nilai ini disimpan di SystemConfig.
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="w-full animate-in fade-in duration-300">
-        <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden">
-          <div className="px-6 py-6 sm:p-8">
-          <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
-            
-            {/* Obat Threshold */}
-            <div>
-              <label htmlFor="thresholdObatPct" className="block text-sm font-medium text-text">Toleransi Obat (%)</label>
-              <div className="mt-2 relative">
-                <input id="thresholdObatPct" name="thresholdObatPct" type="number" step="0.1" min="0" defaultValue={config.thresholdObatPct || 10.0} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-text-subtle">%</div>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-text-faint">Batas persentase selisih harga/jumlah obat yang masih dianggap wajar.</p>
-            </div>
-
-            {/* Tindakan Threshold */}
-            <div>
-              <label htmlFor="thresholdTindakanPct" className="block text-sm font-medium text-text">Toleransi Tindakan (%)</label>
-              <div className="mt-2 relative">
-                <input id="thresholdTindakanPct" name="thresholdTindakanPct" type="number" step="0.1" min="0" defaultValue={config.thresholdTindakanPct || 10.0} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-text-subtle">%</div>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-text-faint">Batas persentase selisih biaya tindakan dari harga master data.</p>
-            </div>
-
-            {/* LOS Threshold */}
-            <div>
-              <label htmlFor="thresholdLosDays" className="block text-sm font-medium text-text">Toleransi LOS (Hari)</label>
-              <div className="mt-2 relative">
-                <input id="thresholdLosDays" name="thresholdLosDays" type="number" min="0" defaultValue={config.thresholdLosDays || 1} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-text-subtle">Hari</div>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-text-faint">Batas maksimal kelebihan hari rawat inap dari standar.</p>
-            </div>
-
+        <section className="overflow-hidden rounded-lg border border-border/80 bg-surface shadow-sm">
+          <div className="border-b border-border/60 px-6 py-4">
+            <h2 className="text-base font-bold text-text">Global Threshold</h2>
+            <p className="mt-1 text-sm text-text-subtle">Dipakai oleh validator dan dikirim sebagai parameter threshold ke AI LOS estimator.</p>
           </div>
-        </div>
-      </div>
+          <div className="grid gap-x-8 gap-y-6 px-6 py-6 sm:grid-cols-3 sm:p-8">
+            <ThresholdInput id="thresholdObatPct" name="thresholdObatPct" label="Obat/Farmalkes (%)" suffix="%" defaultValue={config.thresholdObatPct ?? 10.0} description="Toleransi overcharge/undercharge item obat dan farmalkes." />
+            <ThresholdInput id="thresholdTindakanPct" name="thresholdTindakanPct" label="Tindakan (%)" suffix="%" defaultValue={config.thresholdTindakanPct ?? 10.0} description="Toleransi overcharge/undercharge tindakan terhadap master buku tarif." />
+            <ThresholdInput id="thresholdLosDays" name="thresholdLosDays" label="LOS" suffix="Hari" defaultValue={config.thresholdLosDays ?? 1} description="Toleransi overstay dan understay terhadap standar LOS." />
+          </div>
+        </section>
+
         <div className="flex items-center justify-end gap-4 pt-6">
-          <button type="submit" className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm shadow-primary/30 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">
+          <button type="submit" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm shadow-primary/30 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">
             Save Thresholds
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function ThresholdInput({ id, name, label, suffix, defaultValue, description }: { id: string; name: string; label: string; suffix: string; defaultValue: number; description: string }) {
+  return (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-text">{label}</label>
+      <div className="relative mt-2">
+        <input id={id} name={name} type="number" step="0.1" min="0" defaultValue={defaultValue} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 pr-16 text-base text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-xs text-text-subtle">{suffix}</div>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-text-faint">{description}</p>
     </div>
   );
 }

@@ -11,7 +11,6 @@ DECLARE
     ARRAY['CreditLedger', 'snp_credit_ledger'],
     ARRAY['RequestLedger', 'snp_request_ledger'],
     ARRAY['Provider', 'snp_provider'],
-    ARRAY['ThresholdConfig', 'snp_threshold_config'],
     ARRAY['TariffEntry', 'snp_tariff_entry'],
     ARRAY['DiagnosisCode', 'snp_diagnosis_code'],
     ARRAY['DiagnosisProcedureMap', 'snp_diagnosis_procedure_map'],

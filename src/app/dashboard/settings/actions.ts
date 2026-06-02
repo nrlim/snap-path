@@ -10,6 +10,11 @@ function formLimit(formData: FormData, key: string, fallback: number) {
   return Math.floor(value);
 }
 
+function formNumber(formData: FormData, key: string, fallback: number) {
+  const value = Number(formData.get(key));
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
 export async function updateSystemConfig(formData: FormData) {
   if (!(await getCurrentUserPermission("AI_ENGINE_CONFIG"))) {
     return { success: false, error: "Anda tidak memiliki akses untuk mengubah konfigurasi AI." };
@@ -61,18 +66,18 @@ export async function updateThresholdConfig(formData: FormData) {
   }
 
   try {
-    const data = {
-      thresholdObatPct: Number.isFinite(Number(formData.get("thresholdObatPct"))) ? Number(formData.get("thresholdObatPct")) : 10.0,
-      thresholdTindakanPct: Number.isFinite(Number(formData.get("thresholdTindakanPct"))) ? Number(formData.get("thresholdTindakanPct")) : 10.0,
+    const globalData = {
+      thresholdObatPct: formNumber(formData, "thresholdObatPct", 10.0),
+      thresholdTindakanPct: formNumber(formData, "thresholdTindakanPct", 10.0),
       thresholdLosDays: formLimit(formData, "thresholdLosDays", 1),
     };
 
     await prisma.systemConfig.upsert({
       where: { id: "GLOBAL_CONFIG" },
-      update: data,
+      update: globalData,
       create: {
         id: "GLOBAL_CONFIG",
-        ...data,
+        ...globalData,
       },
     });
 
