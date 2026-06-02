@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUserPermission } from "@/lib/rbac";
 import ClientApiKeysClient from "./ClientApiKeysClient";
-import { getClientApiKeyData } from "./actions";
+import { getAssignableTariffProviders, getClientApiKeyData } from "./actions";
 
 export default async function ClientApiKeysPage() {
   const user = await getCurrentUserPermission("CLIENT_API_KEYS");
@@ -10,7 +10,10 @@ export default async function ClientApiKeysPage() {
     redirect("/dashboard");
   }
 
-  const clients = await getClientApiKeyData();
+  const [clients, assignableProviders] = await Promise.all([
+    getClientApiKeyData(),
+    user.role === "SUPER_ADMIN" || user.role === "ADMIN" ? getAssignableTariffProviders() : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-6 pb-10">
@@ -23,7 +26,7 @@ export default async function ClientApiKeysPage() {
           Buka API Docs
         </Link>
       </div>
-      <ClientApiKeysClient clients={clients} canManageClients={user.role === "SUPER_ADMIN" || user.role === "ADMIN"} />
+      <ClientApiKeysClient clients={clients} assignableProviders={assignableProviders} canManageClients={user.role === "SUPER_ADMIN" || user.role === "ADMIN"} />
     </div>
   );
 }

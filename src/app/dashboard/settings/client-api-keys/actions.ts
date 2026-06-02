@@ -30,7 +30,7 @@ export async function getClientApiKeyData() {
     where: isPlatformRole(user.role) ? undefined : { id: user.clientId || "__none__" },
     include: {
       apiKeys: { orderBy: { createdAt: "desc" } },
-      providers: { orderBy: { name: "asc" } },
+      providers: { orderBy: { name: "asc" }, include: { _count: { select: { tariffBook: true } } } },
     },
     orderBy: { name: "asc" },
   });
@@ -52,6 +52,49 @@ export async function getClientApiKeyData() {
       secretCipher: undefined,
     })),
   }));
+}
+
+export async function getAssignableTariffProviders() {
+  const user = await getCurrentUserPermission("CLIENT_API_KEYS");
+  if (!user || !isPlatformRole(user.role)) return [];
+
+  return prisma.provider.findMany({
+    orderBy: [{ clientId: "asc" }, { name: "asc" }],
+    include: {
+      client: { select: { id: true, name: true, code: true } },
+      _count: { select: { tariffBook: true } },
+    },
+  });
+}
+
+export async function assignTariffProviderToClient(formData: FormData) {
+  const user = await getCurrentUserPermission("CLIENT_API_KEYS");
+  if (!user || !isPlatformRole(user.role)) {
+    return { success: false, error: "Hanya admin platform yang dapat mengatur provider buku tarif client." };
+  }
+
+  try {
+    const providerId = String(formData.get("providerId") || "");
+    const clientId = nullableString(formData.get("clientId"));
+
+    if (!providerId) return { success: false, error: "Provider buku tarif wajib dipilih." };
+
+    const provider = await prisma.provider.findUnique({ where: { id: providerId }, select: { id: true } });
+    if (!provider) return { success: false, error: "Provider buku tarif tidak ditemukan." };
+
+    if (clientId) {
+      const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
+      if (!client) return { success: false, error: "Client tidak ditemukan." };
+    }
+
+    await prisma.provider.update({ where: { id: providerId }, data: { clientId } });
+    revalidatePath(PATH);
+    revalidatePath("/dashboard/master-data/buku-tarif");
+    return { success: true };
+  } catch (error) {
+    console.error("Assign tariff provider error:", error);
+    return { success: false, error: "Gagal mengatur provider buku tarif client." };
+  }
 }
 
 export async function upsertClient(formData: FormData) {

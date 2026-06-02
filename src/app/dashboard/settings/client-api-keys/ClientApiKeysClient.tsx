@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Copy, Edit3, KeyRound, Plus, Trash2, X } from "lucide-react";
-import { createClientApiCredential, deleteClient, setClientApiKeyStatus, upsertClient } from "./actions";
+import { assignTariffProviderToClient, createClientApiCredential, deleteClient, setClientApiKeyStatus, upsertClient } from "./actions";
 import { useUI } from "@/components/providers/UIProvider";
 import { defaultPageSizes, SortButton, TablePagination, TableSearch, type SortDirection } from "@/components/ui/DataTableControls";
 
@@ -18,9 +18,12 @@ type Client = {
   aiMaxTokens: number | null;
   aiTemperature: number | null;
   apiKeys: Array<{ id: string; name: string; isActive: boolean; expiresAt: Date | string | null; createdAt: Date | string; apiKey?: string | null; apiSecret?: string | null }>;
+  providers: Array<{ id: string; code: string; name: string; isActive: boolean; _count?: { tariffBook: number } }>;
 };
 
-type SortField = "name" | "code" | "status" | "aiModel" | "apiKeys";
+type AssignableProvider = { id: string; code: string; name: string; isActive: boolean; clientId: string | null; client: { id: string; name: string; code: string } | null; _count: { tariffBook: number } };
+
+type SortField = "name" | "code" | "status" | "aiModel" | "apiKeys" | "providers";
 
 function formatDate(value: Date | string | null) {
   if (!value) return "Tidak ada";
@@ -30,10 +33,11 @@ function formatDate(value: Date | string | null) {
 function sortValue(client: Client, field: SortField) {
   if (field === "status") return client.isActive ? 1 : 0;
   if (field === "apiKeys") return client.apiKeys.length;
+  if (field === "providers") return client.providers.length;
   return String(client[field] || "").toLowerCase();
 }
 
-export default function ClientApiKeysClient({ clients, canManageClients }: { clients: Client[]; canManageClients: boolean }) {
+export default function ClientApiKeysClient({ clients, assignableProviders, canManageClients }: { clients: Client[]; assignableProviders: AssignableProvider[]; canManageClients: boolean }) {
   const router = useRouter();
   const { showConfirm, showNotification } = useUI();
   const [isPending, startTransition] = useTransition();
@@ -53,7 +57,7 @@ export default function ClientApiKeysClient({ clients, canManageClients }: { cli
     const query = search.trim().toLowerCase();
     return clients
       .filter((client) => {
-        const matchesSearch = !query || [client.name, client.code, client.aiModel || "", client.aiProvider || "", ...client.apiKeys.map((key) => key.name)].some((value) => value.toLowerCase().includes(query));
+        const matchesSearch = !query || [client.name, client.code, client.aiModel || "", client.aiProvider || "", ...client.apiKeys.map((key) => key.name), ...client.providers.map((provider) => `${provider.name} ${provider.code}`)].some((value) => value.toLowerCase().includes(query));
         const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? client.isActive : !client.isActive);
         const matchesGateway = gatewayFilter === "all" || (gatewayFilter === "global" ? !client.aiProvider : client.aiProvider === gatewayFilter);
         return matchesSearch && matchesStatus && matchesGateway;
@@ -65,6 +69,18 @@ export default function ClientApiKeysClient({ clients, canManageClients }: { cli
         return sortDirection === "asc" ? result : -result;
       });
   }, [clients, gatewayFilter, search, sortDirection, sortField, statusFilter]);
+
+  function submitProviderAssignment(formData: FormData) {
+    startTransition(async () => {
+      const result = await assignTariffProviderToClient(formData);
+      if (result.success) router.refresh();
+      showNotification({
+        type: result.success ? "success" : "error",
+        title: result.success ? "Buku tarif diassign" : "Gagal",
+        message: result.success ? "Provider buku tarif berhasil dihubungkan ke client." : result.error || "Gagal mengatur provider buku tarif.",
+      });
+    });
+  }
 
   const totalPages = Math.max(1, Math.ceil(filteredClients.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -187,14 +203,15 @@ export default function ClientApiKeysClient({ clients, canManageClients }: { cli
                 {canManageClients && <th className="px-4 py-3">AI Gateway</th>}
                 {canManageClients && <th className="px-4 py-3"><SortButton field="aiModel" label="Model" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>}
                 <th className="px-4 py-3 text-right"><SortButton field="apiKeys" label="API Keys" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
+                {canManageClients && <th className="px-4 py-3 text-right"><SortButton field="providers" label="Buku Tarif" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>}
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {paginatedClients.length === 0 ? <tr><td colSpan={canManageClients ? 8 : 6} className="px-4 py-10 text-center text-text-subtle">Tidak ada client yang sesuai filter.</td></tr> : paginatedClients.map((client) => {
+              {paginatedClients.length === 0 ? <tr><td colSpan={canManageClients ? 9 : 6} className="px-4 py-10 text-center text-text-subtle">Tidak ada client yang sesuai filter.</td></tr> : paginatedClients.map((client) => {
                 const isExpanded = expandedClientIds.has(client.id);
                 return (
-                  <FragmentRow key={client.id} client={client} isExpanded={isExpanded} canManageClients={canManageClients} onToggle={() => toggleExpanded(client.id)} onEdit={() => setClientModal({ open: true, client })} onDelete={() => handleDeleteClient(client)} onGenerate={() => { setCredential(null); setKeyModal({ open: true, client }); }} onToggleKey={toggleKey} />
+                  <FragmentRow key={client.id} client={client} assignableProviders={assignableProviders} isExpanded={isExpanded} canManageClients={canManageClients} onToggle={() => toggleExpanded(client.id)} onEdit={() => setClientModal({ open: true, client })} onDelete={() => handleDeleteClient(client)} onGenerate={() => { setCredential(null); setKeyModal({ open: true, client }); }} onToggleKey={toggleKey} onAssignProvider={submitProviderAssignment} />
                 );
               })}
             </tbody>
@@ -210,7 +227,7 @@ export default function ClientApiKeysClient({ clients, canManageClients }: { cli
   );
 }
 
-function FragmentRow({ client, isExpanded, canManageClients, onToggle, onEdit, onDelete, onGenerate, onToggleKey }: { client: Client; isExpanded: boolean; canManageClients: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void; onGenerate: () => void; onToggleKey: (id: string, isActive: boolean) => void }) {
+function FragmentRow({ client, assignableProviders, isExpanded, canManageClients, onToggle, onEdit, onDelete, onGenerate, onToggleKey, onAssignProvider }: { client: Client; assignableProviders: AssignableProvider[]; isExpanded: boolean; canManageClients: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void; onGenerate: () => void; onToggleKey: (id: string, isActive: boolean) => void; onAssignProvider: (formData: FormData) => void }) {
   return (
     <>
       <tr className="hover:bg-surface-elevated/30">
@@ -221,17 +238,50 @@ function FragmentRow({ client, isExpanded, canManageClients, onToggle, onEdit, o
         {canManageClients && <td className="px-4 py-3 text-text-subtle">{client.aiProvider || "Global config"}</td>}
         {canManageClients && <td className="px-4 py-3 text-text-subtle">{client.aiModel || "Global model"}</td>}
         <td className="px-4 py-3 text-right font-mono font-bold text-text">{client.apiKeys.length}</td>
+        {canManageClients && <td className="px-4 py-3 text-right font-mono font-bold text-text">{client.providers.length}</td>}
         <td className="px-4 py-3"><div className="flex justify-end gap-2">{canManageClients ? <><button type="button" onClick={onEdit} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-2 text-xs font-semibold text-text-subtle hover:bg-surface-elevated"><Edit3 className="h-3.5 w-3.5" /> Edit</button><button type="button" onClick={onDelete} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Delete</button></> : <button type="button" onClick={onGenerate} className="rounded-md border border-primary/30 px-2.5 py-2 text-xs font-semibold text-primary hover:bg-primary/5">Generate key</button>}</div></td>
       </tr>
       {isExpanded && (
         <tr className="bg-surface-elevated/20">
           <td></td>
-          <td colSpan={canManageClients ? 7 : 5} className="px-4 py-4">
+          <td colSpan={canManageClients ? 8 : 5} className="px-4 py-4">
+            <div className="space-y-4">
+            {canManageClients && (
+              <div className="rounded-lg border border-border/70 bg-surface">
+                <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-text-subtle">Master Buku Tarif</p>
+                    <p className="mt-1 text-xs text-text-faint">Client memakai buku tarif dari provider yang diassign di sini.</p>
+                  </div>
+                  <form action={onAssignProvider} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input type="hidden" name="clientId" value={client.id} />
+                    <select name="providerId" required className="min-h-11 rounded-md border border-border bg-surface px-3 text-base text-text sm:min-w-[260px] sm:text-sm">
+                      <option value="">Pilih provider buku tarif...</option>
+                      {assignableProviders.map((provider) => (
+                        <option key={provider.id} value={provider.id}>
+                          {provider.name} ({provider._count.tariffBook} tarif){provider.clientId && provider.clientId !== client.id ? ` — assigned ke ${provider.client?.name || 'client lain'}` : provider.clientId === client.id ? ' — sudah assigned' : ' — belum assigned'}
+                        </option>
+                      ))}
+                    </select>
+                    <button className="min-h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-hover">Assign</button>
+                  </form>
+                </div>
+                {client.providers.length === 0 ? <p className="px-4 py-5 text-sm text-text-subtle">Belum ada provider buku tarif untuk client ini.</p> : (
+                  <div className="divide-y divide-border/60">{client.providers.map((provider) => (
+                    <div key={provider.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div><p className="font-semibold text-text">{provider.name}</p><p className="font-mono text-xs text-text-faint">{provider.code}</p></div>
+                      <div className="flex items-center gap-3"><span className="text-xs text-text-subtle">{provider._count?.tariffBook || 0} tarif</span><form action={onAssignProvider}><input type="hidden" name="providerId" value={provider.id} /><button className="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-text-subtle hover:bg-surface-elevated">Lepas</button></form></div>
+                    </div>
+                  ))}</div>
+                )}
+              </div>
+            )}
             <div className="rounded-lg border border-border/70 bg-surface">
               <div className="flex items-center justify-between border-b border-border/60 px-4 py-3"><p className="text-xs font-bold uppercase tracking-wider text-text-subtle">API Key List</p><button type="button" onClick={onGenerate} className="text-xs font-bold text-primary hover:underline">+ Generate key</button></div>
               {client.apiKeys.length === 0 ? <p className="px-4 py-5 text-sm text-text-subtle">Belum ada API key untuk client ini.</p> : (
                 <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="text-xs text-text-subtle"><tr><th className="px-4 py-2 text-left">Name / Environment</th><th className="px-4 py-2 text-left">API Key</th><th className="px-4 py-2 text-left">API Secret</th><th className="px-4 py-2 text-left">Created</th><th className="px-4 py-2 text-left">Expired</th><th className="px-4 py-2 text-right">Status</th></tr></thead><tbody className="divide-y divide-border/60">{client.apiKeys.map((key) => <tr key={key.id}><td className="px-4 py-2 font-semibold text-text">{key.name}</td><td className="px-4 py-2"><CredentialCell value={key.apiKey} unavailableLabel="Key lama tidak tersedia" /></td><td className="px-4 py-2"><CredentialCell value={key.apiSecret} unavailableLabel="Secret lama tidak tersedia" /></td><td className="px-4 py-2 text-text-subtle">{formatDate(key.createdAt)}</td><td className="px-4 py-2 text-text-subtle">{formatDate(key.expiresAt)}</td><td className="px-4 py-2 text-right"><button type="button" onClick={() => onToggleKey(key.id, !key.isActive)} className={`rounded-md px-2.5 py-1.5 text-xs font-bold ${key.isActive ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700"}`}>{key.isActive ? "Active" : "Inactive"}</button></td></tr>)}</tbody></table></div>
               )}
+            </div>
             </div>
           </td>
         </tr>

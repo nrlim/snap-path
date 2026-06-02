@@ -185,15 +185,65 @@ function toMedicalItemMasterCreate(row: MasterFarmalkesRow, now: Date, expiresAt
   };
 }
 
-function dedupeByKfaIdentity(entries: Prisma.MedicalItemPriceMasterCreateManyInput[]) {
+function maxMeaningfulPrice(...prices: Array<number | null | undefined>): number | null {
+  const values = prices.filter((price): price is number => typeof price === 'number' && Number.isFinite(price) && price >= 100);
+  return values.length > 0 ? Math.max(...values) : null;
+}
+
+function mergeNullableText(existing: string | null | undefined, incoming: string | null | undefined, limit = 5): string | null {
+  const values = new Set(
+    String(existing || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+  if (incoming) values.add(incoming.trim());
+  return Array.from(values).slice(0, limit).join(', ') || null;
+}
+
+function aggregateByItemName(entries: Prisma.MedicalItemPriceMasterCreateManyInput[]) {
   const map = new Map<string, Prisma.MedicalItemPriceMasterCreateManyInput>();
+
   for (const entry of entries) {
-    const source = Array.isArray(entry.sources) ? String(entry.sources[0] || '') : '';
-    const kfaCode = source.match(/kfa_code:([^|]+)/)?.[1]?.trim();
-    const sourceId = source.match(/id:([^|]+)/)?.[1]?.trim();
-    const key = `${kfaCode || ''}:${sourceId || ''}:${entry.itemGroup || ''}:${entry.itemTypeCode || ''}:${entry.itemName}:${entry.marketPriceMax}`.toLowerCase();
-    if (!map.has(key)) map.set(key, entry);
+    const key = String(entry.itemName || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!key) continue;
+
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, { ...entry, sources: Array.isArray(entry.sources) ? entry.sources : [] });
+      continue;
+    }
+
+    const existingSources = Array.isArray(existing.sources) ? existing.sources.map(String) : [];
+    const incomingSources = Array.isArray(entry.sources) ? entry.sources.map(String) : [];
+    const sources = Array.from(new Set([...existingSources, ...incomingSources]));
+
+    const marketPriceMax = Math.max(Number(existing.marketPriceMax || 0), Number(entry.marketPriceMax || 0));
+    const maxReferencePrice = maxMeaningfulPrice(
+      existing.maxReferencePrice as number | null,
+      entry.maxReferencePrice as number | null,
+      existing.marketPriceMax as number | null,
+      entry.marketPriceMax as number | null,
+    );
+    const hetPrice = maxMeaningfulPrice(existing.hetPrice as number | null, entry.hetPrice as number | null);
+    const fixPrice = maxMeaningfulPrice(existing.fixPrice as number | null, entry.fixPrice as number | null);
+    const marketPriceAvg = maxMeaningfulPrice(existing.marketPriceAvg as number | null, entry.marketPriceAvg as number | null);
+
+    map.set(key, {
+      ...existing,
+      itemGenericName: mergeNullableText(existing.itemGenericName as string | null, entry.itemGenericName as string | null),
+      itemTypeCode: existing.itemTypeCode || entry.itemTypeCode,
+      itemTypeName: existing.itemTypeName || entry.itemTypeName,
+      itemGroup: existing.itemGroup || entry.itemGroup,
+      marketPriceMax,
+      marketPriceAvg,
+      fixPrice,
+      hetPrice,
+      maxReferencePrice: maxReferencePrice || marketPriceMax,
+      sources,
+    });
   }
+
   return Array.from(map.values());
 }
 
@@ -208,13 +258,12 @@ async function main() {
   const expiresAt = new Date(now);
   expiresAt.setFullYear(expiresAt.getFullYear() + MASTER_DATA_TTL_YEARS);
 
-  const entries = dedupeByKfaIdentity(
-    rows
-      .map((row) => toMedicalItemMasterCreate(row, now, expiresAt))
-      .filter((entry): entry is Prisma.MedicalItemPriceMasterCreateManyInput => Boolean(entry)),
-  );
+  const pricedEntries = rows
+    .map((row) => toMedicalItemMasterCreate(row, now, expiresAt))
+    .filter((entry): entry is Prisma.MedicalItemPriceMasterCreateManyInput => Boolean(entry));
+  const entries = aggregateByItemName(pricedEntries);
 
-  console.log(`[seed-kfa-drugs] Parsed ${rows.length} rows; ${entries.length} priced medical items ready to seed.`);
+  console.log(`[seed-kfa-drugs] Parsed ${rows.length} rows; ${pricedEntries.length} priced source rows aggregated into ${entries.length} unique master item names.`);
 
   await prisma.$executeRawUnsafe('TRUNCATE TABLE "snp_medical_item_price_master" RESTART IDENTITY');
 

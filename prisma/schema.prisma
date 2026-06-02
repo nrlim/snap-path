@@ -280,7 +280,7 @@ model ClaimJob {
 
 model MedicalItemPriceMaster {
   id              String   @id @default(uuid())
-  itemName        String
+  itemName        String   @unique
   itemGenericName String?
   itemTypeCode    String?  // Source item type code: medicine, device, vaccine, supplement, herbal, etc.
   itemTypeName    String?  // Source item type label
@@ -296,7 +296,6 @@ model MedicalItemPriceMaster {
   expiresAt       DateTime // Reference validity end date
   createdAt       DateTime @default(now())
 
-  @@index([itemName])
   @@index([itemGenericName])
   @@index([itemTypeCode])
   @@index([itemGroup])
