@@ -273,22 +273,43 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
         los: periodLos > 0 ? String(periodLos) : formData.extra.los,
       };
 
-      // Reconstruct payload as expected by API
+      // Reconstruct payload from the current form state, not the original imported JSON.
       const payload = {
         patient: formData.patient,
         encounter: formData.encounter,
-        diagnoses: formData.diagnoses,
-        procedures: (formData.procedures || []).map((proc: any) => ({
-          ...proc,
-          description: proc.description || proc.name || proc.procedureName || proc.code,
-          unitPrice: proc.unitPrice ?? proc.price ?? 0,
-          totalPrice: proc.totalPrice ?? ((proc.unitPrice ?? proc.price ?? 0) * (proc.quantity || 1)),
-        })),
-        medications: (formData.medications || []).map((med: any) => ({
-          ...med,
-          unitPrice: med.unitPrice ?? med.price ?? 0,
-          totalPrice: med.totalPrice ?? ((med.unitPrice ?? med.price ?? 0) * (med.quantity || 1)),
-        })),
+        diagnoses: (formData.diagnoses || []).map((diag: any) => {
+          const latestName = diag.name || diag.description || diag.diagnosisName || diag.code;
+          return {
+            ...diag,
+            name: latestName,
+            description: latestName,
+          };
+        }),
+        procedures: (formData.procedures || []).map((proc: any) => {
+          const quantity = proc.quantity || 1;
+          const unitPrice = proc.price ?? proc.unitPrice ?? proc.claimedUnitPrice ?? 0;
+          const latestName = proc.name || proc.description || proc.procedureName || proc.code;
+          return {
+            ...proc,
+            name: latestName,
+            description: latestName,
+            procedureName: latestName,
+            unitPrice,
+            totalPrice: unitPrice * quantity,
+          };
+        }),
+        medications: (formData.medications || []).map((med: any) => {
+          const quantity = med.quantity || 1;
+          const unitPrice = med.price ?? med.unitPrice ?? med.claimedUnitPrice ?? 0;
+          const latestName = med.name || med.medicationName || med.genericName || '';
+          return {
+            ...med,
+            name: latestName,
+            medicationName: latestName,
+            unitPrice,
+            totalPrice: unitPrice * quantity,
+          };
+        }),
         documents: formData.documents,
         providerId: normalizedExtra.providerId,
         extra: normalizedExtra,

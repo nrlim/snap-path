@@ -37,14 +37,21 @@ function buildTiers(item: any) {
   if ("suite" in item) tiers.suite = item.suite ?? null;
   if ("eksekutif_vip" in item) tiers.eksekutif_vip = item.eksekutif_vip ?? null;
   if ("kelas_i_r_khusus" in item) tiers.kelas_i = item.kelas_i_r_khusus ?? null;
+  if ("kelas_i_r" in item) tiers.kelas_i_r = item.kelas_i_r ?? null;
+  if ("kelas_i_isolasi" in item) tiers.kelas_i_isolasi = item.kelas_i_isolasi ?? null;
   if ("kelas_ii" in item) tiers.kelas_ii = item.kelas_ii ?? null;
   if ("kelas_iii" in item) tiers.kelas_iii = item.kelas_iii ?? null;
+  if ("isolasi" in item) tiers.isolasi = item.isolasi ?? null;
+  if ("nicu" in item) tiers.nicu = item.nicu ?? null;
+  if ("perina" in item) tiers.perina = item.perina ?? null;
+  if ("icu_iccu" in item) tiers.icu_iccu = item.icu_iccu ?? null;
+  
   // Also handle alternate naming
-  if ("tarif" in item && Object.keys(tiers).length === 0) {
-    tiers.standard = item.tarif ?? item.tariff ?? null;
-  }
-  if ("tariff" in item && Object.keys(tiers).length === 0) {
-    tiers.standard = item.tariff ?? null;
+  if (Object.keys(tiers).length === 0) {
+    if ("tarif" in item) tiers.standard = item.tarif ?? null;
+    else if ("tariff" in item) tiers.standard = item.tariff ?? null;
+    else if ("fee" in item) tiers.standard = item.fee ?? null;
+    else if ("biaya" in item) tiers.standard = item.biaya ?? null;
   }
   return Object.keys(tiers).length > 0 ? tiers : null;
 }
@@ -69,7 +76,9 @@ function getName(item: any): string {
     item.room_type ||
     item.jenis_kamar ||
     item.name ||
+    item.service_name ||
     item.description ||
+    item.deskripsi ||
     "Unnamed"
   );
 }
@@ -207,8 +216,8 @@ async function main() {
     (f: any) => (f.nama_layanan || f.service_code) && !f.category
   );
   for (const f of actionFees) {
-    const name = f.nama_layanan;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = f.service_code || null;
     const tiers = buildTiers(f);
     const priceVals = [f.rj, f.suite, f.eksekutif_vip, f.kelas_i_r_khusus, f.kelas_ii, f.kelas_iii];
@@ -222,8 +231,8 @@ async function main() {
 
   // items array (more tindakan)
   for (const f of data.items || []) {
-    const name = f.nama_layanan || f.name || f.deskripsi;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "TINDAKAN", f.category || null, svc, "per_tindakan", tiers);
@@ -231,8 +240,8 @@ async function main() {
 
   // medical_fees
   for (const f of data.medical_fees || []) {
-    const name = f.nama_layanan || f.nama || f.name;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "TINDAKAN", "Tindakan Medis", svc, "per_tindakan", tiers);
@@ -240,8 +249,8 @@ async function main() {
 
   // nursing_fees
   for (const f of data.nursing_fees || []) {
-    const name = f.nama_layanan || f.nama || f.name;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "TINDAKAN", "Keperawatan", svc, "per_tindakan", tiers);
@@ -249,8 +258,8 @@ async function main() {
 
   // medical_services
   for (const f of data.medical_services || []) {
-    const name = f.nama_layanan || f.nama || f.name;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "TINDAKAN", "Layanan Medis", svc, "per_tindakan", tiers);
@@ -258,8 +267,8 @@ async function main() {
 
   // endoscopy_fees
   for (const f of data.endoscopy_fees || []) {
-    const name = f.nama_layanan || f.nama || f.name;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "TINDAKAN", "Endoskopi", svc, "per_tindakan", tiers);
@@ -267,8 +276,8 @@ async function main() {
 
   // hemodialysis_fees
   for (const f of data.hemodialysis_fees || []) {
-    const name = f.nama_layanan || f.nama || f.name;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "TINDAKAN", "Hemodialisa", svc, "per_tindakan", tiers);
@@ -276,8 +285,8 @@ async function main() {
 
   // delivery_fees (persalinan)
   for (const f of data.delivery_fees || []) {
-    const name = f.nama_layanan || f.nama || f.name;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "TINDAKAN", "Persalinan", svc, "per_paket", tiers);
@@ -285,8 +294,8 @@ async function main() {
 
   // consultation_fees
   for (const f of data.consultation_fees || []) {
-    const name = f.nama_layanan || f.nama || f.name || f.spesialisasi;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "RAWAT_JALAN", "Konsultasi Dokter", svc, "per_kunjungan", tiers);
@@ -294,8 +303,8 @@ async function main() {
 
   // vaccine_fees
   for (const f of data.vaccine_fees || []) {
-    const name = f.nama_layanan || f.nama || f.name;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "TINDAKAN", "Vaksin", svc, "per_tindakan", tiers);
@@ -304,8 +313,8 @@ async function main() {
   // homecare
   for (const arr of [data.homecare_dokter, data.homecare_keperawatan, data.homecare_rehabilitasi_medik]) {
     for (const f of arr || []) {
-      const name = f.nama_layanan || f.nama || f.name;
-      if (!name) continue;
+      const name = getName(f);
+    if (name === "Unnamed") continue;
       const svc = getServiceCode(f);
       const tiers = buildTiers(f);
       pushEntry(svc || name, name, "TINDAKAN", "Homecare", svc, "per_kunjungan", tiers);
@@ -317,8 +326,8 @@ async function main() {
   // ==========================================
   for (const arr of [data.laboratory_services, data.laboratory_fees, data.mikrobiologi_fees, data.patologi_anatomi, data.laboratory_packages]) {
     for (const f of arr || []) {
-      const name = f.nama_layanan || f.nama || f.name || f.pemeriksaan;
-      if (!name) continue;
+      const name = getName(f);
+    if (name === "Unnamed") continue;
       const svc = getServiceCode(f);
       const tiers = buildTiers(f);
       const price = f.tarif || f.harga || f.price || null;
@@ -328,8 +337,8 @@ async function main() {
 
   // electromyography_fees
   for (const f of data.electromyography_fees || []) {
-    const name = f.nama_layanan || f.nama || f.name;
-    if (!name) continue;
+    const name = getName(f);
+    if (name === "Unnamed") continue;
     const svc = getServiceCode(f);
     const tiers = buildTiers(f);
     pushEntry(svc || name, name, "LAB", "EMG", svc, "per_tindakan", tiers);
@@ -340,8 +349,8 @@ async function main() {
   // ==========================================
   for (const arr of [data.radiology_fees, data.radiology_services, data.mammografi_kontras_fees, data.msct_scan_fees]) {
     for (const f of arr || []) {
-      const name = f.nama_layanan || f.nama || f.name || f.pemeriksaan;
-      if (!name) continue;
+      const name = getName(f);
+    if (name === "Unnamed") continue;
       const svc = getServiceCode(f);
       const tiers = buildTiers(f);
       const price = f.tarif || f.harga || f.price || null;
@@ -352,8 +361,8 @@ async function main() {
   // radiotherapy_fees, nuklir_fees
   for (const arr of [data.radiotherapy_fees, data.nuklir_fees]) {
     for (const f of arr || []) {
-      const name = f.nama_layanan || f.nama || f.name;
-      if (!name) continue;
+      const name = getName(f);
+    if (name === "Unnamed") continue;
       const svc = getServiceCode(f);
       const tiers = buildTiers(f);
       pushEntry(svc || name, name, "RADIOLOGI", "Radioterapi / Nuklir", svc, "per_tindakan", tiers);
@@ -370,8 +379,8 @@ async function main() {
     data.urology_fees, data.orthopedic_surgery_fees, data.plastic_surgery_fees, data.tht_fees,
   ]) {
     for (const f of arr || []) {
-      const name = f.nama_layanan || f.nama || f.name || f.nama_operasi || f.tindakan;
-      if (!name) continue;
+      const name = getName(f);
+    if (name === "Unnamed") continue;
       const svc = getServiceCode(f);
       const tiers = buildTiers(f);
       const price = f.tarif || f.harga || f.price || null;
@@ -382,8 +391,8 @@ async function main() {
   // angiography_fees
   for (const arr of [data.angiography_fees, data.angiografi_fees]) {
     for (const f of arr || []) {
-      const name = f.nama_layanan || f.nama || f.name;
-      if (!name) continue;
+      const name = getName(f);
+    if (name === "Unnamed") continue;
       const svc = getServiceCode(f);
       const tiers = buildTiers(f);
       pushEntry(svc || name, name, "OPERASI", "Angiografi", svc, "per_tindakan", tiers);
@@ -418,8 +427,8 @@ async function main() {
 
   for (const { arr, sub } of spesialisMappings) {
     for (const f of arr || []) {
-      const name = f.nama_layanan || f.nama || f.name || f.tindakan || f.layanan;
-      if (!name) continue;
+      const name = getName(f);
+    if (name === "Unnamed") continue;
       const svc = getServiceCode(f);
       const tiers = buildTiers(f);
       const price = f.tarif || f.harga || f.price || null;
@@ -443,12 +452,24 @@ async function main() {
   console.log(`📦 Unique entries after deduplication: ${uniqueEntries.length}`);
 
   // ==========================================
+  // 9.5 Fetch existing and filter out duplicates
+  // ==========================================
+  const existingEntries = await prisma.tariffEntry.findMany({
+    where: { providerId: provider.id },
+    select: { procedureCode: true }
+  });
+  const existingCodes = new Set(existingEntries.map(e => e.procedureCode));
+  
+  const finalEntries = uniqueEntries.filter(e => !existingCodes.has(e.procedureCode));
+  console.log(`📦 New entries to insert: ${finalEntries.length} (Skipped ${uniqueEntries.length - finalEntries.length} already in DB)`);
+
+  // ==========================================
   // 10. Batch insert in chunks of 500
   // ==========================================
   const CHUNK_SIZE = 500;
   let inserted = 0;
-  for (let i = 0; i < uniqueEntries.length; i += CHUNK_SIZE) {
-    const chunk = uniqueEntries.slice(i, i + CHUNK_SIZE);
+  for (let i = 0; i < finalEntries.length; i += CHUNK_SIZE) {
+    const chunk = finalEntries.slice(i, i + CHUNK_SIZE);
     const result = await prisma.tariffEntry.createMany({
       data: chunk,
       skipDuplicates: true,

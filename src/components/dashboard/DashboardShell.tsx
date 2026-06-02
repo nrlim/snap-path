@@ -67,6 +67,7 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
 
     const handleWorkflowStart = (event: Event) => {
       const customEvent = event as CustomEvent<any>
+      window.sessionStorage.removeItem(ACTIVE_WORKFLOW_STORAGE_KEY)
       setWorkflowPayload(customEvent.detail?.payload)
       setIsWorkflowOpen(true)
     }

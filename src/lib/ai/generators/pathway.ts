@@ -10,6 +10,27 @@ function getLastDayFromRange(dayRange?: string | null): number | null {
   return Number(matches[matches.length - 1]);
 }
 
+function normalizeProviderType(providerType?: string | null): string | null {
+  const normalized = providerType?.trim().toUpperCase();
+  if (!normalized) return null;
+  if (normalized === 'BPJS' || normalized === 'JKN') return 'BPJS';
+  if (normalized === 'PRIVATE' || normalized === 'PRIVAT' || normalized === 'SWASTA') return 'PRIVATE';
+  return normalized === 'BPJS_KESEHATAN' ? 'BPJS' : 'PRIVATE';
+}
+
+async function resolveProviderType(input: ClinicalPathwayInput): Promise<string | null> {
+  const explicitProviderType = normalizeProviderType(input.providerType);
+  if (explicitProviderType) return explicitProviderType;
+  if (!input.providerId) return null;
+
+  const provider = await prisma.provider.findUnique({
+    where: { id: input.providerId },
+    select: { code: true },
+  });
+
+  return normalizeProviderType(provider?.code);
+}
+
 function ensurePhasesCoverLos(phases: ClinicalPathwayPhase[], estimatedLos: number): ClinicalPathwayPhase[] {
   if (!estimatedLos || estimatedLos <= 0 || phases.length === 0) return phases;
 
@@ -148,7 +169,8 @@ function buildFallbackPathway(input: ClinicalPathwayInput, jobId: string): Clini
 }
 
 export async function generateClinicalPathway(input: ClinicalPathwayInput, jobId: string): Promise<ClinicalPathwayOutput | null> {
-  const { diagnosisCode, diagnosisName, providerType } = input;
+  const { diagnosisCode, diagnosisName } = input;
+  const providerType = await resolveProviderType(input);
 
   // 1. Check for existing template in DB
   const existingPathways = await prisma.clinicalPathway.findMany({
