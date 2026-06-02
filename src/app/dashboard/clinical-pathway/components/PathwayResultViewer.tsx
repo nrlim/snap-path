@@ -318,15 +318,36 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const losIsUnderstay = losValidation?.status === "UNDERSTAY";
   const losHasDeduction = (losValidation?.deduction ?? 0) > 0 || (!losValidation && (losIsOverstay || losIsMissingActual));
   const varianceText = inputPayload?.extra?.outcomeNotes || "Tidak ada catatan varians";
-  const diagnosisMissingRequiredCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.missingRequiredProcedures?.length || 0), 0);
-  const diagnosisReviewRelevanceCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.irrelevantProcedures?.length || detail.unmatchedProcedures?.length || 0), 0);
-  const diagnosisMedicationReviewCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'REVIEW_NEEDED').length || 0), 0);
-  const diagnosisMedicationInappropriateCount = (diagDetails as any[]).reduce((total, detail) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'INAPPROPRIATE').length || 0), 0);
+  const uniqueMissingRequired = new Set<string>();
+  const uniqueReviewProcedures = new Set<string>();
+  const uniqueReviewMedications = new Set<string>();
+  const uniqueInappropriateMedications = new Set<string>();
+  for (const detail of diagDetails as any[]) {
+    for (const item of detail.missingRequiredProcedures || []) uniqueMissingRequired.add(String(item));
+    for (const item of detail.irrelevantProcedures || []) uniqueReviewProcedures.add(String(item.procedureCode || item.procedureName || item));
+    for (const item of detail.unmatchedProcedures || []) uniqueReviewProcedures.add(String(item));
+    for (const item of detail.medicationFindings || []) {
+      const key = String(item.medicationName || item.name || item.genericName || '').trim().toLowerCase();
+      if (!key) continue;
+      if (item.status === 'INAPPROPRIATE') uniqueInappropriateMedications.add(key);
+      else if (item.status === 'REVIEW_NEEDED') uniqueReviewMedications.add(key);
+    }
+  }
+  const diagnosisMissingRequiredCount = uniqueMissingRequired.size;
+  const diagnosisReviewRelevanceCount = uniqueReviewProcedures.size;
+  const diagnosisMedicationReviewCount = uniqueReviewMedications.size;
+  const diagnosisMedicationInappropriateCount = uniqueInappropriateMedications.size;
   const diagnosisMedicationIssueCount = diagnosisMedicationReviewCount + diagnosisMedicationInappropriateCount;
+  const claimedProcedureCount = Array.isArray(inputPayload?.procedures) ? inputPayload.procedures.length : 0;
+  const claimedMedicationCount = Array.isArray(inputPayload?.medications) ? inputPayload.medications.length : 0;
   const hasDiagnosisFindings = diagnosisMissingRequiredCount > 0 || diagnosisReviewRelevanceCount > 0 || diagnosisMedicationIssueCount > 0;
+  const missingRequiredDenominator = claimedProcedureCount + diagnosisMissingRequiredCount;
+  const missingRequiredDeduction = missingRequiredDenominator > 0 ? (diagnosisMissingRequiredCount / missingRequiredDenominator) * 8 : 0;
+  const procedureRelevanceDeduction = claimedProcedureCount > 0 ? (diagnosisReviewRelevanceCount / claimedProcedureCount) * 8 : (diagnosisReviewRelevanceCount > 0 ? 8 : 0);
+  const medicationRelevanceDeduction = claimedMedicationCount > 0 ? (((diagnosisMedicationReviewCount * 0.5) + diagnosisMedicationInappropriateCount) / claimedMedicationCount) * 9 : (diagnosisMedicationIssueCount > 0 ? 9 : 0);
   const diagnosisHasDeduction = hasDiagnosisFindings;
   const fallbackDiagnosisDeduction = diagnosisHasDeduction
-    ? Math.min(25, Math.max(1, Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisReviewRelevanceCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3))))
+    ? Math.min(25, Math.ceil(missingRequiredDeduction + procedureRelevanceDeduction + medicationRelevanceDeduction))
     : 0;
   const tariffHasDeduction = fallbackTariffDeduction > 0;
   const drugHasDeduction = fallbackDrugDeduction > 0;
@@ -338,7 +359,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
       maxDeduction: 25,
       deducted: fallbackDiagnosisDeduction,
       reason: diagnosisHasDeduction
-        ? `Perlu review klinis: ${diagnosisMissingRequiredCount || diagWarnings} prosedur wajib belum diklaim, ${diagnosisReviewRelevanceCount || unmatchedProcedures} tindakan perlu review relevansi, dan ${diagnosisMedicationIssueCount} obat perlu review kesesuaian terhadap diagnosis.`
+        ? `Perlu review klinis: ${diagnosisMissingRequiredCount || diagWarnings} prosedur wajib belum diklaim, ${diagnosisReviewRelevanceCount || unmatchedProcedures}/${claimedProcedureCount} tindakan perlu review relevansi, dan ${diagnosisMedicationIssueCount}/${claimedMedicationCount} obat perlu review kesesuaian terhadap diagnosis. Pengurangan dihitung proporsional terhadap total tindakan dan obat yang diinput.`
         : "Diagnosis, tindakan, dan obat sesuai kebutuhan klinis utama.",
     },
     {

@@ -264,18 +264,39 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
     aiScore = overallValid ? 80 : 50;
   }
 
-  const missingRequiredCount = details.reduce((total, detail) => total + (detail.missingRequiredProcedures?.length || 0), 0);
-  const irrelevantCount = details.reduce((total, detail) => total + (detail.irrelevantProcedures?.length || detail.unmatchedProcedures?.length || 0), 0);
-  const medicationReviewCount = details.reduce((total, detail) => total + (detail.medicationFindings?.filter((item) => item.status === 'REVIEW_NEEDED').length || 0), 0);
-  const medicationInappropriateCount = details.reduce((total, detail) => total + (detail.medicationFindings?.filter((item) => item.status === 'INAPPROPRIATE').length || 0), 0);
+  const uniqueMissingRequired = new Set<string>();
+  const uniqueIrrelevantProcedures = new Set<string>();
+  const uniqueReviewMedications = new Set<string>();
+  const uniqueInappropriateMedications = new Set<string>();
+  for (const detail of details) {
+    for (const item of detail.missingRequiredProcedures || []) uniqueMissingRequired.add(String(item));
+    for (const item of detail.irrelevantProcedures || []) uniqueIrrelevantProcedures.add(String((item as any).procedureCode || (item as any).procedureName || item));
+    for (const item of detail.unmatchedProcedures || []) uniqueIrrelevantProcedures.add(String(item));
+    for (const item of detail.medicationFindings || []) {
+      const key = String((item as any).medicationName || (item as any).name || (item as any).genericName || '').trim().toLowerCase();
+      if (!key) continue;
+      if (item.status === 'INAPPROPRIATE') uniqueInappropriateMedications.add(key);
+      else if (item.status === 'REVIEW_NEEDED') uniqueReviewMedications.add(key);
+    }
+  }
 
-  // Convert diagnosis/procedure/medication findings into a readable 0-100 score.
-  // Do not let an unstructured AI score create a large hidden deduction when the
-  // validator did not return actionable findings for the score breakdown.
+  const missingRequiredCount = uniqueMissingRequired.size;
+  const irrelevantCount = uniqueIrrelevantProcedures.size;
+  const medicationReviewCount = uniqueReviewMedications.size;
+  const medicationInappropriateCount = uniqueInappropriateMedications.size;
+
+  // Convert diagnosis/procedure/medication findings into a readable 0-100 score
+  // proportionally against the total claimed procedures/medications.
   const hasActionableFindings = missingRequiredCount > 0 || irrelevantCount > 0 || medicationReviewCount > 0 || medicationInappropriateCount > 0;
-  const ruleBasedDeduction = Math.min(100, (missingRequiredCount * 20) + (irrelevantCount * 8) + (medicationReviewCount * 4) + (medicationInappropriateCount * 10));
-  const ruleBasedScore = Math.max(0, 100 - ruleBasedDeduction);
-  const finalScore = hasActionableFindings ? Math.min(aiScore, ruleBasedScore) : ruleBasedScore;
+  const procedureDenominator = procedures.length;
+  const medicationDenominator = input.medications?.length || 0;
+  const missingRequiredDenominator = procedureDenominator + missingRequiredCount;
+  const missingRequiredDeduction = missingRequiredDenominator > 0 ? (missingRequiredCount / missingRequiredDenominator) * 32 : 0;
+  const procedureDeduction = procedureDenominator > 0 ? (irrelevantCount / procedureDenominator) * 32 : (irrelevantCount > 0 ? 32 : 0);
+  const weightedMedicationFindingCount = (medicationReviewCount * 0.5) + medicationInappropriateCount;
+  const medicationDeduction = medicationDenominator > 0 ? (weightedMedicationFindingCount / medicationDenominator) * 36 : (weightedMedicationFindingCount > 0 ? 36 : 0);
+  const ruleBasedDeduction = hasActionableFindings ? Math.min(100, Math.ceil(missingRequiredDeduction + procedureDeduction + medicationDeduction)) : 0;
+  const finalScore = Math.max(0, 100 - ruleBasedDeduction);
   const finalValid = missingRequiredCount === 0 && irrelevantCount === 0 && medicationReviewCount === 0 && medicationInappropriateCount === 0 && finalScore >= 80;
 
   if (finalValid) {

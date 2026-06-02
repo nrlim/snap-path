@@ -260,26 +260,55 @@ export async function aggregateAndSaveStep(
   };
 
   const diagnosisDetails = Array.isArray(diagRes?.details) ? diagRes.details : [];
-  const diagnosisMissingRequiredCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.missingRequiredProcedures?.length || 0), 0);
-  const diagnosisIrrelevantCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.irrelevantProcedures?.length || detail.unmatchedProcedures?.length || 0), 0);
-  const diagnosisMedicationReviewCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'REVIEW_NEEDED').length || 0), 0);
-  const diagnosisMedicationInappropriateCount = diagnosisDetails.reduce((total: number, detail: any) => total + (detail.medicationFindings?.filter((item: any) => item.status === 'INAPPROPRIATE').length || 0), 0);
+  const claimedProcedureCount = Array.isArray(input.payload?.procedures) ? input.payload.procedures.length : 0;
+  const claimedMedicationCount = Array.isArray(input.payload?.medications) ? input.payload.medications.length : 0;
+  const uniqueMissingRequired = new Set<string>();
+  const uniqueIrrelevantProcedures = new Set<string>();
+  const uniqueReviewMedications = new Set<string>();
+  const uniqueInappropriateMedications = new Set<string>();
+
+  for (const detail of diagnosisDetails) {
+    for (const item of detail.missingRequiredProcedures || []) uniqueMissingRequired.add(String(item));
+    for (const item of detail.irrelevantProcedures || []) uniqueIrrelevantProcedures.add(String(item.procedureCode || item.procedureName || item));
+    for (const item of detail.unmatchedProcedures || []) uniqueIrrelevantProcedures.add(String(item));
+    for (const item of detail.medicationFindings || []) {
+      const key = String(item.medicationName || item.name || item.genericName || '').trim().toLowerCase();
+      if (!key) continue;
+      if (item.status === 'INAPPROPRIATE') uniqueInappropriateMedications.add(key);
+      else if (item.status === 'REVIEW_NEEDED') uniqueReviewMedications.add(key);
+    }
+  }
+
+  const diagnosisMissingRequiredCount = uniqueMissingRequired.size;
+  const diagnosisIrrelevantCount = uniqueIrrelevantProcedures.size;
+  const diagnosisMedicationReviewCount = uniqueReviewMedications.size;
+  const diagnosisMedicationInappropriateCount = uniqueInappropriateMedications.size;
   const hasDiagnosisFindings = diagnosisMissingRequiredCount > 0 || diagnosisIrrelevantCount > 0 || diagnosisMedicationReviewCount > 0 || diagnosisMedicationInappropriateCount > 0;
-  const diagnosisScore = typeof diagRes?.score === 'number' ? Math.max(0, Math.min(100, diagRes.score)) : (diagRes?.isValid ? 100 : 0);
-  const diagnosisFindingDeduction = Math.min(25, (diagnosisMissingRequiredCount * 5) + (diagnosisIrrelevantCount * 2) + (diagnosisMedicationReviewCount * 1) + (diagnosisMedicationInappropriateCount * 3));
-  // Only use the AI numeric score when there are actionable findings to explain
-  // the deduction. This prevents cases like “0 issue found” with a large score cut.
-  const diagnosisScoreDeduction = hasDiagnosisFindings
-    ? Math.ceil(((100 - diagnosisScore) / 100) * 25)
+
+  // Clinical relevance deduction is proportional to the claim items being reviewed,
+  // not a flat full deduction. This prevents a few findings from consuming all 25 points.
+  const missingRequiredWeight = 8;
+  const procedureRelevanceWeight = 8;
+  const medicationRelevanceWeight = 9;
+  const missingRequiredDenominator = claimedProcedureCount + diagnosisMissingRequiredCount;
+  const missingRequiredDeduction = missingRequiredDenominator > 0
+    ? (diagnosisMissingRequiredCount / missingRequiredDenominator) * missingRequiredWeight
     : 0;
+  const procedureRelevanceDeduction = claimedProcedureCount > 0
+    ? (diagnosisIrrelevantCount / claimedProcedureCount) * procedureRelevanceWeight
+    : (diagnosisIrrelevantCount > 0 ? procedureRelevanceWeight : 0);
+  const weightedMedicationFindingCount = (diagnosisMedicationReviewCount * 0.5) + diagnosisMedicationInappropriateCount;
+  const medicationRelevanceDeduction = claimedMedicationCount > 0
+    ? (weightedMedicationFindingCount / claimedMedicationCount) * medicationRelevanceWeight
+    : (weightedMedicationFindingCount > 0 ? medicationRelevanceWeight : 0);
   const diagnosisDeduction = hasDiagnosisFindings
-    ? Math.min(25, Math.max(diagnosisScoreDeduction, diagnosisFindingDeduction))
+    ? Math.min(25, Math.ceil(missingRequiredDeduction + procedureRelevanceDeduction + medicationRelevanceDeduction))
     : 0;
 
   if (diagnosisDeduction > 0) {
     overallScore -= diagnosisDeduction;
     scoreBreakdown.items[0].deducted = diagnosisDeduction;
-    scoreBreakdown.items[0].reason = `Perlu review klinis: ${diagnosisMissingRequiredCount} prosedur wajib belum diklaim, ${diagnosisIrrelevantCount} tindakan perlu review relevansi, dan ${diagnosisMedicationReviewCount + diagnosisMedicationInappropriateCount} obat perlu review kesesuaian terhadap diagnosis.`;
+    scoreBreakdown.items[0].reason = `Perlu review klinis: ${diagnosisMissingRequiredCount} prosedur wajib belum diklaim, ${diagnosisIrrelevantCount}/${claimedProcedureCount || 0} tindakan perlu review relevansi, dan ${diagnosisMedicationReviewCount + diagnosisMedicationInappropriateCount}/${claimedMedicationCount || 0} obat perlu review kesesuaian terhadap diagnosis. Pengurangan dihitung proporsional terhadap total tindakan dan obat yang diinput, bukan penuh 25 poin.`;
     status = diagnosisDeduction >= 15 ? 'REVIEW_NEEDED' : 'WARNING';
   }
   if (tariffDeduction > 0) {
