@@ -92,7 +92,7 @@ export async function validateTariffStep(input: ClaimValidationPayload) {
 validateTariffStep.maxRetries = 2;
 
 /**
- * Step 4: Check drug market prices (AI-assisted, with DB cache).
+ * Step 4: Check medical item prices using local master data and a controlled AI resolver.
  * Returns null if no medications to check.
  */
 export async function checkDrugPricesStep(input: ClaimValidationPayload) {
@@ -109,6 +109,7 @@ export async function checkDrugPricesStep(input: ClaimValidationPayload) {
       {
         clientId: input.payload.clientId,
         providerId: input.payload.providerId,
+        diagnoses: input.payload.diagnoses,
         medications: input.payload.medications.map((m: any) => ({
           ...m,
           genericName: m.genericName || undefined,
@@ -220,10 +221,14 @@ export async function aggregateAndSaveStep(
   
   // Non-Medication items are explicitly excluded from scoring logic:
   const scorableDrugItems = drugItems.filter((item: any) => item.status !== 'NON_MEDICATION');
-  const invalidDrugItems = scorableDrugItems.filter((item: any) => item.status === 'OVER_THRESHOLD' || item.status === 'UNDER_PRICED' || item.status === 'NOT_FOUND');
-  
-  const hasUnregisteredTariff = tariffItems.some((item: any) => item.status === 'NOT_FOUND');
-  const hasDrugReferenceUnavailable = scorableDrugItems.some((item: any) => item.status === 'NOT_FOUND');
+  const invalidDrugItems = scorableDrugItems.filter((item: any) => item.status === 'OVER_THRESHOLD' || item.status === 'UNDER_PRICED');
+  const unregisteredTariffItems = tariffItems.filter((item: any) => item.status === 'NOT_FOUND');
+  const drugReferenceUnavailableItems = scorableDrugItems.filter((item: any) => item.status === 'NOT_FOUND');
+  const masterDataItemCount = tariffItems.length + scorableDrugItems.length;
+  const missingMasterDataCount = unregisteredTariffItems.length + drugReferenceUnavailableItems.length;
+  const masterDataDeduction = masterDataItemCount > 0
+    ? Math.min(15, Math.ceil((missingMasterDataCount / masterDataItemCount) * 15))
+    : 0;
   
   const tariffDeduction = registeredTariffItems.length > 0
     ? Math.min(20, Math.ceil((invalidRegisteredTariffItems.length / registeredTariffItems.length) * 20))
@@ -247,7 +252,7 @@ export async function aggregateAndSaveStep(
     items: [
       { code: 'DIAGNOSIS_TREATMENT', label: 'Diagnosis, tindakan & obat klinis', maxDeduction: 25, maxScore: 25, score: 25, deducted: 0, status: 'PASS', reason: 'Diagnosis, tindakan, dan obat sesuai kebutuhan klinis utama.' },
       { code: 'TARIFF', label: 'Tarif tindakan terdaftar', maxDeduction: 20, maxScore: 20, score: 20, deducted: 0, status: 'PASS', reason: 'Item tindakan yang terdaftar berada dalam threshold master fee schedule.' },
-      { code: 'DRUG_PRICE', label: 'Harga obat referensi internet', maxDeduction: 20, maxScore: 20, score: 20, deducted: 0, status: 'PASS', reason: 'Item obat yang memiliki referensi harga internet berada dalam threshold.' },
+      { code: 'DRUG_PRICE', label: 'Harga obat/farmalkes referensi master', maxDeduction: 20, maxScore: 20, score: 20, deducted: 0, status: 'PASS', reason: 'Item obat/farmalkes yang memiliki referensi master berada dalam threshold.' },
       { code: 'DOCUMENT', label: 'Kelengkapan dokumen', maxDeduction: 10, maxScore: 10, score: 10, deducted: 0, status: 'PASS', reason: 'Enam dokumen wajib klaim rawat inap sudah lengkap.' },
       { code: 'LOS', label: 'LOS compliance', maxDeduction: 10, maxScore: 10, score: 10, deducted: 0, status: 'PASS', reason: 'LOS aktual sesuai standar pathway.' },
       { code: 'UNREGISTERED_MASTER_DATA', label: 'Kesiapan master data', maxDeduction: 15, maxScore: 15, score: 15, deducted: 0, status: 'PASS', reason: 'Semua tindakan dan obat tersedia pada master data/referensi.' },
@@ -286,9 +291,7 @@ export async function aggregateAndSaveStep(
   if (drugPriceDeduction > 0) {
     overallScore -= drugPriceDeduction;
     scoreBreakdown.items[2].deducted = drugPriceDeduction;
-    scoreBreakdown.items[2].reason = hasDrugReferenceUnavailable
-      ? `${invalidDrugItems.length}/${drugItems.length} item obat perlu review harga/referensi internet; sebagian referensi belum berhasil ditemukan. Pengurangan dihitung proporsional per item, bukan penuh 20 poin.`
-      : `${invalidDrugItems.length}/${drugItems.length} item obat melewati threshold atau jauh di bawah referensi. Pengurangan dihitung proporsional per item, bukan penuh 20 poin.`;
+    scoreBreakdown.items[2].reason = `${invalidDrugItems.length}/${scorableDrugItems.length} item obat/farmalkes melewati threshold atau jauh di bawah referensi master. Pengurangan dihitung proporsional per item, bukan penuh 20 poin.`;
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
   if (!docRes.isValid) {
@@ -306,10 +309,10 @@ export async function aggregateAndSaveStep(
     scoreBreakdown.items[4].reason = losRes.reason;
   }
   
-  if (hasUnregisteredTariff) {
-    overallScore -= 15;
-    scoreBreakdown.items[5].deducted = 15;
-    scoreBreakdown.items[5].reason = 'Ada tindakan yang belum tersedia di master tarif, sehingga belum bisa divalidasi harga.';
+  if (masterDataDeduction > 0) {
+    overallScore -= masterDataDeduction;
+    scoreBreakdown.items[5].deducted = masterDataDeduction;
+    scoreBreakdown.items[5].reason = `${missingMasterDataCount}/${masterDataItemCount} item tindakan/obat belum tersedia pada master data/referensi lokal (${unregisteredTariffItems.length} tindakan, ${drugReferenceUnavailableItems.length} obat/farmalkes). Pengurangan dihitung proporsional dari bobot 15 poin, bukan penuh.`;
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
 

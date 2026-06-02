@@ -1,10 +1,11 @@
 import prisma from '@/lib/db';
 import { DrugPriceCheckInput, DrugPriceCheckOutput } from '../types';
+import { getAIGateway } from '../gateway';
 
-const KFA_MASTER_SOURCE_TAG = 'master_data_kfa';
+const MASTER_DATA_SOURCE_TAG = 'master_data';
 const MASTER_MATCH_MIN_SCORE = 12;
-const COVERED_KFA_TYPE_CODES = new Set(['medicine', 'supplement', 'herbal', 'kuasi', 'vaccine', 'paket_obat', 'device', 'pkrt']);
-const COVERED_KFA_GROUPS = new Set(['farmasi', 'alkes']);
+const COVERED_MEDICAL_ITEM_TYPE_CODES = new Set(['medicine', 'supplement', 'herbal', 'kuasi', 'vaccine', 'paket_obat', 'device', 'pkrt']);
+const COVERED_MEDICAL_ITEM_GROUPS = new Set(['farmasi', 'alkes']);
 const DRUG_SEARCH_STOPWORDS = new Set([
   'inj', 'injeksi', 'inf', 'infus', 'tablet', 'tab', 'kaps', 'kap', 'capsule', 'cap',
   'amp', 'ampul', 'vial', 'vl', 'sirup', 'syrup', 'syr', 'susp', 'cream', 'krim',
@@ -39,7 +40,7 @@ function getSearchTokens(med: any): string[] {
 
 function scoreMasterDrugCandidate(med: any, candidate: { itemName: string; itemGenericName: string | null; itemTypeCode: string | null; itemGroup: string | null; sources: unknown }) {
   const sources = getJsonStringArray(candidate.sources);
-  if (!sources.some((source) => source.includes(KFA_MASTER_SOURCE_TAG))) return -1;
+  if (!sources.some((source) => source.includes(MASTER_DATA_SOURCE_TAG))) return -1;
 
   const medText = normalizeSearchText(`${med.name || ''} ${med.genericName || ''}`);
   const candidateName = normalizeSearchText(candidate.itemName);
@@ -61,11 +62,11 @@ function scoreMasterDrugCandidate(med: any, candidate: { itemName: string; itemG
   return score;
 }
 
-async function findMedicalMasterItemPrice(med: any, now: Date) {
+async function getMedicalItemCandidates(med: any, now: Date, take = 50) {
   const tokens = getSearchTokens(med);
-  if (tokens.length === 0) return null;
+  if (tokens.length === 0) return [];
 
-  const candidates = await prisma.medicalItemPriceCache.findMany({
+  return prisma.medicalItemPriceMaster.findMany({
     where: {
       expiresAt: { gt: now },
       OR: tokens.flatMap((token) => [
@@ -74,8 +75,13 @@ async function findMedicalMasterItemPrice(med: any, now: Date) {
       ]),
     },
     orderBy: [{ fetchedAt: 'desc' }, { createdAt: 'desc' }],
-    take: 50,
+    take,
   });
+}
+
+async function findMedicalMasterItemPrice(med: any, now: Date) {
+  const candidates = await getMedicalItemCandidates(med, now, 50);
+  if (candidates.length === 0) return null;
 
   let best: (typeof candidates)[number] | null = null;
   let bestScore = 0;
@@ -89,10 +95,14 @@ async function findMedicalMasterItemPrice(med: any, now: Date) {
 
   if (!best || bestScore < MASTER_MATCH_MIN_SCORE || best.marketPriceMax <= 0) return null;
 
+  return buildFinalPriceFromMasterItem(best);
+}
+
+function buildFinalPriceFromMasterItem(best: Awaited<ReturnType<typeof getMedicalItemCandidates>>[number]) {
   const sources = getJsonStringArray(best.sources);
   const itemGroup = normalizeSearchText(best.itemGroup || '');
   const itemTypeCode = normalizeSearchText(best.itemTypeCode || '');
-  const isCoveredMedicalItem = COVERED_KFA_GROUPS.has(itemGroup) || COVERED_KFA_TYPE_CODES.has(itemTypeCode);
+  const isCoveredMedicalItem = COVERED_MEDICAL_ITEM_GROUPS.has(itemGroup) || COVERED_MEDICAL_ITEM_TYPE_CODES.has(itemTypeCode);
   const bestReferencePrice = getBestReferencePrice(
     best.maxReferencePrice,
     best.hetPrice,
@@ -109,31 +119,30 @@ async function findMedicalMasterItemPrice(med: any, now: Date) {
     fixPrice: best.fixPrice ?? null,
     hetPrice: best.hetPrice ?? null,
     maxReferencePrice: best.maxReferencePrice ?? bestReferencePrice,
-    cachedAt: best.fetchedAt.toISOString(),
+    referencedAt: best.fetchedAt.toISOString(),
   };
 }
 
 function getMedicationUnitPrice(med: any) {
-  return Number(med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0);
+  return Number(med.unitPrice ?? 0);
 }
 
 function getMedicationTotalPrice(med: any) {
-  const explicitTotal = med.totalPrice ?? med.claimedTotal;
-  if (explicitTotal !== undefined && explicitTotal !== null) return Number(explicitTotal);
+  if (med.totalPrice !== undefined && med.totalPrice !== null) return Number(med.totalPrice);
   return getMedicationUnitPrice(med) * Number(med.quantity || 1);
 }
 
 export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string): Promise<DrugPriceCheckOutput> {
   const { providerId, medications } = input;
 
-  // ── STEP 1: Parallel — fetch threshold config, exact cache, and rich KFA master data ──
+  // ── STEP 1: Parallel — fetch threshold config, exact master references and local medical-item master data ──
   const now = new Date();
-  const [thresholdRecord, cacheEntries, masterEntries] = await Promise.all([
+  const [thresholdRecord, exactMasterEntries, masterEntries] = await Promise.all([
     prisma.thresholdConfig.findUnique({
       where: { providerId_category: { providerId, category: 'DRUG_PRICE' } },
     }),
     Promise.all(medications.map((med) =>
-      prisma.medicalItemPriceCache.findFirst({
+      prisma.medicalItemPriceMaster.findFirst({
         where: { itemName: med.name, expiresAt: { gt: now } },
         orderBy: { createdAt: 'desc' },
       }),
@@ -143,11 +152,37 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
 
   const thresholdPct = thresholdRecord?.thresholdPct ?? 0;
 
-  // ── STEP 2: Reconcile master data and local cache only ─────────────────────
-  // We intentionally do not call the online/AI lookup here. The local KFA
-  // MedicalItemPriceCache is now the primary reference, removes AI latency, and
-  // avoids hallucinated item/strength/package matches. Covered KFA types include
-  // obat, vaksin, suplemen, herbal, paket obat, alkes/device, and PKRT.
+  const hasValidReferenceEntry = (index: number) => {
+    const referenceEntry = exactMasterEntries[index];
+    if (!referenceEntry) return false;
+    const referencePrice = getBestReferencePrice(referenceEntry.maxReferencePrice, referenceEntry.hetPrice, referenceEntry.marketPriceMax, referenceEntry.fixPrice);
+    const referenceSources = getJsonStringArray(referenceEntry.sources);
+    return referencePrice > 0 && referenceSources.length > 0;
+  };
+
+  // ── STEP 2: AI resolver as local-master matcher only ───────────────────────
+  // AI may select from local candidates using diagnosis context. It never prices,
+  // never searches internet, and never invents products.
+  const resolverEntries: Array<Awaited<ReturnType<typeof findMedicalMasterItemPrice>>> = new Array(medications.length).fill(null);
+  const resolverIndexes = medications.map((_, index) => index).filter((index) => !masterEntries[index] && !hasValidReferenceEntry(index));
+  if (resolverIndexes.length > 0) {
+    const gateway = await getAIGateway({ clientId: input.clientId, providerId, jobId });
+    await Promise.all(resolverIndexes.map(async (index) => {
+      const med = medications[index];
+      const candidates = await getMedicalItemCandidates(med, now, 20);
+      if (candidates.length === 0) return;
+      try {
+        const resolved = await gateway.resolveMedicalItemMatch({ medication: med, diagnoses: input.diagnoses || [], candidates });
+        const selectedId = resolved.data?.selectedCandidateId;
+        const confidence = resolved.data?.confidence;
+        if (!selectedId || confidence === 'LOW') return;
+        const selected = candidates.find((candidate) => candidate.id === selectedId);
+        if (selected) resolverEntries[index] = buildFinalPriceFromMasterItem(selected);
+      } catch (error) {
+        console.error(`[checkDrugPrices] Medical item resolver failed for ${med.name}:`, error);
+      }
+    }));
+  }
 
   type FinalPrice = {
     marketPriceMax: number;
@@ -158,43 +193,46 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     fixPrice?: number | null;
     hetPrice?: number | null;
     maxReferencePrice?: number | null;
-    cachedAt: string | null;
+    referencedAt: string | null;
   };
 
   const finalPrices: FinalPrice[] = medications.map((med, i) => {
     const masterEntry = masterEntries[i];
     if (masterEntry) return masterEntry;
 
-    const cacheEntry = cacheEntries[i];
-    const cachedPrice = getBestReferencePrice(
-      cacheEntry?.maxReferencePrice,
-      cacheEntry?.hetPrice,
-      cacheEntry?.marketPriceMax,
-      cacheEntry?.fixPrice,
-    );
-    const cachedSources = cacheEntry?.sources as string[] | undefined;
-    const hasValidCache = cachedPrice > 0 && Array.isArray(cachedSources) && cachedSources.length > 0;
+    const resolverEntry = resolverEntries[i];
+    if (resolverEntry) return resolverEntry;
 
-    // No master match → fall back only to an existing local cache entry.
-    if (hasValidCache) {
+    const referenceEntry = exactMasterEntries[i];
+    const referencePrice = getBestReferencePrice(
+      referenceEntry?.maxReferencePrice,
+      referenceEntry?.hetPrice,
+      referenceEntry?.marketPriceMax,
+      referenceEntry?.fixPrice,
+    );
+    const referenceSources = referenceEntry?.sources as string[] | undefined;
+    const hasValidReference = referencePrice > 0 && Array.isArray(referenceSources) && referenceSources.length > 0;
+
+    // No fuzzy master match → use the exact local master reference when available.
+    if (hasValidReference) {
       return {
-        marketPriceMax: cachedPrice,
-        sources: cachedSources!,
-        resolvedProductName: cacheEntry!.itemName,
-        dosageForm: cacheEntry!.itemTypeName || cacheEntry!.itemTypeCode || undefined,
-        unitBasis: cacheEntry!.itemGroup || undefined,
-        fixPrice: cacheEntry!.fixPrice ?? null,
-        hetPrice: cacheEntry!.hetPrice ?? null,
-        maxReferencePrice: cacheEntry!.maxReferencePrice ?? cachedPrice,
-        cachedAt: cacheEntry!.fetchedAt.toISOString(),
+        marketPriceMax: referencePrice,
+        sources: referenceSources!,
+        resolvedProductName: referenceEntry!.itemName,
+        dosageForm: referenceEntry!.itemTypeName || referenceEntry!.itemTypeCode || undefined,
+        unitBasis: referenceEntry!.itemGroup || undefined,
+        fixPrice: referenceEntry!.fixPrice ?? null,
+        hetPrice: referenceEntry!.hetPrice ?? null,
+        maxReferencePrice: referenceEntry!.maxReferencePrice ?? referencePrice,
+        referencedAt: referenceEntry!.fetchedAt.toISOString(),
       };
     }
 
-    // No AI result AND no cache → NOT_FOUND
+    // No master-data result → NOT_FOUND
     return {
       marketPriceMax: 0,
       sources: [],
-      cachedAt: null,
+      referencedAt: null,
     };
   });
 
@@ -230,7 +268,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         status: 'NON_MEDICATION',
         variancePct: 0,
         sources: fp.sources,
-        cachedAt: null,
+        referencedAt: null,
       });
       continue;
     }
@@ -254,7 +292,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         status: 'NOT_FOUND',
         variancePct: 0,
         sources: fp.sources,
-        cachedAt: null,
+        referencedAt: null,
       });
       continue;
     }
@@ -289,7 +327,7 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
       status,
       variancePct,
       sources: fp.sources,
-      cachedAt: fp.cachedAt,
+      referencedAt: fp.referencedAt,
     });
   }
 

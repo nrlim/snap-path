@@ -33,6 +33,7 @@ model User {
 
   @@index([clientId])
   @@index([role])
+  @@map("snp_user")
 }
 
 // === AUTHENTICATION & API KEYS ===
@@ -54,6 +55,7 @@ model ApiKey {
   usageLogs  ApiUsageLog[]
 
   @@index([clientId])
+  @@map("snp_api_key")
 }
 
 model ApiUsageLog {
@@ -83,13 +85,14 @@ model ApiUsageLog {
   @@index([jobId])
   @@index([requestType, createdAt])
   @@index([createdAt])
+  @@map("snp_api_usage_log")
 }
 
 // === CLIENT, PROVIDER & CONFIGURATION ===
 
 model Client {
   id                String   @id @default(uuid())
-  code              String   @unique // e.g., "RS_SILOAM", "KLINIK_ABC"
+  code              String   @unique // Stable client code, e.g., "CLIENT_ALPHA"
   name              String
   isActive          Boolean  @default(true)
   aiProvider        String?  // override: "vercel-ai-gateway" | "sumopod" | "custom"
@@ -111,6 +114,8 @@ model Client {
   claimJobs         ClaimJob[]
   creditLedgers     CreditLedger[]
   requestLedgers    RequestLedger[]
+
+  @@map("snp_client")
 }
 
 model CreditLedger {
@@ -127,6 +132,7 @@ model CreditLedger {
 
   @@index([clientId, createdAt])
   @@index([jobId])
+  @@map("snp_credit_ledger")
 }
 
 model RequestLedger {
@@ -143,13 +149,14 @@ model RequestLedger {
 
   @@index([clientId, createdAt])
   @@index([jobId])
+  @@map("snp_request_ledger")
 }
 
 model Provider {
   id               String   @id @default(uuid())
   clientId         String?
   client           Client?  @relation(fields: [clientId], references: [id])
-  code             String   // e.g., "BPJS", "PRUDENTIAL", "AXA"
+  code             String   // Stable provider/payer code, e.g., "PAYER_PRIMARY"
   name             String
   isActive         Boolean  @default(true)
   createdAt        DateTime @default(now())
@@ -162,6 +169,7 @@ model Provider {
 
   @@index([clientId])
   @@unique([clientId, code])
+  @@map("snp_provider")
 }
 
 model ThresholdConfig {
@@ -176,6 +184,7 @@ model ThresholdConfig {
   updatedAt       DateTime @updatedAt
 
   @@unique([providerId, category])
+  @@map("snp_threshold_config")
 }
 
 // === MASTER DATA: TARIFF BOOK ===
@@ -184,16 +193,16 @@ model TariffEntry {
   id            String   @id @default(uuid())
   providerId    String
   provider      Provider @relation(fields: [providerId], references: [id])
-  procedureCode String   // CPT / INA-CBG code or internal RS code
+  procedureCode String   // Procedure/service code from master fee schedule or source system
   procedureName String
-  category      String   // "KAMAR" | "RAWAT_INAP" | "RAWAT_JALAN" | "IGD" | "TINDAKAN" | "OBAT" | "LAB" | "RADIOLOGI" | "OPERASI"
-  subcategory   String?  // More specific sub-grouping (e.g., "Kamar VIP", "Tindakan IGD", "Laboratorium Rujukan")
-  serviceCode   String?  // Internal hospital service code (e.g., "IGDJ000053", "RUAA010001")
+  category      String   // General service category from client/provider master data
+  subcategory   String?  // Optional sub-grouping from source master data
+  serviceCode   String?  // Optional source-system service code
   unit          String?  // Unit of tariff: "per_hari" | "per_kunjungan" | "per_tindakan" | "per_paket"
   regionCode    String?  // e.g., "JKT", "SBY" — regional pricing
   basePrice     Float    // Minimum / lowest price across all tiers
   maxPrice      Float    // Maximum / highest price across all tiers
-  priceTiersJson Json?   // Price per class: {rj, suite, eksekutif_vip, kelas_i, kelas_ii, kelas_iii}
+  priceTiersJson Json?   // Optional structured pricing tiers/classes from source master data
   currency      String   @default("IDR")
   notes         String?  // Additional notes or conditions for this tariff
   effectiveFrom DateTime
@@ -205,27 +214,30 @@ model TariffEntry {
   @@index([procedureCode, providerId])
   @@index([category, providerId])
   @@index([serviceCode])
+  @@map("snp_tariff_entry")
 }
 
-// === MASTER DATA: ICD-10 DIAGNOSIS ===
+// === MASTER DATA: DIAGNOSIS CATALOG ===
 
 model DiagnosisCode {
   id            String   @id @default(uuid())
-  icdCode       String   @unique  // e.g., "J18.9"
+  icdCode       String   @unique  // Diagnosis code, e.g., ICD-10 "J18.9"
   description   String            // e.g., "Pneumonia, unspecified organism"
-  descriptionId String?           // Indonesian translation
-  category      String            // e.g., "J00-J99" (Respiratory)
+  descriptionId String?           // Optional localized or alternate description
+  category      String            // Diagnosis category/chapter/group
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
 
   allowedProcedures DiagnosisProcedureMap[]
+
+  @@map("snp_diagnosis_code")
 }
 
 model DiagnosisProcedureMap {
   id              String        @id @default(uuid())
   diagnosisId     String
   diagnosis       DiagnosisCode @relation(fields: [diagnosisId], references: [id])
-  procedureCode   String        // CPT code
+  procedureCode   String        // Procedure/service code
   procedureName   String
   isRequired      Boolean       @default(false)  // Mandatory for this diagnosis?
   confidence      Float         @default(1.0)     // AI confidence mapping
@@ -234,6 +246,7 @@ model DiagnosisProcedureMap {
 
   @@index([diagnosisId])
   @@index([procedureCode])
+  @@map("snp_diagnosis_procedure_map")
 }
 
 // === JOB TRACKING ===
@@ -260,41 +273,43 @@ model ClaimJob {
   @@index([status])
   @@index([jobType])
   @@index([workflowRunId])
+  @@map("snp_claim_job")
 }
 
-// === MEDICAL ITEM PRICE MASTER/CACHE ===
+// === MEDICAL ITEM PRICE MASTER DATA ===
 
-model MedicalItemPriceCache {
+model MedicalItemPriceMaster {
   id              String   @id @default(uuid())
   itemName        String
   itemGenericName String?
-  itemTypeCode    String?  // KFA type code: medicine, device, vaccine, supplement, herbal, etc.
-  itemTypeName    String?  // KFA type label: Obat, Alat Kesehatan, Vaksin, etc.
-  itemGroup       String?  // KFA group: farmasi, alkes, etc.
+  itemTypeCode    String?  // Source item type code: medicine, device, vaccine, supplement, herbal, etc.
+  itemTypeName    String?  // Source item type label
+  itemGroup       String?  // General item group, e.g., pharmacy or medical supply
   marketPriceMax  Float    // Highest usable reference price for validation
   marketPriceAvg  Float?
-  fixPrice        Float?   // KFA fix_price, may be unavailable or nominal
-  hetPrice        Float?   // KFA HET price
-  maxReferencePrice Float? // KFA max_reference_price / resolved validation ceiling
+  fixPrice        Float?   // Source fixed/reference price, may be unavailable or nominal
+  hetPrice        Float?   // Regulated maximum/reference retail price when available
+  maxReferencePrice Float? // Source max reference price / resolved validation ceiling
   sources         Json     // Array of source URLs/names/metadata
   currency        String   @default("IDR")
   fetchedAt       DateTime @default(now())
-  expiresAt       DateTime // Cache TTL
+  expiresAt       DateTime // Reference validity end date
   createdAt       DateTime @default(now())
 
   @@index([itemName])
   @@index([itemGenericName])
   @@index([itemTypeCode])
   @@index([itemGroup])
+  @@map("snp_medical_item_price_master")
 }
 
 // === CLINICAL PATHWAY TEMPLATES ===
 
 model ClinicalPathway {
   id              String   @id @default(uuid())
-  diagnosisCode   String   // ICD-10 code
+  diagnosisCode   String   // Diagnosis code
   diagnosisName   String
-  providerType    String?  // "BPJS" | "PRIVATE" | null (universal)
+  providerType    String?  // Optional payer/provider category; null means universal
   pathwayVersion  String   @default("1.0")
   phases          Json     // Structured pathway phases (see JSON template)
   estimatedLos    Int?     // Length of Stay in days
@@ -305,6 +320,7 @@ model ClinicalPathway {
   updatedAt       DateTime @updatedAt
 
   @@index([diagnosisCode])
+  @@map("snp_clinical_pathway")
 }
 
 // === SYSTEM CONFIGURATION ===
@@ -316,11 +332,13 @@ model SystemConfig {
   aiModel         String   @default("gpt-4o-mini")
   aiMaxTokens     Int      @default(1500)
   aiTemperature   Float    @default(0.7)
-  thresholdObatPct Float   @default(10.0)
+  thresholdObatPct Float   @default(10.0) // Legacy config key for medication/farmalkes threshold
   thresholdTindakanPct Float @default(10.0)
   thresholdLosDays Int     @default(1)
   piiRedactPatterns String[] @default(["name", "nama", "pasien", "patient", "fullname", "nik", "id", "ktp", "ssn", "identifier", "address", "alamat", "phone", "telepon", "nohp", "mobile", "email", "dob", "dateofbirth", "tanggallahir", "asuransi", "insurance", "bpjs"])
   piiSafeContexts   String[] @default(["diagnosis", "procedure", "medication", "drug", "facility", "hospital", "clinic", "encounter", "class", "code", "type"])
   updatedAt       DateTime @updatedAt
+
+  @@map("snp_system_config")
 }
 

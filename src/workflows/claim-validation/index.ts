@@ -34,7 +34,7 @@ async function runClaimValidationSteps(input: ClaimValidationPayload): Promise<v
   // Step 3: Tariff price validation (DB-only)
   const tariffRes = await validateTariffStep(input);
 
-  // Step 4: Drug price check (AI + cache)
+  // Step 4: Medical item price check (local master data + controlled AI resolver)
   const drugRes = await checkDrugPricesStep(input);
 
   // Step 5: LOS validation

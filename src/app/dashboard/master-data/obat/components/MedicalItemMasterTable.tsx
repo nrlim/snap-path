@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { defaultPageSizes, SortButton, TablePagination, TableSearch, type SortDirection } from "@/components/ui/DataTableControls";
-import { getDrugPriceCacheEntries } from "../actions";
+import { getMedicalItemMasterEntries } from "../actions";
 
-type DrugPriceCacheEntry = {
+type MedicalItemMasterEntry = {
   id: string;
   itemName: string;
   itemGenericName: string | null;
@@ -28,7 +28,7 @@ function toDate(value: Date | string) {
   return value instanceof Date ? value : new Date(value);
 }
 
-function isExpired(item: DrugPriceCacheEntry) {
+function isExpired(item: MedicalItemMasterEntry) {
   return toDate(item.expiresAt).getTime() <= Date.now();
 }
 
@@ -47,8 +47,8 @@ function normalizeSources(sources: unknown): string[] {
   return [];
 }
 
-export default function DrugPriceCacheTable({ data, total = data.length, totalPages: initialTotalPages = 1 }: { data: DrugPriceCacheEntry[]; total?: number; totalPages?: number }) {
-  const [rows, setRows] = useState<DrugPriceCacheEntry[]>(data);
+export default function MedicalItemMasterTable({ data, total = data.length, totalPages: initialTotalPages = 1 }: { data: MedicalItemMasterEntry[]; total?: number; totalPages?: number }) {
+  const [rows, setRows] = useState<MedicalItemMasterEntry[]>(data);
   const [totalCount, setTotalCount] = useState(total);
   const [serverTotalPages, setServerTotalPages] = useState(Math.max(1, initialTotalPages));
   const [search, setSearch] = useState("");
@@ -64,9 +64,9 @@ export default function DrugPriceCacheTable({ data, total = data.length, totalPa
     const timer = window.setTimeout(async () => {
       setIsLoading(true);
       try {
-        const result = await getDrugPriceCacheEntries({ search, status: statusFilter, sortField, sortDirection, page, limit: pageSize });
+        const result = await getMedicalItemMasterEntries({ search, status: statusFilter, sortField, sortDirection, page, limit: pageSize });
         if (!cancelled) {
-          setRows(result.entries as DrugPriceCacheEntry[]);
+          setRows(result.entries as MedicalItemMasterEntry[]);
           setTotalCount(result.total);
           setServerTotalPages(result.totalPages);
         }

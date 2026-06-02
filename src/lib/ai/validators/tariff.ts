@@ -2,12 +2,11 @@ import prisma from '@/lib/db';
 import { TariffValidationInput, TariffValidationOutput } from '../types';
 
 function getProcedureUnitPrice(proc: any) {
-  return Number(proc.unitPrice ?? proc.price ?? proc.claimedUnitPrice ?? 0);
+  return Number(proc.unitPrice ?? 0);
 }
 
 function getProcedureTotalPrice(proc: any) {
-  const explicitTotal = proc.totalPrice ?? proc.claimedTotal ?? proc.claimedPrice;
-  if (explicitTotal !== undefined && explicitTotal !== null) return Number(explicitTotal);
+  if (proc.totalPrice !== undefined && proc.totalPrice !== null) return Number(proc.totalPrice);
   return getProcedureUnitPrice(proc) * Number(proc.quantity || 1);
 }
 
@@ -24,8 +23,8 @@ function normalizeText(value: unknown) {
     .trim();
 }
 
-function getProcedureDescription(proc: any) {
-  return proc.description || proc.name || proc.procedureName || proc.code || 'Tindakan';
+function getProcedureName(proc: any) {
+  return proc.name || proc.code || 'Tindakan';
 }
 
 function isNameCompatible(inputName: string, masterName: string) {
@@ -38,9 +37,9 @@ function isNameCompatible(inputName: string, masterName: string) {
 }
 
 async function resolveMasterTariff(proc: any, providerId: string, requestedCategory?: string) {
-  const rawCode = String(proc.code ?? proc.procedureCode ?? proc.serviceCode ?? '').trim();
+  const rawCode = String(proc.code ?? '').trim();
   const inputCode = normalizeCode(rawCode);
-  const inputName = normalizeText(getProcedureDescription(proc));
+  const inputName = normalizeText(getProcedureName(proc));
   const normalizedRequestedCategory = normalizeCode(requestedCategory);
 
   if (inputCode) {
@@ -105,7 +104,7 @@ async function resolveMasterTariff(proc: any, providerId: string, requestedCateg
     where: {
       providerId,
       isActive: true,
-      procedureName: { equals: getProcedureDescription(proc), mode: 'insensitive' },
+      procedureName: { equals: getProcedureName(proc), mode: 'insensitive' },
     },
     orderBy: { maxPrice: 'desc' },
   });
@@ -172,8 +171,8 @@ export async function validateTariffPrice(input: TariffValidationInput, jobId: s
 
     if (!master) {
       items.push({
-        code: proc.code,
-        description: getProcedureDescription(proc),
+        code: proc.code || '',
+        description: getProcedureName(proc),
         quantity,
         claimedUnitPrice,
         claimedTotal,
@@ -209,8 +208,8 @@ export async function validateTariffPrice(input: TariffValidationInput, jobId: s
     }
 
     items.push({
-      code: proc.code,
-      description: getProcedureDescription(proc),
+      code: proc.code || '',
+      description: getProcedureName(proc),
       quantity,
       claimedUnitPrice,
       claimedTotal,

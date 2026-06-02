@@ -288,23 +288,19 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       const payload = {
         patient: formData.patient,
         encounter: formData.encounter,
-        diagnoses: (formData.diagnoses || []).map((diag: any) => {
-          const latestName = diag.name || diag.description || diag.diagnosisName || diag.code;
-          return {
-            ...diag,
-            name: latestName,
-            description: latestName,
-          };
-        }),
+        diagnoses: (formData.diagnoses || []).map((diag: any, index: number) => ({
+          code: diag.code || null,
+          name: diag.name || diag.description || diag.diagnosisName || diag.code || '',
+          type: diag.type || (index === 0 ? 'primary' : 'secondary'),
+        })),
         procedures: (formData.procedures || []).map((proc: any) => {
           const quantity = proc.quantity || 1;
           const unitPrice = proc.price ?? proc.unitPrice ?? proc.claimedUnitPrice ?? 0;
-          const latestName = proc.name || proc.description || proc.procedureName || proc.code;
           return {
-            ...proc,
-            name: latestName,
-            description: latestName,
-            procedureName: latestName,
+            code: proc.code || null,
+            name: proc.name || proc.description || proc.procedureName || proc.code || '',
+            category: proc.category,
+            quantity,
             unitPrice,
             totalPrice: unitPrice * quantity,
           };
@@ -312,13 +308,15 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
         medications: (formData.medications || []).map((med: any) => {
           const quantity = med.quantity || 1;
           const unitPrice = med.price ?? med.unitPrice ?? med.claimedUnitPrice ?? 0;
-          const latestName = med.name || med.medicationName || med.genericName || '';
           return {
-            ...med,
-            name: latestName,
-            medicationName: latestName,
+            name: med.name || med.medicationName || med.genericName || '',
+            genericName: med.genericName || undefined,
+            dosage: med.dosage || undefined,
+            quantity,
             unitPrice,
             totalPrice: unitPrice * quantity,
+            frequency: med.frequency || undefined,
+            duration: med.duration || undefined,
           };
         }),
         documents: formData.documents,

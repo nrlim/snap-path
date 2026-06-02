@@ -23,18 +23,19 @@ export interface ClaimValidationInput {
     };
   };
   diagnoses: Array<{
-    code: string;       // ICD-10
-    description: string;
+    code: string;
+    name: string;
     type: "PRIMARY" | "SECONDARY" | "COMPLICATION";
     sequence: number;
   }>;
   procedures: Array<{
-    code: string;       // CPT / INA-CBG
-    description: string;
+    code?: string | null;
+    name: string;
+    category?: string;
     quantity: number;
     unitPrice: number;
     totalPrice: number;
-    performedDate: string;
+    performedDate?: string;
     performedBy?: string;
   }>;
   medications: Array<{
@@ -51,7 +52,7 @@ export interface ClaimValidationInput {
   currency?: string;
   notes?: string;
   documents?: Array<{
-    type: string;       // "LMA" | "KTP" | "KARTU ASURANSI" | "SK KAMAR" | "FORM KRONOLOGIS KECELAKAAN" | "SURAT PERNYATAAN RAWAT INAP"
+    type: string;
     url?: string;
     description?: string;
   }>;
@@ -178,12 +179,12 @@ export interface ClaimValidationOutput {
 export interface TariffValidationInput {
   providerId: string;
   procedures: Array<{
-    code: string;
-    description: string;
+    code?: string | null;
+    name: string;
+    category?: string;
     quantity: number;
     unitPrice: number;
     totalPrice: number;
-    category?: string;
     regionCode?: string;
   }>;
   encounterType: "RAWAT_INAP" | "RAWAT_JALAN" | "IGD";
@@ -222,6 +223,7 @@ export interface TariffValidationOutput {
 export interface DrugPriceCheckInput {
   clientId?: string | null;
   providerId: string;
+  diagnoses?: Array<{ code?: string | null; name?: string | null; type?: string | null }>;
   medications: Array<{
     name: string;
     genericName?: string;
@@ -253,7 +255,7 @@ export interface DrugPriceCheckOutput {
     status: "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" | "NOT_FOUND" | "CACHE_HIT" | "NON_MEDICATION";
     variancePct: number;
     sources: string[];
-    cachedAt: string | null;
+    referencedAt: string | null;
   }>;
   thresholdConfig: {
     thresholdPct: number;

@@ -1,5 +1,5 @@
 {
-  "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9",
+  "providerId": "7ddf42dc-8a43-4470-b637-78945a6e0419",
   "claimId": "CLM-MK-2026-SCORE100-DENGUE",
   "patient": {
     "name": "Ibu Sari Wulandari",
@@ -129,9 +129,8 @@
     "phone": "081298761234",
     "insuranceType": "ASURANSI_SWASTA",
     "insuranceNumber": "AS-2026-DHF-001",
-    "los": "3",
+    "los": "4",
     "losJustification": "Rawat inap 3 hari untuk dengue tanpa warning signs dengan monitoring trombosit, hematokrit, elektrolit, tanda vital, hidrasi oral/IV sesuai kebutuhan, dan observasi fase kritis.",
-    "outcomeNotes": "Pasien afebrile, tanda vital stabil, tidak ada perdarahan, trombosit stabil membaik, toleransi oral baik, dan pulang dengan edukasi tanda bahaya serta kontrol.",
-    "providerId": "c1e80b5a-ee96-478b-93fa-8b390aafeac9"
+    "outcomeNotes": "Pasien afebrile, tanda vital stabil, tidak ada perdarahan, trombosit stabil membaik, toleransi oral baik, dan pulang dengan edukasi tanda bahaya serta kontrol."
   }
 }

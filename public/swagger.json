@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "SnapPath AI Brain API",
+    "title": "SnapPath Clinical Pathway API",
     "version": "1.1.0",
-    "description": "SnapPath API service documentation untuk client terdaftar. Client eksternal memakai x-api-key dan x-api-secret, sedangkan dashboard internal SnapPath memakai JWT session user login."
+    "description": "Dokumentasi API SnapPath untuk client terdaftar. API memakai payload canonical tanpa alias legacy. Validasi tarif dan obat/farmalkes menggunakan master data lokal; AI hanya digunakan sebagai clinical reviewer/resolver kandidat lokal yang terkontrol, bukan sumber harga eksternal. Table internal SnapPath menggunakan prefix database `snp_`."
   },
   "servers": [
     {
@@ -33,12 +33,12 @@
       "description": "Master tarif dan validasi harga tindakan."
     },
     {
-      "name": "Drug Price",
-      "description": "Validasi harga obat dengan cache dan AI-assisted market reference."
+      "name": "Medical Item Price",
+      "description": "Validasi harga obat/farmalkes/farmalkes terhadap master data lokal. AI hanya dapat memilih kandidat master lokal, bukan mencari atau mengestimasi harga."
     },
     {
       "name": "Providers",
-      "description": "Provider klaim/tarif milik client, misalnya BPJS atau private insurer."
+      "description": "Provider klaim/tarif milik client; dapat berupa payer, insurer, atau skema internal."
     },
     {
       "name": "Jobs",
@@ -224,7 +224,7 @@
               },
               "type": {
                 "type": "string",
-                "example": "RS_TIPE_B"
+                "example": "HEALTHCARE_FACILITY"
               }
             }
           }
@@ -237,10 +237,6 @@
             "type": "string",
             "example": "J18.9"
           },
-          "description": {
-            "type": "string",
-            "example": "Pneumonia, unspecified organism"
-          },
           "type": {
             "type": "string",
             "enum": [
@@ -252,6 +248,10 @@
           "sequence": {
             "type": "integer",
             "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Pneumonia, unspecified organism"
           }
         }
       },
@@ -261,10 +261,6 @@
           "code": {
             "type": "string",
             "example": "RAD-CXR"
-          },
-          "description": {
-            "type": "string",
-            "example": "Chest X-Ray"
           },
           "quantity": {
             "type": "integer",
@@ -286,9 +282,9 @@
             "type": "string",
             "example": "RADIOLOGI"
           },
-          "regionCode": {
+          "name": {
             "type": "string",
-            "nullable": true
+            "example": "Chest X-Ray"
           }
         }
       },
@@ -326,6 +322,11 @@
           "duration": {
             "type": "string",
             "nullable": true
+          },
+          "code": {
+            "type": "string",
+            "nullable": true,
+            "example": "MED-001"
           }
         }
       },
@@ -389,7 +390,7 @@
           "providerType": {
             "type": "string",
             "nullable": true,
-            "example": "BPJS"
+            "example": "PAYER_PRIMARY"
           },
           "patientProfile": {
             "type": "object",
@@ -835,11 +836,11 @@
           },
           "code": {
             "type": "string",
-            "example": "BPJS"
+            "example": "PAYER_PRIMARY"
           },
           "name": {
             "type": "string",
-            "example": "BPJS Kesehatan"
+            "example": "Primary Payer"
           }
         }
       }
@@ -861,7 +862,7 @@
           "Clinical Pathway Result Guide"
         ],
         "summary": "Guide: AI Outcome & Validation Summary",
-        "description": "Section ini adalah ringkasan paling atas dari hasil clinical pathway dan validasi klaim.\n\n| Item | Penjelasan |\n| --- | --- |\n| Overall Score | Skor akhir 0-100. Skor awal 100 lalu dikurangi berdasarkan issue validasi. |\n| Status Validasi | Valid, Warning, Review Needed, atau Invalid sebagai indikator risiko review. |\n| Perhitungan Skor | Breakdown pengurangan skor dari diagnosis, tarif tindakan, harga obat, dokumen, LOS compliance, dan master data tidak terdaftar. |\n| Validasi Obat & Tindakan | Persentase item yang sesuai dari total validasi tarif, obat, dan diagnosis-treatment. |\n| Length of Stay (LOS compliance) | Membandingkan LOS compliance aktual dengan standar LOS compliance dari AI pathway. Jika overstay, masuk pengurangan skor. |\n| Kelengkapan Dokumen Medis | Jumlah dokumen tersedia dan dokumen wajib yang hilang. |\n| Catatan Varians & Outcome | Catatan tambahan dari input user untuk menjelaskan variance atau outcome klinis. |\n\n\n\n**Catatan interpretasi**\n\n- `Tarif tindakan terdaftar` dan `Harga obat terdaftar` hanya menilai item yang sudah memiliki referensi harga.\n- Jika tindakan/obat belum punya referensi, deduction masuk ke `Kesiapan master data`, bukan ke price compliance.\n- `LOS compliance` berdiri sendiri dan hanya minus jika LOS aktual melebihi standar pathway.\n\n**Preview section**\n\n```text\nAI Outcome & Validation Summary        [Valid]\n\nScore Count\nAwal 100 | Minus -20 | Akhir 80\n\n- Diagnosis & tindakan klinis   0 / 30\n- Tarif tindakan terdaftar              -20 / 20\n- Harga obat terdaftar                    0 / 20\n- Kelengkapan dokumen           0 / 10\n- LOS compliance                            0 / 10\n- Kesiapan master data    0 / 15\n\nConformance Metrics\n- Validasi Obat & Tindakan: 86% Sesuai\n- LOS compliance: 3 hari aktual - standar AI 3 hari\n- Dokumen: 6 dokumen wajib dilampirkan\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "description": "Section ini adalah ringkasan paling atas dari hasil clinical pathway dan validasi klaim.\n\n| Item | Penjelasan |\n| --- | --- |\n| Overall Score | Skor akhir 0-100. Skor awal 100 lalu dikurangi berdasarkan issue validasi. |\n| Status Validasi | Valid, Warning, Review Needed, atau Invalid sebagai indikator risiko review. |\n| Perhitungan Skor | Breakdown pengurangan skor dari diagnosis, tarif tindakan, harga obat/farmalkes, dokumen, LOS compliance, dan master data tidak terdaftar. |\n| Validasi Obat & Tindakan | Persentase item yang sesuai dari total validasi tarif, obat, dan diagnosis-treatment. |\n| Length of Stay (LOS compliance) | Membandingkan LOS compliance aktual dengan standar LOS compliance dari AI pathway. Jika overstay, masuk pengurangan skor. |\n| Kelengkapan Dokumen Medis | Jumlah dokumen tersedia dan dokumen wajib yang hilang. |\n| Catatan Varians & Outcome | Catatan tambahan dari input user untuk menjelaskan variance atau outcome klinis. |\n\n\n\n**Catatan interpretasi**\n\n- `Tarif tindakan terdaftar` dan `Harga obat terdaftar` hanya menilai item yang sudah memiliki referensi harga.\n- Jika tindakan/obat belum punya referensi, deduction masuk ke `Kesiapan master data`, bukan ke price compliance.\n- `LOS compliance` berdiri sendiri dan hanya minus jika LOS aktual melebihi standar pathway.\n\n**Preview section**\n\n```text\nAI Outcome & Validation Summary        [Valid]\n\nScore Count\nAwal 100 | Minus -20 | Akhir 80\n\n- Diagnosis & tindakan klinis   0 / 30\n- Tarif tindakan terdaftar              -20 / 20\n- Harga obat terdaftar                    0 / 20\n- Kelengkapan dokumen           0 / 10\n- LOS compliance                            0 / 10\n- Kesiapan master data    0 / 15\n\nConformance Metrics\n- Validasi Obat & Tindakan: 86% Sesuai\n- LOS compliance: 3 hari aktual - standar AI 3 hari\n- Dokumen: 6 dokumen wajib dilampirkan\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
         "security": [],
         "responses": {
           "200": {
@@ -876,7 +877,7 @@
           "Clinical Pathway Result Guide"
         ],
         "summary": "Guide: Patient Clinical Summary",
-        "description": "Section ini merangkum konteks pasien dan episode perawatan agar reviewer tidak perlu membaca payload mentah.\n\n| Item | Penjelasan |\n| --- | --- |\n| Patient Identity | Nama pasien, gender/tanggal lahir, MRN, dan nomor asuransi bila tersedia. |\n| Admission Episode | Tipe encounter, tanggal masuk, tanggal pulang, dan LOS aktual. |\n| Diagnoses | Daftar diagnosis primary/secondary/complication beserta kode dan deskripsi. |\n| AI Clinical Context | Ringkasan klinis singkat dari AI untuk diagnosis utama. |\n| Procedures Claimed | Ringkasan tindakan yang diklaim, biasanya menampilkan kode dan nama tindakan. |\n| Medications Claimed | Ringkasan obat yang diklaim, termasuk nama dan jumlah. |\n\n**Preview section**\n\n```text\nPatient Clinical Summary\n\nPatient Identity\nName        Budi Santoso\nGender/DOB  M - 21 Apr 1985\nMRN         MR-001\nInsurance   BPJS-00001\n\nAdmission Episode\nType        RAWAT_INAP\nAdmission   20 Mei 2026\nDischarge   23 Mei 2026\nLOS         3 Days (AI Standard: 3 days)\n\nDiagnoses\n[J18.9] Pneumonia (primary)\n\nAI Clinical Context\nRingkasan kondisi klinis utama pasien.\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "description": "Section ini merangkum konteks pasien dan episode perawatan agar reviewer tidak perlu membaca payload mentah.\n\n| Item | Penjelasan |\n| --- | --- |\n| Patient Identity | Nama pasien, gender/tanggal lahir, MRN, dan nomor asuransi bila tersedia. |\n| Admission Episode | Tipe encounter, tanggal masuk, tanggal pulang, dan LOS aktual. |\n| Diagnoses | Daftar diagnosis primary/secondary/complication beserta kode dan deskripsi. |\n| AI Clinical Context | Ringkasan klinis singkat dari AI untuk diagnosis utama. |\n| Procedures Claimed | Ringkasan tindakan yang diklaim, biasanya menampilkan kode dan nama tindakan. |\n| Medications Claimed | Ringkasan obat yang diklaim, termasuk nama dan jumlah. |\n\n**Preview section**\n\n```text\nPatient Clinical Summary\n\nPatient Identity\nName        Budi Santoso\nGender/DOB  M - 21 Apr 1985\nMRN         MR-001\nInsurance   POLICY-00001\n\nAdmission Episode\nType        RAWAT_INAP\nAdmission   20 Mei 2026\nDischarge   23 Mei 2026\nLOS         3 Days (AI Standard: 3 days)\n\nDiagnoses\n[J18.9] Pneumonia (primary)\n\nAI Clinical Context\nRingkasan kondisi klinis utama pasien.\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
         "security": [],
         "responses": {
           "200": {
@@ -906,7 +907,7 @@
           "Clinical Pathway Result Guide"
         ],
         "summary": "Guide: Fees & Drugs",
-        "description": "Tab ini menjelaskan hasil validasi finansial terhadap tindakan dan obat.\n\n| Item | Penjelasan |\n| --- | --- |\n| Master Fee Schedule Validation | Membandingkan tindakan yang diklaim dengan master tariff provider. |\n| Total Claim | Total nilai klaim tindakan. |\n| Total Master Max | Batas atas tarif berdasarkan master fee schedule. |\n| Drug Price Validation | Membandingkan harga obat dengan market reference/cache/AI estimate. |\n| Variance | Selisih nilai klaim terhadap referensi. |\n| WITHIN_RANGE | Item masih dalam rentang wajar. |\n| OVER_THRESHOLD / NOT_FOUND | Item perlu review karena melewati threshold atau referensi tidak ditemukan. |\n\n**Preview section**\n\n```text\nFees & Drugs\n\nMaster Fee Schedule Validation\nProcedure       Claim      Master Max   Variance   Status\nChest X-Ray     250.000    300.000      -16%       WITHIN_RANGE\nProcedure X     900.000    600.000      +50%       OVER_THRESHOLD\n\nDrug Price Validation\nDrug A          150.000    100.000      +50%       OVER_THRESHOLD\nDrug B           20.000     22.000       -9%       WITHIN_RANGE\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
+        "description": "Tab ini menjelaskan hasil validasi finansial terhadap tindakan dan obat.\n\n| Item | Penjelasan |\n| --- | --- |\n| Master Fee Schedule Validation | Membandingkan tindakan yang diklaim dengan master tariff provider. |\n| Total Claim | Total nilai klaim tindakan. |\n| Total Master Max | Batas atas tarif berdasarkan master fee schedule. |\n| Medical Item Price Validation | Membandingkan harga obat/farmalkes/farmalkes dengan master data lokal. |\n| Variance | Selisih nilai klaim terhadap referensi. |\n| WITHIN_RANGE | Item masih dalam rentang wajar. |\n| OVER_THRESHOLD / NOT_FOUND | Item perlu review karena melewati threshold atau referensi tidak ditemukan. |\n\n**Preview section**\n\n```text\nFees & Drugs\n\nMaster Fee Schedule Validation\nProcedure       Claim      Master Max   Variance   Status\nChest X-Ray     250.000    300.000      -16%       WITHIN_RANGE\nProcedure X     900.000    600.000      +50%       OVER_THRESHOLD\n\nMedical Item Price Validation\nDrug A          150.000    100.000      +50%       OVER_THRESHOLD\nDrug B           20.000     22.000       -9%       WITHIN_RANGE\n```\n\n> Catatan: path guide ini adalah dokumentasi konseptual di API Docs, bukan endpoint runtime.",
         "security": [],
         "responses": {
           "200": {
@@ -992,7 +993,7 @@
           "Claim Workflows"
         ],
         "summary": "Full Claim Validation",
-        "description": "Menjalankan workflow asynchronous: document validation, diagnosis-treatment validation, tariff validation, drug price check, LOS validation, dan clinical pathway generation untuk diagnosis primer.",
+        "description": "Menjalankan workflow asynchronous: document validation, diagnosis-treatment validation, tariff validation, medical item price check, LOS validation, dan clinical pathway generation untuk diagnosis primer.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1175,7 +1176,7 @@
           "Drug Price"
         ],
         "summary": "Drug Price Check",
-        "description": "Validasi harga obat terhadap cache market price dan AI-assisted reference. Result diambil lewat job result endpoint.",
+        "description": "Validasi harga obat/farmalkes/farmalkes terhadap master data lokal. AI hanya dapat memilih kandidat lokal bila diperlukan; result diambil lewat job result endpoint.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1474,5 +1475,10 @@
         }
       }
     }
+  },
+  "x-snapPath": {
+    "databaseTablePrefix": "snp_",
+    "canonicalPayloadOnly": true,
+    "medicationPricingSource": "local_master_data"
   }
 }

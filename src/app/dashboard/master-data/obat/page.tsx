@@ -1,14 +1,14 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { getDrugPriceCacheEntries } from "./actions";
-import DrugPriceCacheTable from "./components/DrugPriceCacheTable";
+import { getMedicalItemMasterEntries } from "./actions";
+import MedicalItemMasterTable from "./components/MedicalItemMasterTable";
 
 export default async function MasterObatPage() {
-  const data = await getDrugPriceCacheEntries({ page: 1, limit: 10 });
+  const data = await getMedicalItemMasterEntries({ page: 1, limit: 10 });
 
   const cards = [
     { label: "Total referensi", value: data.total, tone: "text-text" },
-    { label: "Cache aktif", value: data.summary.active, tone: "text-green-700" },
+    { label: "Referensi aktif", value: data.summary.active, tone: "text-green-700" },
     { label: "Kedaluwarsa", value: data.summary.expired, tone: "text-orange-700" },
   ];
 
@@ -19,7 +19,7 @@ export default async function MasterObatPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-faint">Reference Data</p>
           <h1 className="mt-1 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-2xl font-bold tracking-tight text-transparent">Master Farmalkes</h1>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-text-subtle">
-            Pantau referensi harga obat, vaksin, suplemen, dan alat kesehatan yang digunakan validasi klaim. Data ini bersifat baca-saja dan diperbarui oleh master KFA atau proses validasi harga.
+            Pantau referensi harga obat, vaksin, suplemen, dan alat kesehatan yang digunakan validasi klaim. Data ini bersifat baca-saja dan diperbarui dari sumber master farmalkes yang dikurasi.
           </p>
         </div>
         <Link
@@ -41,7 +41,7 @@ export default async function MasterObatPage() {
 
       <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden">
         <Suspense fallback={<div className="p-8 text-center text-text-subtle">Memuat referensi harga farmalkes...</div>}>
-          <DrugPriceCacheTable data={data.entries} total={data.total} totalPages={data.totalPages} />
+          <MedicalItemMasterTable data={data.entries} total={data.total} totalPages={data.totalPages} />
         </Suspense>
       </div>
     </div>

@@ -62,8 +62,33 @@ export default async function ApiDocsPage() {
     return true;
   });
 
+  spec.info = {
+    ...(spec.info || {}),
+    description: [
+      spec.info?.description,
+      "Kontrak payload memakai key canonical saja: procedure.name/unitPrice/totalPrice dan medication.name/unitPrice/totalPrice. Alias legacy seperti procedureName, medicationName, price, claimedUnitPrice, dan claimedTotal tidak digunakan.",
+      "Validasi harga obat/farmalkes memakai master data lokal; AI hanya boleh menjadi resolver kandidat master lokal, bukan sumber harga eksternal.",
+    ].filter(Boolean).join("\n\n"),
+  };
+  spec["x-snapPath"] = {
+    databaseTablePrefix: "snp_",
+    canonicalPayloadOnly: true,
+    medicationPricingSource: "local_master_data",
+  };
+
   return (
-    <div className="w-full min-h-screen bg-background">
+    <div className="w-full min-h-screen bg-background text-text">
+      <div className="border-b border-border bg-surface px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-faint">API Contract</p>
+            <h1 className="text-base font-semibold text-text sm:text-lg">Canonical payload dan master data lokal</h1>
+          </div>
+          <p className="max-w-3xl text-xs leading-5 text-text-subtle sm:text-sm">
+            Database SnapPath memakai namespace table <code className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-xs">snp_</code>. Payload API memakai key canonical tanpa alias legacy, dan harga obat/farmalkes divalidasi dari master data lokal.
+          </p>
+        </div>
+      </div>
       <ScalarDocs spec={spec} />
     </div>
   );

@@ -27,8 +27,7 @@ export interface AIGatewayDriver {
   extractMedicalData(clinicalText: string): Promise<{ data: Record<string, unknown>; usage?: Usage }>;
   
   validateDiagnosisTreatment(payload: any): Promise<{ data: any; usage?: Usage }>;
-  searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: Usage }>;
-  searchDrugMarketPriceBatch(drugs: Array<{ name: string; genericName?: string | null; dosage?: string | null }>): Promise<{ data: any[]; usage?: Usage }>;
+  resolveMedicalItemMatch?(input: { medication: any; diagnoses: any[]; candidates: any[] }): Promise<{ data: any; usage?: Usage }>;
   generateClinicalPathway(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }>;
   validateDocumentCompleteness(payload: any): Promise<{ data: any; usage?: Usage }>;
   mapArbitraryJsonToClaim(rawJson: any): Promise<{ data: any; usage?: Usage }>;
@@ -115,12 +114,9 @@ export class AIGateway {
     return this.track('validateDiagnosisTreatment', () => this.driver.validateDiagnosisTreatment(sanitizeClaimValidationInput(payload)));
   }
 
-  async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }) {
-    return this.track('searchDrugMarketPrice', () => this.driver.searchDrugMarketPrice(drug));
-  }
-
-  async searchDrugMarketPriceBatch(drugs: Array<{ name: string; genericName?: string | null; dosage?: string | null }>) {
-    return this.track('searchDrugMarketPriceBatch', () => this.driver.searchDrugMarketPriceBatch(drugs));
+  async resolveMedicalItemMatch(input: { medication: any; diagnoses: any[]; candidates: any[] }) {
+    if (!this.driver.resolveMedicalItemMatch) return { data: { selectedCandidateId: null, confidence: 'LOW', reason: 'Resolver tidak tersedia.' } };
+    return this.track('resolveMedicalItemMatch', () => this.driver.resolveMedicalItemMatch!(input));
   }
 
   async generateClinicalPathway(diagnosisCode: string, diagnosisName: string) {

@@ -280,7 +280,7 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
       experimental_repairText: repairJsonOnlyText,
       prompt: `Return ONLY raw JSON matching the schema. Do not use markdown.
 
-You are a senior clinical pathway reviewer for Indonesian healthcare claims (JKN/BPJS and hospital billing context). Your task is to perform a clinically sound fallback review when local diagnosis-procedure mapping is absent or incomplete.
+You are a senior clinical pathway reviewer for healthcare claims across multiple clients and payer/provider configurations. Your task is to perform a clinically sound fallback review when local diagnosis-procedure mapping is absent or incomplete.
 
 CLAIM PAYLOAD:
 ${JSON.stringify(payload, null, 2)}
@@ -314,314 +314,50 @@ Be conservative and clinically precise: false irrelevant flags are harmful. If u
     return { data: object, usage: usage as any };
   }
 
-  async searchDrugMarketPrice(drug: string | { name: string; genericName?: string | null; dosage?: string | null }): Promise<{ data: any; usage?: Usage }> {
+  async searchDrugMarketPrice(): Promise<{ data: any; usage?: Usage }> {
+    throw new Error('AI market price lookup is disabled. Medication pricing must use local MedicalItemPriceMaster data only.');
+  }
+
+  async searchDrugMarketPriceBatch(): Promise<{ data: any[]; usage?: Usage }> {
+    throw new Error('AI market price lookup is disabled. Medication pricing must use local MedicalItemPriceMaster data only.');
+  }
+
+  async resolveMedicalItemMatch(input: { medication: any; diagnoses: any[]; candidates: any[] }): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
-      isNonMedication: z.boolean().describe('true if this item is a medical supply, device (alkes), service, or anything else that is NOT a pharmaceutical drug. Examples: gloves, syringes, swabs, catheters, admin fees, services.'),
-      marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 ONLY if the active ingredient is completely unrecognized in Indonesia, OR if isNonMedication is true.'),
-      marketPriceAvg: z.number().nullable().describe('Average UNIT price in IDR, or null if only one data point available.'),
-      sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion_math | per_unit_IDR | training_data"'),
-      resolvedProductName: z.string().describe('Canonical product name after normalization, e.g. "Lidocaine HCl 2% 5ml Ampoule" or "Ceftriaxone 1g Injection Vial"'),
-      dosageForm: z.string().describe('Dosage form: tablet, capsule, syrup, injection_vial, injection_ampoule, infusion_bottle, cream, suppository, etc. For Non-Medication (Bukan Obat): glove, syringe, swab, catheter, bandage, etc.'),
-      unitBasis: z.string().describe('Unit basis for pricing: "per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", "per tube", "per pair", "per piece", etc.'),
+      selectedCandidateId: z.string().nullable().describe('Candidate id selected from the provided candidates only, or null if no safe match.'),
+      confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+      reason: z.string().describe('Brief clinical and product-matching rationale. Do not mention external sources.'),
     });
 
-    const drugContext = typeof drug === 'string'
-      ? { name: drug, genericName: null, dosage: null }
-      : {
-        name: drug.name,
-        genericName: drug.genericName || null,
-        dosage: drug.dosage || null,
-      };
+    const compactCandidates = input.candidates.slice(0, 20).map((candidate: any) => ({
+      id: candidate.id,
+      itemName: candidate.itemName,
+      itemGenericName: candidate.itemGenericName,
+      itemTypeCode: candidate.itemTypeCode,
+      itemTypeName: candidate.itemTypeName,
+      itemGroup: candidate.itemGroup,
+      dosageForm: candidate.itemTypeName,
+      marketPriceMax: candidate.marketPriceMax,
+      source: Array.isArray(candidate.sources) ? String(candidate.sources[0] || '').slice(0, 500) : '',
+    }));
 
     const { object, usage } = await generateObject({
       model: this.ai(this.defaultModel),
       schema,
       experimental_repairText: repairJsonOnlyText,
-      system: `You are a senior Indonesian hospital pharmacist specializing in drug pricing for JKN/BPJS claim audits. Your task is to provide market reference prices from your training knowledge of Indonesian drug prices so the system can detect OVERCHARGE or UNDERCHARGE.
+      system: `You are a conservative clinical pharmacy master-data matcher. You do NOT search external sources and you do NOT estimate prices. Your only task is to choose the best matching item from the provided local MedicalItemPriceMaster candidates.
 
-CRITICAL: You are processing drug entries from Indonesian hospital information systems (SIMRS). These systems often embed dosage/volume/concentration directly in the drug name field in non-standard ways. You MUST normalize the name before searching.
-
-INDONESIAN HOSPITAL DRUG NAMING CONVENTIONS:
-Drug names from SIMRS often look like these — you must parse them correctly:
-- "LIDOCAINE HCL 5ML 2%" → Active: Lidocaine HCl, Strength: 2%, Volume: 5ml, Form: injection ampoule
-- "CEFTRIAXONE INJ 1G" → Active: Ceftriaxone, Strength: 1g, Form: injection vial
-- "NACL 0,9% 100ML" → Active: NaCl 0.9%, Volume: 100ml, Form: infusion bottle
-- "AMOX 500MG KAPS" → Active: Amoxicillin, Strength: 500mg, Form: capsule
-- "OMEPRAZOL INJ 40MG" → Active: Omeprazole, Strength: 40mg, Form: injection vial
-- "RL 500 ML" or "RINGER LAKTAT 500ML" → Ringer Lactate 500ml infusion bottle
-- "DEXAMETHASONE 5MG/ML 1ML AMP" → Active: Dexamethasone, Strength: 5mg/ml×1ml=5mg, Form: ampoule
-- "METRONIDAZOLE INF 500MG/100ML" → Active: Metronidazole 500mg/100ml, Form: infusion bottle
-
-INDONESIAN ABBREVIATIONS TO NORMALIZE:
-- INJ / INJEKSI → injection (determine vial vs ampoule by volume: <10ml=ampoule, ≥10ml=vial)
-- INF / INFUS / INFUSION → infusion bottle (IV bag)
-- TAB / TABLET → tablet
-- KAPS / KAP / CAP / CAPSULE → capsule
-- AMP / AMPUL / AMPOULE → ampoule
-- VL / VIAL → vial
-- SYR / SIRUP / SYRUP → syrup bottle
-- SUSP / SUSPENSI → suspension bottle
-- SUPP / SUPPOSITORIA → suppository
-- KRIM / CREAM → cream tube
-- GEL → gel tube
-- SALEP / OINT → ointment tube
-- LAR / LARUTAN → solution
-- STRIP → strip (contains multiple tablets/capsules, usually 10)
-- BTL / BOTOL → bottle
-- TTS / TETES → drops (eye/ear/nasal)
-- OBT KUMUR → mouthwash/gargle
-- PLSTR / PATCH → transdermal patch
-
-LOOKUP PRIORITY CONTEXT:
-This prompt is a legacy fallback only. The production validation workflow now resolves prices from local MedicalItemPriceCache / KFA master data first and normally does not call AI for drug pricing. If this prompt is called manually, keep the answer conservative, do not claim direct KFA/database access, and use public Indonesian pharmacy / market knowledge only.
-
-REFERENCE SOURCES (from training knowledge):
-1. K24Klik, Halodoc, Farmaku, GoApotik, Lifepack, KimiaFarma — retail pharmacy prices
-2. MIMS Indonesia — professional drug database with price ranges
-3. e-Katalog LKPP — government procurement baseline (floor price)
-4. HET/HNA Kemenkes — regulated maximum retail price
-5. Hospital markup norms: +10-30% above HNA for generics; up to +50% for branded
-
-NON-MEDICATION (Bukan Obat) CLASSIFICATION — check this FIRST before any normalization:
-If the item is a MEDICAL SUPPLY, DEVICE (alat kesehatan), SERVICE, or anything that is NOT a pharmaceutical drug:
-→ Set isNonMedication: true, marketPriceMax: 0, sources: [], and stop immediately.
-Examples of Non-Medication: exam gloves, surgical gloves, disposable syringes, IV needles, alcohol/antiseptic swabs,
-catheters, bandages, gauze pads, admin fees, services, consultation fees.
-Drug examples: tablets, capsules, injections, infusions (NaCl, RL, Dextrose, antibiotics, analgesics, etc.)
-CRITICAL: The following MUST be classified as DRUGs (isNonMedication: false) and price-checked:
-- Vitamins, Supplements, Electrolytes (e.g., Trolit, Oralit), Herbal/Fitofarmaka
-- Vaccines & Serums (e.g., ATS, ABU, Tetanus Toxoid)
-- Contrast Media for Radiology (e.g., Iopamidol, Omnipaque)
-- Blood Products & Plasma Expanders (e.g., Human Albumin 20%, Gelofusine)
-- Parenteral/Enteral Nutrition (e.g., Aminofluid, Peptisol milk)
-- Topical Antiseptics (e.g., Povidone Iodine, Alcohol 70%, Chlorhexidine)
-Key distinctions: DISP SYRINGE → Non-Medication. EXAM GLOVE → Non-Medication. B.AC SWAB / Benzalkonium Swab → Non-Medication.
-NaCl 0.9% infusion → DRUG (pharmacological agent). Metronidazole infusion → DRUG. Trolit Sachet → DRUG.
-
-ANTI-HALLUCINATION RULES:
-1. "PFS" means Pre-Filled Syringe. Do not hallucinate it as a 500ml infusion bottle.
-2. If the drug dosage is in "mg/ml" (injection), NEVER guess the unit as a "500ml bottle" unless the name explicitly says "INFUSION" or "NaCl/RL". Injections are ampoules/vials/PFS (1-20ml).
-3. Do NOT aggressively guess brand names. "REMOPAIN" is Ketorolac (NSAID), NOT Remifentanil. If you are not 100% sure about a brand name, rely strictly on the genericName provided in the input, or return the original input name EXACTLY as-is.
-4. "100ml bottle" ≠ "500ml bottle" (different prices)
-5. "2%" ≠ "5%" concentration (different prices)
-6. NEVER alter the milligram (mg) strength. If the input says "250mg", the resolvedProductName MUST be 250mg, not 500mg.
-7. If the item is a complex compound or unknown supplement, use its functional name (e.g., "Multivitamin tablet") instead of hallucinating a random active ingredient.
-8. Return isNonMedication: true for non-drugs/medical supplies, marketPriceMax: 0 for those
-9. Use the UPPER BOUND of any known price range for marketPriceMax
-10. Return marketPriceMax: 0 ONLY when the active ingredient is genuinely unrecognized in Indonesia`,
-
-      prompt: `Price lookup for Indonesian hospital claim validation:
-
-INPUT:
-${JSON.stringify(drugContext, null, 2)}
-
---- STEP 0: NORMALIZE THE DRUG NAME ---
-Hospital SIMRS systems embed dosage info in the name field. Parse all components:
-- What is the active ingredient (generic INN name)?
-- What is the strength/concentration? (mg, g, %, mg/ml, IU, etc.)
-- What is the volume or package size? (ml, mg per vial, etc.)
-- What dosage form abbreviation is present? (INJ/INF/TAB/KAPS/AMP/VL/SYR/etc.)
-- Is there a brand name? What is the generic equivalent?
-- Normalize: map abbreviated form to canonical form (e.g. INJ → injection_vial or injection_ampoule)
-
---- STEP 1: DETERMINE UNIT BASIS ---
-Based on normalized form, determine what 1 "unit" means for hospital billing:
-- Injection ampoule (<10ml): 1 unit = 1 ampoule
-- Injection vial (≥10ml or powder for reconstitution): 1 unit = 1 vial
-- Infusion bag/bottle: 1 unit = 1 bottle at specified volume
-- Tablet/Capsule (no Strip): 1 unit = 1 tablet/capsule
-- Strip: 1 unit = 1 strip (typically 10 tablets — note the count and show division math)
-- Syrup/Suspension: 1 unit = 1 bottle
-- Cream/Gel/Ointment: 1 unit = 1 tube
-
---- STEP 2: PRICE LOOKUP (stop at the first successful attempt) ---
-
-ATTEMPT A — Exact normalized product:
-Recall Indonesian pharmacy price for: {active_ingredient} {strength} {form}
-→ If you know this exact product's price, USE IT and stop. Do NOT continue to B/C/D.
-
-ATTEMPT B — Nearest common strength (ONLY if A yielded no result):
-If the stated strength is unusual, use the nearest standard Indonesian strength.
-→ If found, USE IT and stop.
-
-ATTEMPT C — Active ingredient + form only (ONLY if A and B both failed):
-Use the most common Indonesian strength for this active ingredient + form.
-→ If found, USE IT and stop.
-
-ATTEMPT D — genericName field (ONLY if A/B/C all failed and genericName differs from name):
-Try the genericName field as a completely separate lookup.
-
-PRICE RECALL HINTS for common Indonesian hospital drugs:
-- Paracetamol 500mg tab: Rp 200–500/tab (generic)
-- Amoxicillin 500mg cap: Rp 500–1.500/cap (generic)
-- Ceftriaxone 1g inj vial: Rp 8.000–25.000/vial (generic)
-- Cefotaxime 1g inj vial: Rp 8.000–20.000/vial
-- Omeprazole 20mg/40mg inj: Rp 15.000–45.000/vial; oral: Rp 500–2.000/cap
-- Ranitidine 25mg/ml 2ml amp: Rp 2.000–5.000/amp
-- Ondansetron 4mg/2ml amp: Rp 3.000–10.000/amp; 8mg/4ml: Rp 5.000–15.000/amp
-- Ketorolac 30mg/ml 1ml amp: Rp 3.000–8.000/amp
-- Dexamethasone 5mg/ml 1ml amp: Rp 1.500–5.000/amp
-- Metronidazole 500mg/100ml inf: Rp 8.000–20.000/bottle
-- NaCl 0.9% 100ml: Rp 5.000–15.000/bottle; 500ml: Rp 8.000–20.000/bottle
-- Ringer Lactate 500ml: Rp 8.000–20.000/bottle; 1000ml: Rp 12.000–30.000/bottle
-- Dextrose 5% 500ml: Rp 10.000–22.000/bottle
-- Furosemide 10mg/ml 2ml amp: Rp 1.500–4.000/amp; oral 40mg tab: Rp 200–500/tab
-- Lidocaine HCl 2% 5ml amp: Rp 3.000–8.000/amp; 2% 20ml vial: Rp 8.000–20.000/vial
-- Metformin 500mg tab: Rp 300–800/tab (generic)
-- Amlodipine 5mg/10mg tab: Rp 300–1.500/tab
-- Captopril 12.5mg/25mg tab: Rp 200–600/tab
-- Diazepam 5mg/ml 2ml amp: Rp 2.000–6.000/amp
-- Tramadol 50mg cap: Rp 1.500–4.000/cap; 100mg/2ml amp: Rp 5.000–12.000/amp
-- Vitamin C 200mg/ml 5ml amp: Rp 2.000–6.000/amp
-- Vitamin B complex tab: Rp 200–500/tab
-- Antacid suspension (per bottle): Rp 8.000–25.000/bottle
-- Salbutamol 2.5mg/2.5ml nebul: Rp 3.000–8.000/respule
-- Insulin Novorapid/Apidra/Humalog 100IU/ml 3ml: Rp 80.000–120.000/cartridge
-- Albumin 20% 100ml: Rp 350.000–600.000/bottle
-- Heparin 5000IU/ml 1ml amp: Rp 15.000–35.000/amp
-
---- STEP 3: OUTPUT ---
-- marketPriceMax: Use the upper bound of the recalled price range (conservative for fraud detection)
-- marketPriceAvg: Middle of the known range; null if only one price point known
-- resolvedProductName: Canonical name after normalization (e.g. "Lidocaine HCl 2% 5ml Injection Ampoule")
-- sources: ONE entry per recall attempt that yielded a result:
-  "ai_knowledge_v1 | {resolvedProductName} | K24Klik/Halodoc/Farmaku/eLKPP | {package_context} | {conversion_math_if_needed} | {per_unit_IDR} | training_data"
-- Return marketPriceMax: 0 ONLY if the active ingredient is completely unrecognized OR unavailable in Indonesia`,
-      temperature: 0.1,
+Rules:
+1. Select only candidate.id from the provided candidates. Never invent ids or products.
+2. Use diagnosis context only to avoid clinically implausible matches, not to force a match.
+3. Match by brand/generic name, active ingredient, strength/concentration, route, dosage form, and package volume when available.
+4. If the medication is ambiguous, different strength/volume, or no candidate is safe, return selectedCandidateId: null with LOW confidence.
+5. Prefer HIGH confidence only for exact or near-exact product/ingredient + strength/form matches.`,
+      prompt: `Medication to resolve:\n${JSON.stringify(input.medication, null, 2)}\n\nDiagnosis context:\n${JSON.stringify(input.diagnoses || [], null, 2)}\n\nLocal master candidates:\n${JSON.stringify(compactCandidates, null, 2)}`,
+      temperature: 0,
     });
 
     return { data: object, usage: usage as any };
-  }
-
-  async searchDrugMarketPriceBatch(drugs: Array<{ name: string; genericName?: string | null; dosage?: string | null }>): Promise<{ data: any[]; usage?: Usage }> {
-    // Batch pricing: send all drugs in one AI call rather than N sequential calls.
-    // This is the primary latency optimization — reduces N AI round-trips to 1.
-    const schema = z.object({
-      results: z.array(z.object({
-        index: z.number().int().describe('Zero-based index matching the position in the input drugs array'),
-        isNonMedication: z.boolean().describe('true if item is a medical supply, device (bukan obat), or service, NOT a pharmaceutical drug. Examples: gloves, syringes, swabs, catheters, bandages, IV needles.'),
-        marketPriceMax: z.number().describe('Highest UNIT price in IDR. Return 0 if isNonMedication is true, or if item is completely unrecognized in Indonesia.'),
-        marketPriceAvg: z.number().nullable().describe('Average UNIT price in IDR, or null if only one data point.'),
-        sources: z.array(z.string()).describe('Source entries: "ai_knowledge_v1 | resolved_product | sites | package_context | conversion | per_unit_IDR | training_data"'),
-        resolvedProductName: z.string().describe('Canonical name after SIMRS normalization, e.g. "Ceftriaxone 1g Injection Vial"'),
-        dosageForm: z.string().describe('tablet, capsule, injection_vial, injection_ampoule, infusion_bottle, syrup_bottle, cream, glove, syringe, swab, catheter, bandage, etc.'),
-        unitBasis: z.string().describe('"per tablet", "per vial", "per ampoule", "per bottle 500ml", "per strip 10 tab", "per tube", "per pair", "per piece", etc.'),
-      })).describe('One result object per drug input, in index order.'),
-    });
-
-    const drugsJson = JSON.stringify(drugs.map((d, i) => ({ index: i, ...d })), null, 2);
-
-    const { object, usage } = await generateObject({
-      model: this.ai(this.defaultModel),
-      schema,
-      experimental_repairText: repairJsonOnlyText,
-      system: `You are a senior Indonesian hospital pharmacist specializing in drug pricing for JKN/BPJS claim audits. You MUST return a price result for EVERY drug in the input list, maintaining the same index order.
-
-CRITICAL: Drug entries are from Indonesian hospital SIMRS that embed dosage/volume/concentration in the drug name field non-standardly. You MUST normalize each name before pricing.
-
-INDONESIAN HOSPITAL DRUG NAMING CONVENTIONS — parse each name:
-- "LIDOCAINE HCL 5ML 2%" → Lidocaine HCl 2% 5ml, Form: injection_ampoule
-- "CEFTRIAXONE INJ 1G" → Ceftriaxone 1g, Form: injection_vial
-- "NACL 0,9% 100ML" → NaCl 0.9% 100ml, Form: infusion_bottle
-- "AMOX 500MG KAPS" → Amoxicillin 500mg, Form: capsule
-- "OMEPRAZOL INJ 40MG" → Omeprazole 40mg, Form: injection_vial
-- "RL 500 ML" → Ringer Lactate 500ml, Form: infusion_bottle
-- "DEXAMETHASONE 5MG/ML 1ML AMP" → Dexamethasone 5mg/ml×1ml=5mg, Form: injection_ampoule
-- "METRONIDAZOLE INF 500MG/100ML" → Metronidazole 500mg/100ml, Form: infusion_bottle
-
-ABBREVIATION MAP:
-INJ/INJEKSI→injection | INF/INFUS→infusion_bottle | TAB/TABLET→tablet | KAPS/CAP/CAPSULE→capsule
-AMP/AMPUL→ampoule | VL/VIAL→vial | SYR/SIRUP→syrup | SUSP→suspension | SUPP→suppository
-KRIM/CREAM→cream | GEL→gel | SALEP/OINT→ointment | LAR→solution | STRIP→strip | TTS→drops
-PFS→Pre-Filled Syringe (usually 1-3ml, NEVER a 500ml bottle)
-
-UNIT BASIS RULES:
-- Ampoule (<10ml): 1 unit = 1 ampoule | Vial (≥10ml or powder): 1 unit = 1 vial
-- Infusion bag: 1 unit = 1 bottle at stated volume | Tablet/Cap (no STRIP): 1 unit = 1 tab/cap
-- STRIP: 1 unit = 1 strip (usually 10 tabs — show division math explicitly)
-- Syrup/Suspension: 1 unit = 1 bottle | Cream/Gel/Ointment: 1 unit = 1 tube
-
-NON-MEDICATION CLASSIFICATION \u2014 check this FIRST for each drug before normalization:
-If the item is a MEDICAL SUPPLY, DEVICE, SERVICE, or anything that is NOT a pharmaceutical drug:
-→ Set isNonMedication: true, marketPriceMax: 0, sources: [], and stop for that item.
-Non-Medication: exam gloves, disposable syringes, IV needles, antiseptic swabs, catheters, admin fees, etc.
-CRITICAL: The following MUST be classified as DRUGs (isNonMedication: false) and price-checked:
-- Vitamins, Supplements, Electrolytes (e.g., Trolit, Oralit), Herbal/Fitofarmaka
-- Vaccines & Serums (e.g., ATS, ABU, Tetanus Toxoid)
-- Contrast Media for Radiology (e.g., Iopamidol, Omnipaque)
-- Blood Products & Plasma Expanders (e.g., Human Albumin 20%, Gelofusine)
-- Parenteral/Enteral Nutrition (e.g., Aminofluid, Peptisol milk)
-- Topical Antiseptics (e.g., Povidone Iodine, Alcohol 70%, Chlorhexidine)
-Key: DISP SYRINGE → Non-Med. EXAM GLOVE → Non-Med. B.AC SWAB → Non-Med.
-NaCl 0.9% infusion → DRUG. Metronidazole infusion → DRUG. Lidocaine injection → DRUG. Trolit Sachet → DRUG.
-
-PRICE LOOKUP PER DRUG (stop at the first successful attempt):
-Context: this is a legacy fallback. Production validation prioritizes local MedicalItemPriceCache / KFA master data and normally skips AI lookup to reduce latency. If this prompt is called manually, use online pharmacy / public market knowledge only and keep the result conservative.
-A→ Exact normalized product — if known, use it and skip B/C/D
-B→ Nearest common strength (only if A failed)
-C→ Active ingredient + form only (only if A+B failed)
-D→ genericName field (only if A+B+C failed and genericName differs)
-
-ANTI-HALLUCINATION RULES:
-1. "PFS" means Pre-Filled Syringe. Do not hallucinate it as a 500ml infusion bottle.
-2. If the drug dosage is in "mg/ml" (injection), NEVER guess the unit as a "500ml bottle" unless the name explicitly says "INFUSION" or "NaCl/RL". Injections are ampoules/vials/PFS (1-20ml).
-3. Do NOT aggressively guess brand names. "REMOPAIN" is Ketorolac (NSAID), NOT Remifentanil. If you are not 100% sure about a brand name, rely strictly on the genericName provided in the input, or return it exactly as-is.
-4. "100ml bottle" ≠ "500ml bottle" (different prices)
-5. "2%" ≠ "5%" concentration (different prices)
-6. NEVER alter the milligram (mg) strength. If the input says "250mg", the resolvedProductName MUST be 250mg, not 500mg.
-7. If the item is a complex compound or unknown supplement, use its functional name (e.g., "Multivitamin tablet") instead of hallucinating a random active ingredient.
-8. Return isNonMedication: true for non-drugs/medical supplies, marketPriceMax: 0 for those
-9. Return marketPriceMax: 0 ONLY when the active ingredient is genuinely unrecognized in Indonesia
-10. NEVER skip an index — every drug must have a result entry`,
-
-      prompt: `Price ALL ${drugs.length} drugs below for Indonesian hospital claim validation. Return one result per drug, maintaining index order.
-
-INPUT DRUGS:
-${drugsJson}
-
-PRICE REFERENCE TABLE (Indonesian retail market, use UPPER BOUND as marketPriceMax):
-Paracetamol 500mg tab: Rp 200–500/tab | Amoxicillin 500mg cap: Rp 500–1.500/cap
-Ceftriaxone 1g vial: Rp 8.000–25.000/vial | Cefotaxime 1g vial: Rp 8.000–20.000/vial
-Omeprazole 40mg inj: Rp 15.000–45.000/vial | Omeprazole 20mg cap: Rp 500–2.000/cap
-Ranitidine 25mg/ml 2ml amp: Rp 2.000–5.000/amp | Ondansetron 4mg/2ml amp: Rp 3.000–10.000
-Ondansetron 8mg/4ml amp: Rp 5.000–15.000/amp | Ketorolac 30mg/ml 1ml amp: Rp 3.000–8.000
-Dexamethasone 5mg/ml 1ml amp: Rp 1.500–5.000/amp | Metronidazole 500mg/100ml inf: Rp 8.000–20.000
-NaCl 0.9% 100ml: Rp 5.000–15.000 | NaCl 0.9% 500ml: Rp 8.000–20.000
-Ringer Lactate 500ml: Rp 8.000–20.000 | Ringer Lactate 1000ml: Rp 12.000–30.000
-Dextrose 5% 500ml: Rp 10.000–22.000 | Furosemide 10mg/ml 2ml amp: Rp 1.500–4.000
-Furosemide 40mg tab: Rp 200–500/tab | Lidocaine HCl 2% 5ml amp: Rp 3.000–8.000
-Lidocaine HCl 2% 20ml vial: Rp 8.000–20.000 | Metformin 500mg tab: Rp 300–800
-Amlodipine 5mg/10mg tab: Rp 300–1.500 | Captopril 12.5/25mg tab: Rp 200–600
-Diazepam 5mg/ml 2ml amp: Rp 2.000–6.000 | Tramadol 50mg cap: Rp 1.500–4.000
-Tramadol 100mg/2ml amp: Rp 5.000–12.000 | Vitamin C 200mg/ml 5ml amp: Rp 2.000–6.000
-Vitamin B complex tab: Rp 200–500 | Antacid suspension/bottle: Rp 8.000–25.000
-Salbutamol 2.5mg/2.5ml nebule: Rp 3.000–8.000 | Albumin 20% 100ml: Rp 350.000–600.000
-Heparin 5000IU/ml 1ml amp: Rp 15.000–35.000 | Insulin rapid-acting 3ml cartridge: Rp 80.000–120.000
-Spironolactone 25mg tab: Rp 300–800 | Bisoprolol 5mg tab: Rp 500–2.000
-Simvastatin 20mg tab: Rp 300–1.000 | Atorvastatin 20mg tab: Rp 1.000–4.000
-Tranexamic acid 500mg/5ml amp: Rp 8.000–20.000 | Ciprofloxacin 200mg/100ml inf: Rp 15.000–35.000
-Ciprofloxacin 500mg tab: Rp 800–3.000 | Gentamicin 40mg/ml 2ml amp: Rp 3.000–8.000
-
-For each drug:
-1. Normalize SIMRS name → canonical form
-2. Determine unit basis
-3. Recall Indonesian market price using reference table above or training knowledge
-4. Format source: "ai_knowledge_v1 | {resolved_product} | K24Klik/Halodoc/Farmaku/eLKPP | {package_context} | {conversion_if_any} | {per_unit_IDR} | training_data"
-5. Return 0 ONLY for genuinely unrecognized active ingredients`,
-      temperature: 0.1,
-    });
-
-    // Map results array back by index, filling any gaps with empty fallback
-    const resultMap = new Map<number, any>();
-    for (const r of (object as any).results ?? []) {
-      resultMap.set(Number(r.index), r);
-    }
-    const data = drugs.map((_, i) => resultMap.get(i) ?? {
-      index: i, marketPriceMax: 0, marketPriceAvg: null, sources: [],
-      resolvedProductName: '', dosageForm: 'unknown', unitBasis: 'unknown',
-    });
-
-    return { data, usage: usage as any };
   }
 
   async generateClinicalPathway(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }> {
@@ -731,15 +467,21 @@ Generate a clinically realistic and auditable pathway for Indonesian healthcare 
         type: z.enum(['primary', 'secondary', 'complication']).describe('primary is the main diagnosis'),
       })),
       procedures: z.array(z.object({
-        code: z.string().describe('Procedure code (ICD-9-CM, CPT, or local code)').nullable(),
+        code: z.string().describe('Procedure code from the source system, or null if absent').nullable(),
         name: z.string().describe('Human-readable procedure name'),
-        quantity: z.number().describe('Number of times performed. Default is 1 if unknown').nullable(),
-        price: z.number().describe('Unit price in IDR').nullable(),
+        category: z.string().describe('General service category, or empty string if unknown'),
+        quantity: z.number().describe('Number of times performed. Default is 1 if unknown'),
+        unitPrice: z.number().describe('Claimed unit price in IDR. Use 0 if absent'),
+        totalPrice: z.number().describe('Claimed total price in IDR. If absent, compute unitPrice * quantity'),
       })),
       medications: z.array(z.object({
-        name: z.string().describe('Brand or generic drug name'),
-        quantity: z.number().describe('Amount dispensed. Default is 1 if unknown').nullable(),
-        price: z.number().describe('Unit price in IDR').nullable(),
+        code: z.string().describe('Medication/product code from the source system, or null if absent').nullable(),
+        name: z.string().describe('Brand or generic medical item name'),
+        genericName: z.string().describe('Generic/active ingredient name, or empty string if unknown'),
+        dosage: z.string().describe('Dose/strength/form, or empty string if unknown'),
+        quantity: z.number().describe('Amount dispensed. Default is 1 if unknown'),
+        unitPrice: z.number().describe('Claimed unit price in IDR. Use 0 if absent'),
+        totalPrice: z.number().describe('Claimed total price in IDR. If absent, compute unitPrice * quantity'),
       })),
       documents: z.array(z.object({
         type: z.string().describe('e.g. LMA, KTP, KARTU ASURANSI, SK KAMAR, FORM KRONOLOGIS KECELAKAAN, SURAT PERNYATAAN RAWAT INAP'),
@@ -754,14 +496,16 @@ Generate a clinically realistic and auditable pathway for Indonesian healthcare 
       _mappingNotes: z.string().describe('Brief explanation of what was mapped and any ambiguities encountered'),
     });
 
-    const systemPrompt = `You are a medical data integration expert specializing in Indonesian healthcare (JKN/BPJS).
-Your task is to analyze an arbitrary JSON payload from any hospital system (SIMRS, SIRS, HL7 FHIR, custom export, etc.) and intelligently map its fields to the SnapPath claim validation schema.
+    const systemPrompt = `You are a medical data integration expert for multi-client healthcare claim data.
+Your task is to analyze an arbitrary JSON payload from any provider/source system (FHIR, HL7, EHR export, billing export, or custom JSON) and map it to SnapPath's canonical claim validation schema.
 Rules:
-- Map dates to ISO 8601 format
-- Normalize gender to 'male' or 'female' if recognizable
-- ICD-10 codes should be preserved as-is; if absent, infer from text context
-- For prices/amounts in the source: preserve as-is in IDR (do NOT convert currencies)
-- If a field is genuinely absent or unmappable, use null or empty arrays
+- Use canonical keys only. Procedures must use code, name, category, quantity, unitPrice, totalPrice. Medications must use code, name, genericName, dosage, quantity, unitPrice, totalPrice.
+- Do not emit duplicate legacy aliases such as description, procedureName, medicationName, price, claimedUnitPrice, or claimedTotal.
+- Map dates to ISO 8601 format.
+- Normalize gender to 'male' or 'female' if recognizable.
+- Diagnosis/procedure codes should be preserved as-is; if absent, use null for optional code fields and keep the best human-readable name.
+- For prices/amounts in the source: preserve as-is in IDR (do NOT convert currencies). If only unit price is present, compute totalPrice = unitPrice * quantity.
+- If a field is genuinely absent or unmappable, use null, empty string, zero, or empty arrays according to the schema.
 - Provide a brief _mappingNotes explaining your interpretation decisions`;
 
     const { object, usage } = await generateObject({
@@ -803,7 +547,7 @@ Rules:
       schemaName: 'DiagnosisLosEstimate',
       schemaDescription: 'LOS estimate with therapy pathway recommendation. Return raw JSON only, no markdown.',
       experimental_repairText: repairDiagnosisLosJsonText,
-      system: `You are a senior clinical pathway analyst and medical reviewer specializing in the Indonesian healthcare system (JKN/BPJS, INA-CBG). Your task is to provide LOS estimates that are:
+      system: `You are a senior clinical pathway analyst and medical reviewer for multi-client healthcare claim review. Your task is to provide LOS estimates that are:
 
 1. CLINICALLY ACCURATE — based on standard therapy protocols for the diagnosis
 2. PATHWAY-ALIGNED — the LOS must be justified by specific therapy phases (admission → active treatment → step-down → discharge preparation)

@@ -227,12 +227,12 @@ export default function PublicApiDocsPage() {
                       <p className="text-xs text-text-faint uppercase tracking-wider mb-3">Field yang diperlukan:</p>
                       <div className="space-y-2">
                         {[
-                          { field: "providerId", type: "uuid", desc: "ID provider klaim (BPJS, asuransi swasta, dll)" },
+                          { field: "providerId", type: "uuid", desc: "ID provider klaim/tarif milik client" },
                           { field: "patient", type: "object", desc: "Data pasien (id, nama, tanggal lahir, jenis kelamin)" },
                           { field: "encounter", type: "object", desc: "Data kunjungan (tipe, tanggal masuk/keluar, fasilitas)" },
-                          { field: "diagnoses", type: "array", desc: "Daftar diagnosis ICD-10 (primer, sekunder, komplikasi)" },
-                          { field: "procedures", type: "array", desc: "Tindakan medis beserta kode, harga, dan tanggal" },
-                          { field: "medications", type: "array", desc: "Obat-obatan beserta nama generik, dosis, dan harga" },
+                          { field: "diagnoses", type: "array", desc: "Daftar diagnosis dengan key canonical: code, name, type, sequence" },
+                          { field: "procedures", type: "array", desc: "Tindakan dengan key canonical: code, name, category, quantity, unitPrice, totalPrice" },
+                          { field: "medications", type: "array", desc: "Obat/farmalkes dengan key canonical: code, name, genericName, dosage, quantity, unitPrice, totalPrice" },
                           { field: "totalClaimAmount", type: "number", desc: "Total tagihan klaim dalam IDR" },
                         ].map((f) => (
                           <div key={f.field} className="flex gap-3 text-xs border-b border-border/30 pb-2 last:border-0 last:pb-0">
@@ -265,7 +265,7 @@ export default function PublicApiDocsPage() {
               <section id="clinical-pathway">
                 <h2 className="text-2xl font-bold text-text mb-4">Clinical Pathway</h2>
                 <p className="text-sm text-text-subtle leading-relaxed mb-4">
-                  Endpoint <code className="text-xs bg-surface-elevated px-1.5 py-0.5 rounded border border-border/50">POST /api/v1/pathways/generate</code> menghasilkan clinical pathway klinis berbasis kode ICD-10.
+                  Endpoint <code className="text-xs bg-surface-elevated px-1.5 py-0.5 rounded border border-border/50">POST /api/v1/pathways/generate</code> menghasilkan clinical pathway klinis berbasis diagnosis.
                 </p>
                 <div className="rounded-xl border border-border/50 bg-surface-elevated overflow-hidden">
                   <div className="border-b border-border/50 bg-surface px-5 py-3">
@@ -273,7 +273,7 @@ export default function PublicApiDocsPage() {
                   </div>
                   <div className="p-5 space-y-2">
                     {[
-                      { field: "diagnosisCode", type: "string", desc: "Kode ICD-10, contoh: J18.9" },
+                      { field: "diagnosisCode", type: "string", desc: "Kode diagnosis, contoh: J18.9" },
                       { field: "encounterType", type: "enum", desc: "RAWAT_INAP | RAWAT_JALAN | IGD" },
                       { field: "diagnosisName", type: "string", desc: "(opsional) Nama diagnosis untuk konteks AI" },
                       { field: "patientProfile", type: "object", desc: "(opsional) Usia, jenis kelamin, dan komorbiditas" },

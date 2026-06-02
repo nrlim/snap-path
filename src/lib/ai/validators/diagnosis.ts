@@ -75,12 +75,12 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
   const gateway = await getAIGateway({ clientId: input.clientId, providerId: input.providerId, jobId });
 
   const details: ClaimValidationOutput['diagnosisValidation']['details'] = [];
-  const claimedProcedureCodes = procedures.map(p => p.code).filter(Boolean);
+  const claimedProcedureCodes = procedures.map(p => p.code).filter((code): code is string => typeof code === 'string' && code.trim().length > 0);
 
-  // Pre-build a name lookup map from procedures in input (may have names).
+  // Pre-build a name lookup map from canonical procedure inputs.
   const inputProcNameMap: Record<string, string> = {};
   for (const p of procedures) {
-    const name = (p as any).name || p.description || (p as any).procedureName;
+    const name = p.name;
     if (p.code && name) inputProcNameMap[p.code] = name;
   }
 
@@ -134,7 +134,7 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
 
     details.push({
       diagnosisCode: diag.code,
-      diagnosisName: (diag as any).name || diag.description || diag.code,
+      diagnosisName: diag.name || diag.code,
       clinicalSummary: '',
       matchedProcedures: matchedWithNames,
       unmatchedProcedures: [],

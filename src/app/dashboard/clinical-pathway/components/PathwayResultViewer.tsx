@@ -279,13 +279,18 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         status: 'NOT_FOUND',
         variancePct: 0,
         sources: [],
-        cachedAt: null,
+        referencedAt: null,
       };
     });
   const registeredTariffItems = (tariffItems as LooseValidationItem[]).filter((t) => t.status !== "NOT_FOUND");
   const invalidRegisteredTariffItems = registeredTariffItems.filter((t) => t.status === "OVER_THRESHOLD" || t.status === "UNDER_PRICED");
-  const invalidDrugItems = (drugItems as LooseValidationItem[]).filter((d) => d.status === "OVER_THRESHOLD" || d.status === "UNDER_PRICED" || d.status === "NOT_FOUND");
+  const invalidDrugItems = (drugItems as LooseValidationItem[]).filter((d) => d.status === "OVER_THRESHOLD" || d.status === "UNDER_PRICED");
   const drugIssues = invalidDrugItems.length;
+  const missingTariffMasterItems = (tariffItems as LooseValidationItem[]).filter((item) => item.status === "NOT_FOUND");
+  const missingDrugMasterItems = (drugItems as LooseValidationItem[]).filter((item) => item.status === "NOT_FOUND");
+  const masterDataItemCount = tariffItems.length + drugItems.length;
+  const missingMasterDataCount = missingTariffMasterItems.length + missingDrugMasterItems.length;
+  const fallbackMasterDataDeduction = masterDataItemCount > 0 ? Math.min(15, Math.ceil((missingMasterDataCount / masterDataItemCount) * 15)) : 0;
   const tariffIssues = invalidRegisteredTariffItems.length;
   const fallbackTariffDeduction = registeredTariffItems.length > 0 ? Math.min(20, Math.ceil((tariffIssues / registeredTariffItems.length) * 20)) : 0;
   const fallbackDrugDeduction = drugItems.length > 0 ? Math.min(20, Math.ceil((drugIssues / drugItems.length) * 20)) : 0;
@@ -326,8 +331,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const tariffHasDeduction = fallbackTariffDeduction > 0;
   const drugHasDeduction = fallbackDrugDeduction > 0;
   const documentHasDeduction = result.documentValidation ? !result.documentValidation.isValid : false;
-  const hasUnregisteredTariff = (tariffItems as LooseValidationItem[]).some((item) => item.status === "NOT_FOUND");
-  const hasDrugReferenceUnavailable = (drugItems as LooseValidationItem[]).some((item) => item.status === "NOT_FOUND");
+  const hasMissingMasterData = missingMasterDataCount > 0;
   const fallbackScoreBreakdown: ScoreBreakdownItem[] = [
     {
       label: "Diagnosis, tindakan & obat klinis",
@@ -346,12 +350,12 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         : "Item tindakan yang terdaftar berada dalam threshold master fee schedule.",
     },
     {
-      label: "Harga obat referensi internet",
+      label: "Harga obat/farmalkes referensi master",
       maxDeduction: 20,
       deducted: fallbackDrugDeduction,
       reason: drugHasDeduction
-        ? (hasDrugReferenceUnavailable ? `${drugIssues}/${drugItems.length} item obat perlu review; sebagian referensi harga internet belum dapat diverifikasi.` : `${drugIssues}/${drugItems.length} item obat melewati threshold atau jauh di bawah referensi.`)
-        : "Item obat yang memiliki referensi harga internet berada dalam threshold."
+        ? `${drugIssues}/${drugItems.length} item obat/farmalkes melewati threshold atau jauh di bawah referensi master.`
+        : "Item obat/farmalkes yang memiliki referensi master berada dalam threshold."
     },
     {
       label: "Kelengkapan dokumen",
@@ -374,10 +378,10 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     {
       label: "Kesiapan master data",
       maxDeduction: 15,
-      deducted: hasUnregisteredTariff ? 15 : 0,
-      reason: hasUnregisteredTariff
-        ? "Ada tindakan yang belum tersedia di master tarif, sehingga belum bisa divalidasi harga."
-        : "Semua tindakan tersedia pada master data tarif."
+      deducted: fallbackMasterDataDeduction,
+      reason: hasMissingMasterData
+        ? `${missingMasterDataCount}/${masterDataItemCount} item tindakan/obat belum tersedia pada master data/referensi lokal (${missingTariffMasterItems.length} tindakan, ${missingDrugMasterItems.length} obat/farmalkes). Pengurangan dihitung proporsional.`
+        : "Semua tindakan dan obat/farmalkes tersedia pada master data/referensi lokal."
     },
   ];
   const persistedScoreItems = result.scoreBreakdown?.items as PersistedScoreBreakdownItem[] | undefined;
@@ -872,7 +876,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                   <p className="text-[10px] text-text-subtle/70 mt-0.5">Unit: {item.unitBasis}</p>
                                 )}
                                 {Array.isArray(item.sources) && item.sources.length > 0 && (
-                                  <p className="text-[10px] text-text-subtle/70 mt-0.5">Sumber referensi: {item.sources.some((source: string) => String(source).includes('master_data_kfa')) ? 'Master KFA' : 'Cache/Internet'}</p>
+                                  <p className="text-[10px] text-text-subtle/70 mt-0.5">Sumber referensi: Master data farmalkes lokal</p>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-right font-medium text-text-subtle">

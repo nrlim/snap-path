@@ -6,7 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 type MedicalItemSortField = "drug" | "maxPrice" | "avgPrice" | "fetchedAt" | "expiresAt" | "status";
 type SortDirection = "asc" | "desc";
 
-function buildSearchWhere(search?: string): Prisma.MedicalItemPriceCacheWhereInput | undefined {
+function buildSearchWhere(search?: string): Prisma.MedicalItemPriceMasterWhereInput | undefined {
   const query = search?.trim();
   if (!query) return undefined;
   const contains = { contains: query, mode: "insensitive" as const };
@@ -21,7 +21,7 @@ function buildSearchWhere(search?: string): Prisma.MedicalItemPriceCacheWhereInp
   };
 }
 
-function buildOrderBy(sortField: MedicalItemSortField = "fetchedAt", sortDirection: SortDirection = "desc"): Prisma.MedicalItemPriceCacheOrderByWithRelationInput[] {
+function buildOrderBy(sortField: MedicalItemSortField = "fetchedAt", sortDirection: SortDirection = "desc"): Prisma.MedicalItemPriceMasterOrderByWithRelationInput[] {
   const direction: Prisma.SortOrder = sortDirection === "asc" ? "asc" : "desc";
   switch (sortField) {
     case "drug": return [{ itemName: direction }];
@@ -34,28 +34,28 @@ function buildOrderBy(sortField: MedicalItemSortField = "fetchedAt", sortDirecti
   }
 }
 
-export async function getDrugPriceCacheEntries(params: { page?: number; limit?: number; search?: string; status?: string; sortField?: MedicalItemSortField; sortDirection?: SortDirection } = {}) {
+export async function getMedicalItemMasterEntries(params: { page?: number; limit?: number; search?: string; status?: string; sortField?: MedicalItemSortField; sortDirection?: SortDirection } = {}) {
   const page = Math.max(1, Number(params.page) || 1);
   const limit = Math.min(100, Math.max(1, Number(params.limit) || 10));
   const skip = (page - 1) * limit;
   const now = new Date();
 
-  const where: Prisma.MedicalItemPriceCacheWhereInput = {
+  const where: Prisma.MedicalItemPriceMasterWhereInput = {
     ...(buildSearchWhere(params.search) || {}),
   };
   if (params.status === "active") where.expiresAt = { gt: now };
   if (params.status === "expired") where.expiresAt = { lte: now };
 
   const [entries, total, active, expired] = await Promise.all([
-    prisma.medicalItemPriceCache.findMany({
+    prisma.medicalItemPriceMaster.findMany({
       where,
       skip,
       take: limit,
       orderBy: [...buildOrderBy(params.sortField, params.sortDirection), { createdAt: "desc" }],
     }),
-    prisma.medicalItemPriceCache.count({ where }),
-    prisma.medicalItemPriceCache.count({ where: { expiresAt: { gt: now } } }),
-    prisma.medicalItemPriceCache.count({ where: { expiresAt: { lte: now } } }),
+    prisma.medicalItemPriceMaster.count({ where }),
+    prisma.medicalItemPriceMaster.count({ where: { expiresAt: { gt: now } } }),
+    prisma.medicalItemPriceMaster.count({ where: { expiresAt: { lte: now } } }),
   ]);
 
   return {
@@ -71,7 +71,7 @@ export async function searchMedicalItemsForWizard(params: { search?: string; lim
   const limit = Math.min(50, Math.max(1, Number(params.limit) || 30));
   const where = buildSearchWhere(query) || {};
 
-  return prisma.medicalItemPriceCache.findMany({
+  return prisma.medicalItemPriceMaster.findMany({
     where: { ...where, expiresAt: { gt: new Date() } },
     take: limit,
     orderBy: [{ itemName: "asc" }, { createdAt: "desc" }],
