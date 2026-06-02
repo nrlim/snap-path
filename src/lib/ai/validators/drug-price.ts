@@ -23,6 +23,15 @@ function normalizeSearchText(value: unknown): string {
     .trim();
 }
 
+function isMeaningfulReferencePrice(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 100;
+}
+
+function getBestReferencePrice(...prices: unknown[]): number {
+  const meaningfulPrices = prices.filter(isMeaningfulReferencePrice);
+  return meaningfulPrices.length > 0 ? Math.max(...meaningfulPrices) : 0;
+}
+
 function getSearchTokens(med: any): string[] {
   const normalized = normalizeSearchText(`${med.name || ''} ${med.genericName || ''}`);
   return Array.from(new Set(normalized.split(' ').filter((token) => token.length >= 3 && !DRUG_SEARCH_STOPWORDS.has(token)))).slice(0, 5);
@@ -84,11 +93,11 @@ async function findMedicalMasterItemPrice(med: any, now: Date) {
   const itemGroup = normalizeSearchText(best.itemGroup || '');
   const itemTypeCode = normalizeSearchText(best.itemTypeCode || '');
   const isCoveredMedicalItem = COVERED_KFA_GROUPS.has(itemGroup) || COVERED_KFA_TYPE_CODES.has(itemTypeCode);
-  const bestReferencePrice = Math.max(
-    Number(best.maxReferencePrice || 0),
-    Number(best.hetPrice || 0),
-    Number(best.marketPriceMax || 0),
-    Number(best.fixPrice || 0),
+  const bestReferencePrice = getBestReferencePrice(
+    best.maxReferencePrice,
+    best.hetPrice,
+    best.marketPriceMax,
+    best.fixPrice,
   );
 
   return {
@@ -157,11 +166,11 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     if (masterEntry) return masterEntry;
 
     const cacheEntry = cacheEntries[i];
-    const cachedPrice = Math.max(
-      Number(cacheEntry?.maxReferencePrice || 0),
-      Number(cacheEntry?.hetPrice || 0),
-      Number(cacheEntry?.marketPriceMax || 0),
-      Number(cacheEntry?.fixPrice || 0),
+    const cachedPrice = getBestReferencePrice(
+      cacheEntry?.maxReferencePrice,
+      cacheEntry?.hetPrice,
+      cacheEntry?.marketPriceMax,
+      cacheEntry?.fixPrice,
     );
     const cachedSources = cacheEntry?.sources as string[] | undefined;
     const hasValidCache = cachedPrice > 0 && Array.isArray(cachedSources) && cachedSources.length > 0;

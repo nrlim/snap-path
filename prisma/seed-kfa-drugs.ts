@@ -67,17 +67,17 @@ function numberValue(value: unknown): number | null {
 }
 
 function resolveValidationPrice(fixPrice: number | null, hetPrice: number | null, maxReferencePrice: number | null): number | null {
-  const candidates = [maxReferencePrice, hetPrice, fixPrice].filter((price): price is number => typeof price === 'number' && price > 0);
+  const candidates = [maxReferencePrice, hetPrice, fixPrice].filter((price): price is number => typeof price === 'number' && price >= 100);
   if (candidates.length === 0) return null;
 
   // Some KFA rows have nominal fix_price (e.g. 1.0) while HET/max reference is valid.
-  // Use the highest available reference as validation ceiling to avoid false overcharge flags.
+  // Use the highest meaningful reference as validation ceiling to avoid false overcharge flags.
   return Math.max(...candidates);
 }
 
 function resolveAverageReferencePrice(fixPrice: number | null, hetPrice: number | null, maxReferencePrice: number | null): number | null {
   if (fixPrice && fixPrice >= 100) return fixPrice;
-  return hetPrice || maxReferencePrice || fixPrice || null;
+  return hetPrice || maxReferencePrice || null;
 }
 
 function normalizeName(value: string): string {
@@ -97,11 +97,17 @@ function getItemType(row: KfaRow) {
   };
 }
 
+function cleanGenericName(value: unknown): string | null {
+  const text = cleanString(value);
+  if (!text || text === '0' || text === '1') return null;
+  return text;
+}
+
 function getGenericName(row: KfaRow): string | null {
-  const normalizedGeneric = cleanString(row.generic_name);
+  const normalizedGeneric = cleanGenericName(row.generic_name);
   if (normalizedGeneric) return normalizedGeneric;
 
-  const explicitGeneric = cleanString(row.generik);
+  const explicitGeneric = cleanGenericName(row.generik);
   if (explicitGeneric) return explicitGeneric;
 
   const ingredients = parseJsonArray(row.active_ingredients)
@@ -179,14 +185,14 @@ function toMedicalItemCacheCreate(row: KfaRow, now: Date, expiresAt: Date): Pris
   };
 }
 
-function dedupeByNameAndPrice(entries: Prisma.MedicalItemPriceCacheCreateManyInput[]) {
+function dedupeByKfaIdentity(entries: Prisma.MedicalItemPriceCacheCreateManyInput[]) {
   const map = new Map<string, Prisma.MedicalItemPriceCacheCreateManyInput>();
   for (const entry of entries) {
-    const key = `${entry.itemGroup || ''}:${entry.itemTypeCode || ''}:${entry.itemName}`.toLowerCase();
-    const existing = map.get(key);
-    if (!existing || Number(entry.marketPriceMax) > Number(existing.marketPriceMax)) {
-      map.set(key, entry);
-    }
+    const source = Array.isArray(entry.sources) ? String(entry.sources[0] || '') : '';
+    const kfaCode = source.match(/kfa_code:([^|]+)/)?.[1]?.trim();
+    const sourceId = source.match(/id:([^|]+)/)?.[1]?.trim();
+    const key = `${kfaCode || ''}:${sourceId || ''}:${entry.itemGroup || ''}:${entry.itemTypeCode || ''}:${entry.itemName}:${entry.marketPriceMax}`.toLowerCase();
+    if (!map.has(key)) map.set(key, entry);
   }
   return Array.from(map.values());
 }
@@ -202,7 +208,7 @@ async function main() {
   const expiresAt = new Date(now);
   expiresAt.setFullYear(expiresAt.getFullYear() + MASTER_DATA_TTL_YEARS);
 
-  const entries = dedupeByNameAndPrice(
+  const entries = dedupeByKfaIdentity(
     rows
       .map((row) => toMedicalItemCacheCreate(row, now, expiresAt))
       .filter((entry): entry is Prisma.MedicalItemPriceCacheCreateManyInput => Boolean(entry)),
@@ -210,7 +216,7 @@ async function main() {
 
   console.log(`[seed-kfa-drugs] Parsed ${rows.length} rows; ${entries.length} priced medical items ready to seed.`);
 
-  await prisma.$executeRawUnsafe(`DELETE FROM "MedicalItemPriceCache" WHERE "sources"::text LIKE '%${SOURCE_TAG}%'`);
+  await prisma.$executeRawUnsafe('TRUNCATE TABLE "MedicalItemPriceCache" RESTART IDENTITY');
 
   let created = 0;
   for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
