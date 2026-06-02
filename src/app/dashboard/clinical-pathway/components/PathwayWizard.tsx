@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import PathwayImportModal from "./PathwayImportModal";
 import { searchTariffEntriesForWizard } from "../../master-data/buku-tarif/actions";
+import { searchMedicalItemsForWizard } from "../../master-data/obat/actions";
 import { REQUIRED_CLAIM_DOCUMENTS } from "@/lib/claim-documents";
 import { calculateLosDays } from "@/lib/los";
 
@@ -255,11 +256,12 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
     });
   };
 
-  const handleMedicationNameChange = (index: number, value: string, price?: number) => {
+  const handleMedicationNameChange = (index: number, value: string, price?: number, genericName?: string | null) => {
     setFormData((prev: any) => {
       const newArr = [...(prev.medications || [])];
       newArr[index] = { ...newArr[index], name: value };
       if (price !== undefined) newArr[index].price = price;
+      if (genericName !== undefined) newArr[index].genericName = genericName || undefined;
       return { ...prev, medications: newArr };
     });
   };
@@ -606,13 +608,11 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
             {formData.medications?.map((med: any, i: number) => (
               <tr key={i}>
                 <td className="px-4 py-2">
-                  <AsyncTariffInput 
+                  <AsyncMedicalItemInput 
                     value={med.name || ''} 
                     onChange={val => handleMedicationNameChange(i, val)}
-                    onSelect={opt => handleMedicationNameChange(i, opt.label, opt.data?.basePrice)}
-                    providerId={formData.extra.providerId}
-                    category="OBAT"
-                    placeholder="Type or select drug..." 
+                    onSelect={opt => handleMedicationNameChange(i, opt.label, opt.data?.marketPriceMax, opt.data?.itemGenericName)}
+                    placeholder="Type or select medical item..." 
                   />
                 </td>
                 <td className="px-4 py-2">
@@ -860,6 +860,97 @@ function AsyncTariffInput({
     const handler = setTimeout(fetchOptions, 300);
     return () => clearTimeout(handler);
   }, [value, providerId, category, excludeCategory]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        className="w-full rounded-md border border-border bg-surface px-2 py-1 text-base sm:text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary"
+        placeholder={placeholder}
+      />
+      
+      {isOpen && (
+        <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border border-border bg-surface-elevated py-1 text-sm shadow-[0_4px_20px_-4px_rgba(0,0,0,0.3)]">
+          {isLoading && options.length === 0 ? (
+            <li className="px-3 py-1.5 text-text-subtle text-xs">Mencari...</li>
+          ) : options.length > 0 ? (
+            options.map((opt, i) => (
+              <li
+                key={i}
+                className="cursor-pointer px-3 py-1.5 hover:bg-primary/10 hover:text-primary transition-colors flex flex-col"
+                onClick={() => {
+                  onChange(opt.label);
+                  if (onSelect) onSelect(opt);
+                  setIsOpen(false);
+                }}
+              >
+                <div className="font-medium truncate">{opt.label}</div>
+                {opt.subLabel && <div className="text-[10px] text-text-subtle truncate">{opt.subLabel}</div>}
+              </li>
+            ))
+          ) : (
+            <li className="px-3 py-1.5 text-text-subtle text-xs">Tidak ditemukan</li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function AsyncMedicalItemInput({
+  value,
+  onChange,
+  onSelect,
+  placeholder,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  onSelect?: (option: any) => void;
+  placeholder?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [options, setOptions] = useState<{ label: string; value: string; subLabel?: string; data?: any }[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const fetchOptions = async () => {
+      setIsLoading(true);
+      try {
+        const entries = await searchMedicalItemsForWizard({ search: value, limit: 30 });
+        setOptions(entries.map((item) => ({
+          label: item.itemName,
+          value: item.id,
+          subLabel: `${item.itemTypeName || item.itemTypeCode || 'Farmalkes'}${item.itemGenericName ? ` - ${item.itemGenericName}` : ''}`,
+          data: item,
+        })));
+      } catch (e) {
+        console.error(e);
+        setOptions([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const handler = setTimeout(fetchOptions, 300);
+    return () => clearTimeout(handler);
+  }, [value]);
 
   return (
     <div className="relative w-full" ref={wrapperRef}>

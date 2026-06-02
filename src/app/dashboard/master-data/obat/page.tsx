@@ -4,7 +4,7 @@ import { getDrugPriceCacheEntries } from "./actions";
 import DrugPriceCacheTable from "./components/DrugPriceCacheTable";
 
 export default async function MasterObatPage() {
-  const data = await getDrugPriceCacheEntries({ page: 1, limit: 1000 });
+  const data = await getDrugPriceCacheEntries({ page: 1, limit: 10 });
 
   const cards = [
     { label: "Total referensi", value: data.total, tone: "text-text" },
@@ -41,7 +41,7 @@ export default async function MasterObatPage() {
 
       <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden">
         <Suspense fallback={<div className="p-8 text-center text-text-subtle">Memuat referensi harga farmalkes...</div>}>
-          <DrugPriceCacheTable data={data.entries} />
+          <DrugPriceCacheTable data={data.entries} total={data.total} totalPages={data.totalPages} />
         </Suspense>
       </div>
     </div>

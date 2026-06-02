@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { defaultPageSizes, SortButton, TablePagination, TableSearch, type SortDirection } from "@/components/ui/DataTableControls";
+import { getDrugPriceCacheEntries } from "../actions";
 
 type DrugPriceCacheEntry = {
   id: string;
@@ -12,6 +13,9 @@ type DrugPriceCacheEntry = {
   itemGroup: string | null;
   marketPriceMax: number;
   marketPriceAvg: number | null;
+  fixPrice: number | null;
+  hetPrice: number | null;
+  maxReferencePrice: number | null;
   sources: unknown;
   currency: string;
   fetchedAt: Date | string;
@@ -43,44 +47,49 @@ function normalizeSources(sources: unknown): string[] {
   return [];
 }
 
-function sortValue(item: DrugPriceCacheEntry, field: SortField) {
-  if (field === "drug") return `${item.itemName || ""} ${item.itemGenericName || ""} ${item.itemTypeName || ""} ${item.itemGroup || ""}`.toLowerCase();
-  if (field === "maxPrice") return Number(item.marketPriceMax || 0);
-  if (field === "avgPrice") return Number(item.marketPriceAvg || 0);
-  if (field === "fetchedAt") return toDate(item.fetchedAt).getTime();
-  if (field === "expiresAt") return toDate(item.expiresAt).getTime();
-  return isExpired(item) ? 0 : 1;
-}
-
-export default function DrugPriceCacheTable({ data }: { data: DrugPriceCacheEntry[] }) {
+export default function DrugPriceCacheTable({ data, total = data.length, totalPages: initialTotalPages = 1 }: { data: DrugPriceCacheEntry[]; total?: number; totalPages?: number }) {
+  const [rows, setRows] = useState<DrugPriceCacheEntry[]>(data);
+  const [totalCount, setTotalCount] = useState(total);
+  const [serverTotalPages, setServerTotalPages] = useState(Math.max(1, initialTotalPages));
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortField, setSortField] = useState<SortField>("fetchedAt");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const filteredData = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return data
-      .filter((item) => {
-        const sources = normalizeSources(item.sources).join(" ");
-        const matchesSearch = !query || [item.itemName, item.itemGenericName, item.itemTypeName, item.itemGroup, sources].some((value) => String(value || "").toLowerCase().includes(query));
-        const expired = isExpired(item);
-        const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? !expired : expired);
-        return matchesSearch && matchesStatus;
-      })
-      .sort((a, b) => {
-        const aValue = sortValue(a, sortField);
-        const bValue = sortValue(b, sortField);
-        const result = aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-        return sortDirection === "asc" ? result : -result;
-      });
-  }, [data, search, sortDirection, sortField, statusFilter]);
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setIsLoading(true);
+      try {
+        const result = await getDrugPriceCacheEntries({ search, status: statusFilter, sortField, sortDirection, page, limit: pageSize });
+        if (!cancelled) {
+          setRows(result.entries as DrugPriceCacheEntry[]);
+          setTotalCount(result.total);
+          setServerTotalPages(result.totalPages);
+        }
+      } catch (error) {
+        console.error("[medical-item/search]", error);
+        if (!cancelled) {
+          setRows([]);
+          setTotalCount(0);
+          setServerTotalPages(1);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }, search.trim() ? 250 : 0);
 
-  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [page, pageSize, search, sortDirection, sortField, statusFilter]);
+
+  const currentPage = Math.min(page, serverTotalPages);
+  const paginatedData = rows;
 
   function handleSort(field: SortField) {
     if (sortField === field) setSortDirection((value) => (value === "asc" ? "desc" : "asc"));
@@ -101,13 +110,15 @@ export default function DrugPriceCacheTable({ data }: { data: DrugPriceCacheEntr
         </select>
       </div>
 
+      {isLoading && <div className="border-b border-border/60 px-4 py-2 text-xs text-text-subtle">Memuat data...</div>}
+
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1080px] text-left text-sm">
           <thead className="bg-surface-elevated/50 text-xs font-semibold uppercase tracking-wider text-text-subtle">
             <tr>
               <th className="px-4 py-3"><SortButton field="drug" label="Item Farmalkes" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
-              <th className="px-4 py-3 text-right"><SortButton field="maxPrice" label="Harga Maks" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
-              <th className="px-4 py-3 text-right"><SortButton field="avgPrice" label="Harga Rata-rata" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
+              <th className="px-4 py-3 text-right"><SortButton field="maxPrice" label="Harga Validasi" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
+              <th className="px-4 py-3 text-right"><SortButton field="avgPrice" label="Fix / HET / Max Ref" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
               <th className="px-4 py-3">Sumber</th>
               <th className="px-4 py-3"><SortButton field="fetchedAt" label="Diambil" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
               <th className="px-4 py-3"><SortButton field="expiresAt" label="Kedaluwarsa" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
@@ -128,7 +139,11 @@ export default function DrugPriceCacheTable({ data }: { data: DrugPriceCacheEntr
                     <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-text-faint">{item.itemTypeName || item.itemTypeCode || "Tipe belum tersedia"} · {item.itemGroup || "group belum tersedia"}</p>
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-text">{formatCurrency(item.marketPriceMax, item.currency)}</td>
-                  <td className="px-4 py-3 text-right font-medium text-text-subtle">{formatCurrency(item.marketPriceAvg, item.currency)}</td>
+                  <td className="px-4 py-3 text-right text-xs text-text-subtle">
+                    <div>Fix: {formatCurrency(item.fixPrice, item.currency)}</div>
+                    <div>HET: {formatCurrency(item.hetPrice, item.currency)}</div>
+                    <div>Max: {formatCurrency(item.maxReferencePrice, item.currency)}</div>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex max-w-[260px] flex-wrap gap-1.5">
                       {sources.length === 0 ? <span className="text-xs text-text-faint">—</span> : sources.slice(0, 3).map((source) => (
@@ -149,7 +164,7 @@ export default function DrugPriceCacheTable({ data }: { data: DrugPriceCacheEntr
         </table>
       </div>
 
-      <TablePagination total={filteredData.length} visible={paginatedData.length} currentPage={currentPage} totalPages={totalPages} onPrev={() => setPage((value) => Math.max(1, value - 1))} onNext={() => setPage((value) => Math.min(totalPages, value + 1))} />
+      <TablePagination total={totalCount} visible={paginatedData.length} currentPage={currentPage} totalPages={serverTotalPages} onPrev={() => setPage((value) => Math.max(1, value - 1))} onNext={() => setPage((value) => Math.min(serverTotalPages, value + 1))} />
     </div>
   );
 }

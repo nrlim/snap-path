@@ -84,9 +84,15 @@ async function findMedicalMasterItemPrice(med: any, now: Date) {
   const itemGroup = normalizeSearchText(best.itemGroup || '');
   const itemTypeCode = normalizeSearchText(best.itemTypeCode || '');
   const isCoveredMedicalItem = COVERED_KFA_GROUPS.has(itemGroup) || COVERED_KFA_TYPE_CODES.has(itemTypeCode);
+  const bestReferencePrice = Math.max(
+    Number(best.maxReferencePrice || 0),
+    Number(best.hetPrice || 0),
+    Number(best.marketPriceMax || 0),
+    Number(best.fixPrice || 0),
+  );
 
   return {
-    marketPriceMax: isCoveredMedicalItem ? best.marketPriceMax : 0,
+    marketPriceMax: isCoveredMedicalItem ? bestReferencePrice : 0,
     sources: isCoveredMedicalItem ? sources : ['non_medication', ...sources],
     resolvedProductName: best.itemName,
     dosageForm: best.itemTypeName || best.itemTypeCode || undefined,

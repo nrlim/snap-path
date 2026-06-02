@@ -66,6 +66,20 @@ function numberValue(value: unknown): number | null {
   return Number.isFinite(number) && number > 0 ? number : null;
 }
 
+function resolveValidationPrice(fixPrice: number | null, hetPrice: number | null, maxReferencePrice: number | null): number | null {
+  const candidates = [maxReferencePrice, hetPrice, fixPrice].filter((price): price is number => typeof price === 'number' && price > 0);
+  if (candidates.length === 0) return null;
+
+  // Some KFA rows have nominal fix_price (e.g. 1.0) while HET/max reference is valid.
+  // Use the highest available reference as validation ceiling to avoid false overcharge flags.
+  return Math.max(...candidates);
+}
+
+function resolveAverageReferencePrice(fixPrice: number | null, hetPrice: number | null, maxReferencePrice: number | null): number | null {
+  if (fixPrice && fixPrice >= 100) return fixPrice;
+  return hetPrice || maxReferencePrice || fixPrice || null;
+}
+
 function normalizeName(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
 }
@@ -143,7 +157,8 @@ function toMedicalItemCacheCreate(row: KfaRow, now: Date, expiresAt: Date): Pris
 
   const hetPrice = numberValue(row.het_price);
   const fixPrice = numberValue(row.fix_price);
-  const marketPriceMax = numberValue(row.max_reference_price) || hetPrice || fixPrice;
+  const maxReferencePrice = numberValue(row.max_reference_price);
+  const marketPriceMax = resolveValidationPrice(fixPrice, hetPrice, maxReferencePrice);
   if (!marketPriceMax) return null;
 
   return {
@@ -153,7 +168,10 @@ function toMedicalItemCacheCreate(row: KfaRow, now: Date, expiresAt: Date): Pris
     itemTypeName: itemType.name,
     itemGroup: itemType.group,
     marketPriceMax,
-    marketPriceAvg: fixPrice || hetPrice || null,
+    marketPriceAvg: resolveAverageReferencePrice(fixPrice, hetPrice, maxReferencePrice),
+    fixPrice,
+    hetPrice,
+    maxReferencePrice: maxReferencePrice || marketPriceMax,
     sources: [buildSource(row, marketPriceMax)],
     currency: 'IDR',
     fetchedAt: now,

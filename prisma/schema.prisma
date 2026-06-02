@@ -271,8 +271,11 @@ model MedicalItemPriceCache {
   itemTypeCode    String?  // KFA type code: medicine, device, vaccine, supplement, herbal, etc.
   itemTypeName    String?  // KFA type label: Obat, Alat Kesehatan, Vaksin, etc.
   itemGroup       String?  // KFA group: farmasi, alkes, etc.
-  marketPriceMax  Float    // Highest reference price found
+  marketPriceMax  Float    // Highest usable reference price for validation
   marketPriceAvg  Float?
+  fixPrice        Float?   // KFA fix_price, may be unavailable or nominal
+  hetPrice        Float?   // KFA HET price
+  maxReferencePrice Float? // KFA max_reference_price / resolved validation ceiling
   sources         Json     // Array of source URLs/names/metadata
   currency        String   @default("IDR")
   fetchedAt       DateTime @default(now())
