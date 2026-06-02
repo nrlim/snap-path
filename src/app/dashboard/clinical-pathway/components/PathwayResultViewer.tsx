@@ -866,13 +866,13 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                               <td className="px-4 py-3">
                                 <p className="font-medium text-text">{item.name || item.medicationName}</p>
                                 {item.resolvedProductName && (
-                                  <p className="text-[10px] text-primary/80 mt-0.5">AI Match: {item.resolvedProductName}</p>
+                                  <p className="text-[10px] text-primary/80 mt-0.5">Referensi: {item.resolvedProductName}</p>
                                 )}
                                 {item.unitBasis && (
                                   <p className="text-[10px] text-text-subtle/70 mt-0.5">Unit: {item.unitBasis}</p>
                                 )}
                                 {Array.isArray(item.sources) && item.sources.length > 0 && (
-                                  <p className="text-[10px] text-text-subtle/70 mt-0.5">Referensi internet: {item.sources.length} sumber</p>
+                                  <p className="text-[10px] text-text-subtle/70 mt-0.5">Sumber referensi: {item.sources.some((source: string) => String(source).includes('master_data_kfa')) ? 'Master KFA' : 'Cache/Internet'}</p>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-right font-medium text-text-subtle">
@@ -888,6 +888,11 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 <div className="text-text-subtle font-medium">{item.expectedTotal > 0 ? new Intl.NumberFormat('id-ID').format(item.expectedTotal) : (item.marketPriceMaxWithThreshold || item.marketMaxPrice ? new Intl.NumberFormat('id-ID').format((item.quantity || 1) * (item.marketPriceMaxWithThreshold || item.marketMaxPrice)) : '—')}</div>
                                 {item.marketPriceMaxWithThreshold || item.marketMaxPrice ? (
                                   <div className="text-[10px] text-text-subtle/70 font-normal mt-0.5">@ {new Intl.NumberFormat('id-ID').format(item.marketPriceMaxWithThreshold || item.marketMaxPrice)}</div>
+                                ) : null}
+                                {(item.fixPrice || item.hetPrice || item.maxReferencePrice) ? (
+                                  <div className="mt-1 text-[10px] text-text-subtle/70 font-normal">
+                                    Fix {item.fixPrice ? new Intl.NumberFormat('id-ID').format(item.fixPrice) : '—'} · HET {item.hetPrice ? new Intl.NumberFormat('id-ID').format(item.hetPrice) : '—'} · Max {new Intl.NumberFormat('id-ID').format(item.maxReferencePrice || item.marketPriceMax || 0)}
+                                  </div>
                                 ) : null}
                               </td>
                               <td className="px-4 py-3 text-right font-mono text-xs">

@@ -247,6 +247,9 @@ export interface DrugPriceCheckOutput {
     marketPriceMax: number;
     marketPriceMaxWithThreshold: number;
     expectedTotal: number;
+    fixPrice?: number | null;
+    hetPrice?: number | null;
+    maxReferencePrice?: number | null;
     status: "WITHIN_RANGE" | "OVER_THRESHOLD" | "UNDER_PRICED" | "NOT_FOUND" | "CACHE_HIT" | "NON_MEDICATION";
     variancePct: number;
     sources: string[];

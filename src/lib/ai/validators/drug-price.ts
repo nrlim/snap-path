@@ -97,6 +97,9 @@ async function findMedicalMasterItemPrice(med: any, now: Date) {
     resolvedProductName: best.itemName,
     dosageForm: best.itemTypeName || best.itemTypeCode || undefined,
     unitBasis: best.itemGroup || undefined,
+    fixPrice: best.fixPrice ?? null,
+    hetPrice: best.hetPrice ?? null,
+    maxReferencePrice: best.maxReferencePrice ?? bestReferencePrice,
     cachedAt: best.fetchedAt.toISOString(),
   };
 }
@@ -143,6 +146,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     resolvedProductName?: string;
     dosageForm?: string;
     unitBasis?: string;
+    fixPrice?: number | null;
+    hetPrice?: number | null;
+    maxReferencePrice?: number | null;
     cachedAt: string | null;
   };
 
@@ -151,7 +157,12 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     if (masterEntry) return masterEntry;
 
     const cacheEntry = cacheEntries[i];
-    const cachedPrice = cacheEntry?.marketPriceMax ?? 0;
+    const cachedPrice = Math.max(
+      Number(cacheEntry?.maxReferencePrice || 0),
+      Number(cacheEntry?.hetPrice || 0),
+      Number(cacheEntry?.marketPriceMax || 0),
+      Number(cacheEntry?.fixPrice || 0),
+    );
     const cachedSources = cacheEntry?.sources as string[] | undefined;
     const hasValidCache = cachedPrice > 0 && Array.isArray(cachedSources) && cachedSources.length > 0;
 
@@ -160,6 +171,12 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
       return {
         marketPriceMax: cachedPrice,
         sources: cachedSources!,
+        resolvedProductName: cacheEntry!.itemName,
+        dosageForm: cacheEntry!.itemTypeName || cacheEntry!.itemTypeCode || undefined,
+        unitBasis: cacheEntry!.itemGroup || undefined,
+        fixPrice: cacheEntry!.fixPrice ?? null,
+        hetPrice: cacheEntry!.hetPrice ?? null,
+        maxReferencePrice: cacheEntry!.maxReferencePrice ?? cachedPrice,
         cachedAt: cacheEntry!.fetchedAt.toISOString(),
       };
     }
@@ -198,6 +215,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         marketPriceMax: 0,
         marketPriceMaxWithThreshold: 0,
         expectedTotal: 0,
+        fixPrice: fp.fixPrice ?? null,
+        hetPrice: fp.hetPrice ?? null,
+        maxReferencePrice: fp.maxReferencePrice ?? null,
         status: 'NON_MEDICATION',
         variancePct: 0,
         sources: fp.sources,
@@ -219,6 +239,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
         marketPriceMax: 0,
         marketPriceMaxWithThreshold: 0,
         expectedTotal: 0,
+        fixPrice: fp.fixPrice ?? null,
+        hetPrice: fp.hetPrice ?? null,
+        maxReferencePrice: fp.maxReferencePrice ?? null,
         status: 'NOT_FOUND',
         variancePct: 0,
         sources: fp.sources,
@@ -251,6 +274,9 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
       marketPriceMax: fp.marketPriceMax,
       marketPriceMaxWithThreshold,
       expectedTotal: marketPriceMaxWithThreshold * (med.quantity || 1),
+      fixPrice: fp.fixPrice ?? null,
+      hetPrice: fp.hetPrice ?? null,
+      maxReferencePrice: fp.maxReferencePrice ?? fp.marketPriceMax,
       status,
       variancePct,
       sources: fp.sources,

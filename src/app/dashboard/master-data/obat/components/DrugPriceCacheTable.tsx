@@ -142,7 +142,7 @@ export default function DrugPriceCacheTable({ data, total = data.length, totalPa
                   <td className="px-4 py-3 text-right text-xs text-text-subtle">
                     <div>Fix: {formatCurrency(item.fixPrice, item.currency)}</div>
                     <div>HET: {formatCurrency(item.hetPrice, item.currency)}</div>
-                    <div>Max: {formatCurrency(item.maxReferencePrice, item.currency)}</div>
+                    <div>Max: {formatCurrency(item.maxReferencePrice ?? item.marketPriceMax, item.currency)}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex max-w-[260px] flex-wrap gap-1.5">
