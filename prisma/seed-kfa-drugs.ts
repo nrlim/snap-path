@@ -1,7 +1,7 @@
 /**
- * Seed KFA master drug prices from sample-data/master-data-docs/daftar-kfa-master-obat.json.
+ * Seed KFA master Farmalkes prices from sample-data/master-data-docs/daftar-kfa-master-obat.json.
  *
- * This uses the existing DrugPriceCache table as the local Master Obat reference.
+ * This uses the MedicalItemPriceCache table as the local Master Farmalkes reference.
  * KFA-seeded rows are tagged with `master_data_kfa` in sources and given a long expiry.
  *
  * Run:
@@ -24,9 +24,6 @@ const DEFAULT_JSON_PATH = path.join(__dirname, '../sample-data/master-data-docs/
 const SOURCE_TAG = 'master_data_kfa';
 const CHUNK_SIZE = 1000;
 const MASTER_DATA_TTL_YEARS = 10;
-
-const PHARMACY_GROUPS = new Set(['farmasi']);
-const PHARMACY_CODES = new Set(['medicine', 'supplement', 'herbal', 'kuasi', 'vaccine', 'paket_obat']);
 
 type KfaRow = Record<string, unknown>;
 
@@ -77,11 +74,13 @@ function getFarmalkesType(row: KfaRow) {
   return parseJsonObject(row.farmalkes_type);
 }
 
-function isPharmacyProduct(row: KfaRow): boolean {
+function getItemType(row: KfaRow) {
   const farmalkesType = getFarmalkesType(row);
-  const code = cleanString(farmalkesType?.code)?.toLowerCase();
-  const group = cleanString(farmalkesType?.group)?.toLowerCase();
-  return Boolean((group && PHARMACY_GROUPS.has(group)) || (code && PHARMACY_CODES.has(code)));
+  return {
+    code: cleanString(farmalkesType?.code)?.toLowerCase() || null,
+    name: cleanString(farmalkesType?.name) || null,
+    group: cleanString(farmalkesType?.group)?.toLowerCase() || null,
+  };
 }
 
 function getGenericName(row: KfaRow): string | null {
@@ -111,8 +110,17 @@ function buildSource(row: KfaRow, marketPriceMax: number): string {
     SOURCE_TAG,
     `kfa_code:${cleanString(row.kfa_code) || '-'}`,
     `id:${cleanString(row.id) || '-'}`,
+    `display_name:${cleanString(row.name) || '-'}`,
+    `brand_name:${cleanString(row.nama_dagang) || '-'}`,
+    `generic_name:${getGenericName(row) || '-'}`,
+    `item_type_code:${getItemType(row).code || '-'}`,
+    `item_type_name:${getItemType(row).name || '-'}`,
+    `item_group:${getItemType(row).group || '-'}`,
     `nie:${cleanString(row.nie) || '-'}`,
+    `manufacturer:${cleanString(row.manufacturer) || '-'}`,
+    `registrar:${cleanString(row.registrar) || '-'}`,
     `dosage_form:${getDosageForm(row) || '-'}`,
+    `dose_per_unit:${cleanString(row.dose_per_unit) || '-'}`,
     `unit:${cleanString(row.satuan) || cleanString(row.uom_name) || '-'}`,
     `het_price:${numberValue(row.het_price) || 0}`,
     `fix_price:${numberValue(row.fix_price) || 0}`,
@@ -121,12 +129,17 @@ function buildSource(row: KfaRow, marketPriceMax: number): string {
   return parts.join(' | ');
 }
 
-function toDrugCacheCreate(row: KfaRow, now: Date, expiresAt: Date): Prisma.DrugPriceCacheCreateManyInput | null {
-  if (!isPharmacyProduct(row)) return null;
+function getItemDisplayName(row: KfaRow): string | null {
+  return cleanString(row.nama_dagang) || cleanString(row.name);
+}
+
+function toMedicalItemCacheCreate(row: KfaRow, now: Date, expiresAt: Date): Prisma.MedicalItemPriceCacheCreateManyInput | null {
   if (row.active === false || cleanString(row.active) === '0') return null;
 
-  const drugName = cleanString(row.name) || cleanString(row.nama_dagang);
-  if (!drugName) return null;
+  const itemName = getItemDisplayName(row);
+  if (!itemName) return null;
+
+  const itemType = getItemType(row);
 
   const hetPrice = numberValue(row.het_price);
   const fixPrice = numberValue(row.fix_price);
@@ -134,21 +147,24 @@ function toDrugCacheCreate(row: KfaRow, now: Date, expiresAt: Date): Prisma.Drug
   if (!marketPriceMax) return null;
 
   return {
-    drugName: normalizeName(drugName),
-    drugGenericName: getGenericName(row),
+    itemName: normalizeName(itemName),
+    itemGenericName: getGenericName(row),
+    itemTypeCode: itemType.code,
+    itemTypeName: itemType.name,
+    itemGroup: itemType.group,
     marketPriceMax,
     marketPriceAvg: fixPrice || hetPrice || null,
-    sources: [cleanString(row.seed_source) || buildSource(row, marketPriceMax)],
+    sources: [buildSource(row, marketPriceMax)],
     currency: 'IDR',
     fetchedAt: now,
     expiresAt,
   };
 }
 
-function dedupeByNameAndPrice(entries: Prisma.DrugPriceCacheCreateManyInput[]) {
-  const map = new Map<string, Prisma.DrugPriceCacheCreateManyInput>();
+function dedupeByNameAndPrice(entries: Prisma.MedicalItemPriceCacheCreateManyInput[]) {
+  const map = new Map<string, Prisma.MedicalItemPriceCacheCreateManyInput>();
   for (const entry of entries) {
-    const key = `${entry.drugName}`.toLowerCase();
+    const key = `${entry.itemGroup || ''}:${entry.itemTypeCode || ''}:${entry.itemName}`.toLowerCase();
     const existing = map.get(key);
     if (!existing || Number(entry.marketPriceMax) > Number(existing.marketPriceMax)) {
       map.set(key, entry);
@@ -170,23 +186,23 @@ async function main() {
 
   const entries = dedupeByNameAndPrice(
     rows
-      .map((row) => toDrugCacheCreate(row, now, expiresAt))
-      .filter((entry): entry is Prisma.DrugPriceCacheCreateManyInput => Boolean(entry)),
+      .map((row) => toMedicalItemCacheCreate(row, now, expiresAt))
+      .filter((entry): entry is Prisma.MedicalItemPriceCacheCreateManyInput => Boolean(entry)),
   );
 
-  console.log(`[seed-kfa-drugs] Parsed ${rows.length} rows; ${entries.length} priced pharmacy products ready to seed.`);
+  console.log(`[seed-kfa-drugs] Parsed ${rows.length} rows; ${entries.length} priced medical items ready to seed.`);
 
-  await prisma.$executeRawUnsafe(`DELETE FROM "DrugPriceCache" WHERE "sources"::text LIKE '%${SOURCE_TAG}%'`);
+  await prisma.$executeRawUnsafe(`DELETE FROM "MedicalItemPriceCache" WHERE "sources"::text LIKE '%${SOURCE_TAG}%'`);
 
   let created = 0;
   for (let i = 0; i < entries.length; i += CHUNK_SIZE) {
     const chunk = entries.slice(i, i + CHUNK_SIZE);
-    const result = await prisma.drugPriceCache.createMany({ data: chunk });
+    const result = await prisma.medicalItemPriceCache.createMany({ data: chunk });
     created += result.count;
     console.log(`[seed-kfa-drugs] Inserted ${created}/${entries.length}`);
   }
 
-  console.log(`[seed-kfa-drugs] Done. Inserted ${created} KFA master drug rows.`);
+  console.log(`[seed-kfa-drugs] Done. Inserted ${created} KFA master medical item rows.`);
 }
 
 main()

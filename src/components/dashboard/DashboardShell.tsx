@@ -94,8 +94,8 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
   const getHeaderInfo = () => {
     if (pathname.startsWith('/dashboard/master-data/obat')) {
       return {
-        title: 'Master Obat',
-        subtitle: 'Pantau cache referensi harga obat untuk validasi klaim.',
+        title: 'Master Farmalkes',
+        subtitle: 'Pantau referensi harga obat, vaksin, suplemen, dan alat kesehatan untuk validasi klaim.',
       }
     }
     if (pathname.startsWith('/dashboard/master-data/buku-tarif')) {
@@ -192,7 +192,7 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
                 {openMenus['Reference Data'] && (
                   <div className="mt-0.5 space-y-0.5 pl-3">
                     <Link href="/dashboard/master-data/buku-tarif" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/buku-tarif') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Master Buku Tarif</Link>
-                    <Link href="/dashboard/master-data/obat" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/obat') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Master Obat</Link>
+                    <Link href="/dashboard/master-data/obat" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/obat') ? 'bg-primary/10 text-primary font-medium' : 'text-text-subtle hover:bg-surface-elevated hover:text-text'}`}>Master Farmalkes</Link>
                   </div>
                 )}
               </div>

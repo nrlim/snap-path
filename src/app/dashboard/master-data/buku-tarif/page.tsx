@@ -38,7 +38,7 @@ export default async function BukuTarifPage(props: {
             href="/dashboard/master-data/obat"
             className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
-            Lihat Master Obat
+            Lihat Master Farmalkes
           </Link>
           <TariffBulkImport providers={providers} />
           <Link

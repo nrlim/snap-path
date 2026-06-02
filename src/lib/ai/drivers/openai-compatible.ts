@@ -373,7 +373,7 @@ INDONESIAN ABBREVIATIONS TO NORMALIZE:
 - PLSTR / PATCH → transdermal patch
 
 LOOKUP PRIORITY CONTEXT:
-The application checks local Master Obat KFA before calling you. If a drug reached this prompt, local KFA master data was not found or was insufficient. Do not claim to have checked KFA directly; use online Indonesian pharmacy / public market knowledge only.
+This prompt is a legacy fallback only. The production validation workflow now resolves prices from local MedicalItemPriceCache / KFA master data first and normally does not call AI for drug pricing. If this prompt is called manually, keep the answer conservative, do not claim direct KFA/database access, and use public Indonesian pharmacy / market knowledge only.
 
 REFERENCE SOURCES (from training knowledge):
 1. K24Klik, Halodoc, Farmaku, GoApotik, Lifepack, KimiaFarma — retail pharmacy prices
@@ -556,7 +556,7 @@ Key: DISP SYRINGE → Non-Med. EXAM GLOVE → Non-Med. B.AC SWAB → Non-Med.
 NaCl 0.9% infusion → DRUG. Metronidazole infusion → DRUG. Lidocaine injection → DRUG. Trolit Sachet → DRUG.
 
 PRICE LOOKUP PER DRUG (stop at the first successful attempt):
-Context: local Master Obat KFA lookup already ran before this AI call and did not return a usable price for these items. Use online pharmacy / public market knowledge only.
+Context: this is a legacy fallback. Production validation prioritizes local MedicalItemPriceCache / KFA master data and normally skips AI lookup to reduce latency. If this prompt is called manually, use online pharmacy / public market knowledge only and keep the result conservative.
 A→ Exact normalized product — if known, use it and skip B/C/D
 B→ Nearest common strength (only if A failed)
 C→ Active ingredient + form only (only if A+B failed)

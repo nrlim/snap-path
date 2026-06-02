@@ -262,22 +262,27 @@ model ClaimJob {
   @@index([workflowRunId])
 }
 
-// === DRUG PRICE CACHE ===
+// === MEDICAL ITEM PRICE MASTER/CACHE ===
 
-model DrugPriceCache {
+model MedicalItemPriceCache {
   id              String   @id @default(uuid())
-  drugName        String
-  drugGenericName String?
-  marketPriceMax  Float    // Highest market price found
+  itemName        String
+  itemGenericName String?
+  itemTypeCode    String?  // KFA type code: medicine, device, vaccine, supplement, herbal, etc.
+  itemTypeName    String?  // KFA type label: Obat, Alat Kesehatan, Vaksin, etc.
+  itemGroup       String?  // KFA group: farmasi, alkes, etc.
+  marketPriceMax  Float    // Highest reference price found
   marketPriceAvg  Float?
-  sources         Json     // Array of source URLs/names
+  sources         Json     // Array of source URLs/names/metadata
   currency        String   @default("IDR")
   fetchedAt       DateTime @default(now())
   expiresAt       DateTime // Cache TTL
   createdAt       DateTime @default(now())
 
-  @@index([drugName])
-  @@index([drugGenericName])
+  @@index([itemName])
+  @@index([itemGenericName])
+  @@index([itemTypeCode])
+  @@index([itemGroup])
 }
 
 // === CLINICAL PATHWAY TEMPLATES ===

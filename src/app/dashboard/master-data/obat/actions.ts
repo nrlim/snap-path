@@ -9,14 +9,14 @@ export async function getDrugPriceCacheEntries(params: { page?: number; limit?: 
   const now = new Date();
 
   const [entries, total, active, expired] = await Promise.all([
-    prisma.drugPriceCache.findMany({
+    prisma.medicalItemPriceCache.findMany({
       skip,
       take: limit,
       orderBy: { fetchedAt: "desc" },
     }),
-    prisma.drugPriceCache.count(),
-    prisma.drugPriceCache.count({ where: { expiresAt: { gt: now } } }),
-    prisma.drugPriceCache.count({ where: { expiresAt: { lte: now } } }),
+    prisma.medicalItemPriceCache.count(),
+    prisma.medicalItemPriceCache.count({ where: { expiresAt: { gt: now } } }),
+    prisma.medicalItemPriceCache.count({ where: { expiresAt: { lte: now } } }),
   ]);
 
   return {
