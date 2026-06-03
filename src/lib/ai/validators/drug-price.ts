@@ -4,6 +4,8 @@ import { getAIGateway } from '../gateway';
 
 const MASTER_DATA_SOURCE_TAG = 'master_data';
 const MASTER_MATCH_MIN_SCORE = 12;
+const AI_RESOLVER_BATCH_SIZE = 5;
+const AI_RESOLVER_CANDIDATE_LIMIT = 20;
 const COVERED_MEDICAL_ITEM_TYPE_CODES = new Set(['medicine', 'supplement', 'herbal', 'kuasi', 'vaccine', 'paket_obat', 'device', 'pkrt']);
 const COVERED_MEDICAL_ITEM_GROUPS = new Set(['farmasi', 'alkes']);
 const DRUG_SEARCH_STOPWORDS = new Set([
@@ -216,22 +218,36 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
   const resolverIndexes = medications.map((_, index) => index).filter((index) => !masterEntries[index] && !hasValidReferenceEntry(index));
   if (resolverIndexes.length > 0) {
     const gateway = await getAIGateway({ clientId: input.clientId, providerId, jobId });
-    await Promise.all(resolverIndexes.map(async (index) => {
+    const resolverRequests = (await Promise.all(resolverIndexes.map(async (index) => {
       const med = medications[index];
       const rankedCandidates = await getRankedMedicalItemCandidates(med, now, 50);
-      const candidates = rankedCandidates.map((item) => item.candidate).slice(0, 20);
-      if (candidates.length === 0) return;
+      const candidates = rankedCandidates.map((item) => item.candidate).slice(0, AI_RESOLVER_CANDIDATE_LIMIT);
+      if (candidates.length === 0) return null;
+      return { requestId: String(index), index, medication: med, candidates };
+    }))).filter((request): request is { requestId: string; index: number; medication: any; candidates: Awaited<ReturnType<typeof getMedicalItemCandidates>> } => Boolean(request));
+
+    for (let start = 0; start < resolverRequests.length; start += AI_RESOLVER_BATCH_SIZE) {
+      const batch = resolverRequests.slice(start, start + AI_RESOLVER_BATCH_SIZE);
+      const candidateByRequestId = new Map(batch.map((request) => [request.requestId, request.candidates]));
       try {
-        const resolved = await gateway.resolveMedicalItemMatch({ medication: med, diagnoses: input.diagnoses || [], candidates });
-        const selectedId = resolved.data?.selectedCandidateId;
-        const confidence = resolved.data?.confidence;
-        if (!selectedId || confidence === 'LOW') return;
-        const selected = candidates.find((candidate) => candidate.id === selectedId);
-        if (selected) resolverEntries[index] = buildFinalPriceFromMasterItem(selected);
+        const resolved = await gateway.resolveMedicalItemMatches({
+          diagnoses: input.diagnoses || [],
+          requests: batch.map(({ requestId, medication, candidates }) => ({ requestId, medication, candidates })),
+        });
+        const matches = Array.isArray(resolved.data?.matches) ? resolved.data.matches : [];
+        for (const match of matches) {
+          const requestId = String(match?.requestId ?? '');
+          const selectedId = match?.selectedCandidateId;
+          const confidence = match?.confidence;
+          if (!requestId || !selectedId || confidence === 'LOW') continue;
+          const selected = candidateByRequestId.get(requestId)?.find((candidate) => candidate.id === selectedId);
+          const targetIndex = Number(requestId);
+          if (selected && Number.isInteger(targetIndex)) resolverEntries[targetIndex] = buildFinalPriceFromMasterItem(selected);
+        }
       } catch (error) {
-        console.error(`[checkDrugPrices] Medical item resolver failed for ${med.name}:`, error);
+        console.error(`[checkDrugPrices] Bulk medical item resolver failed for ${batch.length} item(s):`, error);
       }
-    }));
+    }
   }
 
   type FinalPrice = {

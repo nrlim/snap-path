@@ -362,6 +362,57 @@ Rules:
     return { data: object, usage: usage as any };
   }
 
+  async resolveMedicalItemMatches(input: { requests: Array<{ requestId: string; medication: any; candidates: any[] }>; diagnoses: any[] }): Promise<{ data: any; usage?: Usage }> {
+    const schema = z.object({
+      matches: z.array(z.object({
+        requestId: z.string().describe('requestId from the input request.'),
+        selectedCandidateId: z.string().nullable().describe('Candidate id selected from that request candidates only, or null if no safe match.'),
+        confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+        reason: z.string().describe('Brief product-matching rationale. Do not mention external sources.'),
+      })),
+    });
+
+    const compactRequests = input.requests.slice(0, 12).map((request) => ({
+      requestId: request.requestId,
+      medication: {
+        name: request.medication?.name,
+        genericName: request.medication?.genericName,
+        dosage: request.medication?.dosage,
+        frequency: request.medication?.frequency,
+        duration: request.medication?.duration,
+      },
+      candidates: request.candidates.slice(0, 20).map((candidate: any) => ({
+        id: candidate.id,
+        itemName: candidate.itemName,
+        itemGenericName: candidate.itemGenericName,
+        itemTypeCode: candidate.itemTypeCode,
+        itemTypeName: candidate.itemTypeName,
+        itemGroup: candidate.itemGroup,
+      })),
+    }));
+
+    const { object, usage } = await generateObject({
+      model: this.ai(this.defaultModel),
+      schema,
+      experimental_repairText: repairJsonOnlyText,
+      system: `You are a conservative clinical pharmacy master-data matcher. You do NOT search external sources and you do NOT estimate prices. Your only task is to choose the best matching item from each request's provided local MedicalItemPriceMaster candidates.
+
+Rules:
+1. Return exactly one match object per requestId.
+2. Select only candidate.id from the same request. Never invent ids or products.
+3. Use diagnosis context only to avoid clinically implausible matches, not to force a match.
+4. Match by brand/generic name, active ingredient, strength/concentration, route, dosage form, and package volume when available.
+5. Prefer exact/near-exact brand or product-name matches over generic alternatives when both exist.
+6. Never match solely because dosage/strength/package numbers are similar. Example: PAMOL 500 MG TABLET must not resolve to PRIMEXA 500 unless brand/generic ingredient evidence also matches safely.
+7. If one request is ambiguous, different strength/volume, or no candidate is safe, return selectedCandidateId: null with LOW confidence for that request only.
+8. Prefer HIGH confidence only for exact or near-exact product/ingredient + strength/form matches.`,
+      prompt: `Diagnosis context: ${JSON.stringify(input.diagnoses || [])}\n\nRequests: ${JSON.stringify(compactRequests)}`,
+      temperature: 0,
+    });
+
+    return { data: object, usage: usage as any };
+  }
+
   async generateClinicalPathway(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
       estimatedLos: z.number(),

@@ -28,6 +28,7 @@ export interface AIGatewayDriver {
   
   validateDiagnosisTreatment(payload: any): Promise<{ data: any; usage?: Usage }>;
   resolveMedicalItemMatch?(input: { medication: any; diagnoses: any[]; candidates: any[] }): Promise<{ data: any; usage?: Usage }>;
+  resolveMedicalItemMatches?(input: { requests: Array<{ requestId: string; medication: any; candidates: any[] }>; diagnoses: any[] }): Promise<{ data: any; usage?: Usage }>;
   generateClinicalPathway(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }>;
   validateDocumentCompleteness(payload: any): Promise<{ data: any; usage?: Usage }>;
   mapArbitraryJsonToClaim(rawJson: any): Promise<{ data: any; usage?: Usage }>;
@@ -117,6 +118,23 @@ export class AIGateway {
   async resolveMedicalItemMatch(input: { medication: any; diagnoses: any[]; candidates: any[] }) {
     if (!this.driver.resolveMedicalItemMatch) return { data: { selectedCandidateId: null, confidence: 'LOW', reason: 'Resolver tidak tersedia.' } };
     return this.track('resolveMedicalItemMatch', () => this.driver.resolveMedicalItemMatch!(input));
+  }
+
+  async resolveMedicalItemMatches(input: { requests: Array<{ requestId: string; medication: any; candidates: any[] }>; diagnoses: any[] }) {
+    if (this.driver.resolveMedicalItemMatches) {
+      return this.track('resolveMedicalItemMatches', () => this.driver.resolveMedicalItemMatches!(input));
+    }
+
+    const matches = [];
+    for (const request of input.requests) {
+      if (!this.driver.resolveMedicalItemMatch) {
+        matches.push({ requestId: request.requestId, selectedCandidateId: null, confidence: 'LOW', reason: 'Resolver tidak tersedia.' });
+        continue;
+      }
+      const resolved = await this.driver.resolveMedicalItemMatch({ medication: request.medication, diagnoses: input.diagnoses, candidates: request.candidates });
+      matches.push({ requestId: request.requestId, ...resolved.data });
+    }
+    return { data: { matches } };
   }
 
   async generateClinicalPathway(diagnosisCode: string, diagnosisName: string) {
