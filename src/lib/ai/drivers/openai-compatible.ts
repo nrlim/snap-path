@@ -351,8 +351,10 @@ Rules:
 1. Select only candidate.id from the provided candidates. Never invent ids or products.
 2. Use diagnosis context only to avoid clinically implausible matches, not to force a match.
 3. Match by brand/generic name, active ingredient, strength/concentration, route, dosage form, and package volume when available.
-4. If the medication is ambiguous, different strength/volume, or no candidate is safe, return selectedCandidateId: null with LOW confidence.
-5. Prefer HIGH confidence only for exact or near-exact product/ingredient + strength/form matches.`,
+4. Prefer exact/near-exact brand or product-name matches over generic alternatives when both exist.
+5. Never match solely because dosage/strength/package numbers are similar. Example: PAMOL 500 MG TABLET must not resolve to PRIMEXA 500 unless brand/generic ingredient evidence also matches safely.
+6. If the medication is ambiguous, different strength/volume, or no candidate is safe, return selectedCandidateId: null with LOW confidence.
+7. Prefer HIGH confidence only for exact or near-exact product/ingredient + strength/form matches.`, 
       prompt: `Medication to resolve:\n${JSON.stringify(input.medication, null, 2)}\n\nDiagnosis context:\n${JSON.stringify(input.diagnoses || [], null, 2)}\n\nLocal master candidates:\n${JSON.stringify(compactCandidates, null, 2)}`,
       temperature: 0,
     });

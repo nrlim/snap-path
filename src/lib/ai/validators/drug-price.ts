@@ -9,8 +9,10 @@ const COVERED_MEDICAL_ITEM_GROUPS = new Set(['farmasi', 'alkes']);
 const DRUG_SEARCH_STOPWORDS = new Set([
   'inj', 'injeksi', 'inf', 'infus', 'tablet', 'tab', 'kaps', 'kap', 'capsule', 'cap',
   'amp', 'ampul', 'vial', 'vl', 'sirup', 'syrup', 'syr', 'susp', 'cream', 'krim',
-  'salep', 'gel', 'strip', 'pcs', 'unit', 'botol', 'btl', 'ml', 'mg', 'gram', 'gr',
+  'salep', 'gel', 'strip', 'pcs', 'unit', 'botol', 'btl', 'ml', 'mg', 'mcg', 'g', 'gram', 'gr',
+  'iu', 'ui', 'meq', 'persen', 'percent', 'oral', 'iv', 'im', 'sc', 'supp', 'suppositoria',
 ]);
+const DRUG_SHORT_NAME_TOKENS = new Set(['rl', 'ns', 'd5', 'd10', 'kcl', 'nacl']);
 
 function getJsonStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -24,39 +26,80 @@ function normalizeSearchText(value: unknown): string {
     .trim();
 }
 
+function tokenizeSearchText(value: unknown): string[] {
+  const normalized = normalizeSearchText(value);
+  if (!normalized) return [];
+  return normalized.split(' ').filter(Boolean);
+}
+
+function getLexicalDrugTokens(value: unknown): string[] {
+  return Array.from(new Set(tokenizeSearchText(value).filter((token) => {
+    if (DRUG_SEARCH_STOPWORDS.has(token)) return false;
+    if (/^\d+(?:\.\d+)?$/.test(token)) return false;
+    if (/^[a-z]+\d+$/.test(token)) return DRUG_SHORT_NAME_TOKENS.has(token);
+    return token.length >= 3 || DRUG_SHORT_NAME_TOKENS.has(token);
+  })));
+}
+
+function normalizeDrugProductText(value: unknown): string {
+  return tokenizeSearchText(value)
+    .filter((token) => !DRUG_SEARCH_STOPWORDS.has(token))
+    .join(' ');
+}
+
 function isMeaningfulReferencePrice(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 100;
 }
 
 function getBestReferencePrice(...prices: unknown[]): number {
-  const meaningfulPrices = prices.filter(isMeaningfulReferencePrice);
-  return meaningfulPrices.length > 0 ? Math.max(...meaningfulPrices) : 0;
+  const firstMeaningfulPrice = prices.find(isMeaningfulReferencePrice);
+  return firstMeaningfulPrice ?? 0;
 }
 
 function getSearchTokens(med: any): string[] {
-  const normalized = normalizeSearchText(`${med.name || ''} ${med.genericName || ''}`);
-  return Array.from(new Set(normalized.split(' ').filter((token) => token.length >= 3 && !DRUG_SEARCH_STOPWORDS.has(token)))).slice(0, 5);
+  const lexicalTokens = [
+    ...getLexicalDrugTokens(med.name),
+    ...getLexicalDrugTokens(med.genericName),
+  ];
+  return Array.from(new Set(lexicalTokens)).slice(0, 6);
+}
+
+function hasLexicalDrugTokenOverlap(med: any, candidate: { itemName: string; itemGenericName: string | null }) {
+  const medNameTokens = getLexicalDrugTokens(med.name);
+  const medGenericTokens = getLexicalDrugTokens(med.genericName);
+  const candidateNameTokens = getLexicalDrugTokens(candidate.itemName);
+  const candidateGenericTokens = getLexicalDrugTokens(candidate.itemGenericName || '');
+  const candidateAllTokens = new Set([...candidateNameTokens, ...candidateGenericTokens]);
+
+  return [...medNameTokens, ...medGenericTokens].some((token) => candidateAllTokens.has(token));
 }
 
 function scoreMasterDrugCandidate(med: any, candidate: { itemName: string; itemGenericName: string | null; itemTypeCode: string | null; itemGroup: string | null; sources: unknown }) {
   const sources = getJsonStringArray(candidate.sources);
   if (!sources.some((source) => source.includes(MASTER_DATA_SOURCE_TAG))) return -1;
 
-  const medText = normalizeSearchText(`${med.name || ''} ${med.genericName || ''}`);
-  const candidateName = normalizeSearchText(candidate.itemName);
-  const candidateGeneric = normalizeSearchText(candidate.itemGenericName || '');
+  const medName = normalizeDrugProductText(med.name);
+  const medGeneric = normalizeDrugProductText(med.genericName || '');
+  const medText = `${medName} ${medGeneric}`.trim();
+  const candidateName = normalizeDrugProductText(candidate.itemName);
+  const candidateGeneric = normalizeDrugProductText(candidate.itemGenericName || '');
   const candidateText = `${candidateName} ${candidateGeneric}`.trim();
   const tokens = getSearchTokens(med);
+  const hasLexicalOverlap = hasLexicalDrugTokenOverlap(med, candidate);
+
+  // Never resolve a drug using dosage/strength/package tokens only. Example:
+  // "PAMOL 500 MG TABLET" must not match "PRIMEXA 500" just because both contain 500.
+  if (!hasLexicalOverlap && medName !== candidateName && (!medGeneric || medGeneric !== candidateGeneric)) return -1;
 
   let score = 0;
-  if (candidateName === normalizeSearchText(med.name)) score += 100;
-  if (candidateGeneric && candidateGeneric === normalizeSearchText(med.genericName)) score += 80;
-  if (candidateText.includes(medText) || medText.includes(candidateName)) score += 45;
+  if (candidateName === medName) score += 120;
+  if (medGeneric && candidateGeneric && candidateGeneric === medGeneric) score += 90;
+  if (medText && (candidateText.includes(medText) || medText.includes(candidateName))) score += 45;
   if (normalizeSearchText(candidate.itemGroup || '') === 'farmasi') score += 6;
   if (normalizeSearchText(candidate.itemTypeCode || '') === 'medicine') score += 6;
   for (const token of tokens) {
-    if (candidateName.includes(token)) score += 12;
-    if (candidateGeneric.includes(token)) score += 8;
+    if (candidateName.split(' ').includes(token)) score += 16;
+    if (candidateGeneric.split(' ').includes(token)) score += 12;
   }
 
   return score;
@@ -79,23 +122,31 @@ async function getMedicalItemCandidates(med: any, now: Date, take = 50) {
   });
 }
 
+async function getRankedMedicalItemCandidates(med: any, now: Date, take = 50) {
+  const candidates = await getMedicalItemCandidates(med, now, take);
+  return candidates
+    .map((candidate) => ({ candidate, score: scoreMasterDrugCandidate(med, candidate) }))
+    .filter((item) => item.score >= MASTER_MATCH_MIN_SCORE)
+    .sort((a, b) => b.score - a.score);
+}
+
+function isDeterministicMasterMatch(rankedCandidates: Awaited<ReturnType<typeof getRankedMedicalItemCandidates>>) {
+  const best = rankedCandidates[0];
+  if (!best) return false;
+
+  const secondBestScore = rankedCandidates[1]?.score ?? 0;
+  const scoreMargin = best.score - secondBestScore;
+
+  // Exact/near-exact brand or generic matches are safe without AI. We avoid
+  // auto-picking weak multi-candidate matches, so AI can resolve ambiguity.
+  return best.score >= 100 || (best.score >= 40 && scoreMargin >= 25);
+}
+
 async function findMedicalMasterItemPrice(med: any, now: Date) {
-  const candidates = await getMedicalItemCandidates(med, now, 50);
-  if (candidates.length === 0) return null;
+  const rankedCandidates = await getRankedMedicalItemCandidates(med, now, 50);
+  if (!isDeterministicMasterMatch(rankedCandidates)) return null;
 
-  let best: (typeof candidates)[number] | null = null;
-  let bestScore = 0;
-  for (const candidate of candidates) {
-    const score = scoreMasterDrugCandidate(med, candidate);
-    if (score > bestScore) {
-      best = candidate;
-      bestScore = score;
-    }
-  }
-
-  if (!best || bestScore < MASTER_MATCH_MIN_SCORE || best.marketPriceMax <= 0) return null;
-
-  return buildFinalPriceFromMasterItem(best);
+  return buildFinalPriceFromMasterItem(rankedCandidates[0].candidate);
 }
 
 function buildFinalPriceFromMasterItem(best: Awaited<ReturnType<typeof getMedicalItemCandidates>>[number]) {
@@ -167,7 +218,8 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
     const gateway = await getAIGateway({ clientId: input.clientId, providerId, jobId });
     await Promise.all(resolverIndexes.map(async (index) => {
       const med = medications[index];
-      const candidates = await getMedicalItemCandidates(med, now, 20);
+      const rankedCandidates = await getRankedMedicalItemCandidates(med, now, 50);
+      const candidates = rankedCandidates.map((item) => item.candidate).slice(0, 20);
       if (candidates.length === 0) return;
       try {
         const resolved = await gateway.resolveMedicalItemMatch({ medication: med, diagnoses: input.diagnoses || [], candidates });
