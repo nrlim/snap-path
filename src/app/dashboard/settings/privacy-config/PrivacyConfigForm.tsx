@@ -70,20 +70,21 @@ export default function PrivacyConfigForm({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-          Konfigurasi Privasi & PII AI
+        <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Settings</p>
+        <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">
+          Privacy & PII Configuration
         </h1>
-        <p className="text-sm text-text-subtle mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Kelola kata kunci (patterns) yang harus disensor (redacted) dan konteks medis yang aman (whitelist) untuk diteruskan ke AI. Scope aktif: {scope === 'client' ? `Client ${scopeName}` : 'Global platform'}.
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* REDACT PATTERNS */}
-        <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden flex flex-col">
-          <div className="px-5 py-4 border-b border-border/50 bg-surface-elevated/20">
-            <h2 className="text-base font-semibold text-text">Data Disensor (Redacted)</h2>
-            <p className="text-xs text-text-subtle mt-1">
+        <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-border bg-muted/50">
+            <h2 className="text-base font-medium text-foreground">Data Disensor (Redacted)</h2>
+            <p className="text-xs text-muted-foreground mt-1">
               Field JSON yang mengandung kata-kata ini akan nilainya diganti dengan [REDACTED].
             </p>
           </div>
@@ -95,7 +96,7 @@ export default function PrivacyConfigForm({
                 onChange={e => setNewRedact(e.target.value)}
                 onKeyDown={e => handleAddPattern(e, 'redact')}
                 placeholder="Contoh: kodepos"
-                className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="flex-1 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <button 
                 type="button" 
@@ -120,10 +121,10 @@ export default function PrivacyConfigForm({
         </div>
 
         {/* SAFE CONTEXTS */}
-        <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden flex flex-col">
-          <div className="px-5 py-4 border-b border-border/50 bg-surface-elevated/20">
-            <h2 className="text-base font-semibold text-text">Konteks Aman (Whitelist)</h2>
-            <p className="text-xs text-text-subtle mt-1">
+        <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-border bg-muted/50">
+            <h2 className="text-base font-medium text-foreground">Konteks Aman (Whitelist)</h2>
+            <p className="text-xs text-muted-foreground mt-1">
               Bypass aturan sensor di atas jika nama field mengandung konteks medis ini (contoh: diagnosisName).
             </p>
           </div>
@@ -135,7 +136,7 @@ export default function PrivacyConfigForm({
                 onChange={e => setNewSafe(e.target.value)}
                 onKeyDown={e => handleAddPattern(e, 'safe')}
                 placeholder="Contoh: labResult"
-                className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                className="flex-1 rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
               <button 
                 type="button" 
@@ -163,7 +164,7 @@ export default function PrivacyConfigForm({
       <div className="flex items-center justify-end pt-4">
         <button 
           onClick={handleSubmit} 
-          className="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm shadow-primary/30 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2"
+          className="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm  transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2"
         >
           Simpan Konfigurasi Privasi
         </button>

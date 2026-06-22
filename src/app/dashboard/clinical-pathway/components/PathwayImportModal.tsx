@@ -199,7 +199,7 @@ export default function PathwayImportModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border/80 px-6 py-4 flex-shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-text flex items-center gap-2">
+            <h2 className="text-lg font-medium text-text flex items-center gap-2">
               <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 1-6.23-.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
               </svg>
@@ -261,10 +261,10 @@ export default function PathwayImportModal({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
                   </svg>
                 </div>
-                <p className="text-sm font-semibold text-text mb-1">{isDragging ? "Lepaskan file di sini" : "Drag & drop JSON file"}</p>
+                <p className="text-sm font-medium text-text mb-1">{isDragging ? "Lepaskan file di sini" : "Drag & drop JSON file"}</p>
                 <p className="text-xs text-text-subtle mb-4">atau klik untuk memilih file · Format: .json</p>
                 <div className="mb-4 w-full max-w-md rounded-xl border border-border/70 bg-surface/80 p-3 text-left text-xs text-text-subtle">
-                  <p className="font-semibold text-text">Auto-detect import</p>
+                  <p className="font-medium text-text">Auto-detect import</p>
                   <p className="mt-1 leading-relaxed">Jika JSON sudah memakai struktur SnapPath, data langsung dipakai tanpa request AI. Jika strukturnya general/custom, sistem otomatis menjalankan AI mapping.</p>
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-hover transition-colors pointer-events-none">
@@ -275,7 +275,7 @@ export default function PathwayImportModal({
               </div>
 
               <div className="mt-4 rounded-lg bg-primary/5 border border-primary/15 p-4 text-xs text-text-subtle leading-relaxed">
-                <p className="font-semibold text-primary mb-1">Satu alur import</p>
+                <p className="font-medium text-primary mb-1">Satu alur import</p>
                 Struktur standar SnapPath diproses langsung. FHIR R4, HL7 v2, export SIMRS/SIRS custom, BPJS SEP, atau JSON hospital lain akan otomatis dipetakan dengan AI.
               </div>
             </div>
@@ -294,7 +294,7 @@ export default function PathwayImportModal({
                 </div>
               </div>
               <div className="text-center">
-                <p className="font-semibold text-text mb-1">{importMode === "ai" ? "AI sedang memproses..." : "Membaca JSON secara langsung..."}</p>
+                <p className="font-medium text-text mb-1">{importMode === "ai" ? "AI sedang memproses..." : "Membaca JSON secara langsung..."}</p>
                 <p className="text-sm text-text-subtle animate-pulse">{importMode === "ai" ? processingMsg : "Menyalin field standar tanpa AI mapping"}</p>
               </div>
               <div className="text-xs text-text-faint text-center max-w-xs">
@@ -308,7 +308,7 @@ export default function PathwayImportModal({
             <div className="p-6 space-y-5">
               {mapped._mappingNotes && (
                 <div className="rounded-lg bg-primary/5 border border-primary/15 px-4 py-3 text-xs text-text-subtle">
-                  <span className="font-semibold text-primary">AI Mapping Notes: </span>
+                  <span className="font-medium text-primary">AI Mapping Notes: </span>
                   {mapped._mappingNotes}
                 </div>
               )}
@@ -316,7 +316,7 @@ export default function PathwayImportModal({
               {/* Patient Summary */}
               <div className="rounded-lg border border-border/80 overflow-hidden">
                 <div className="bg-surface-elevated/50 px-4 py-2.5 border-b border-border/60">
-                  <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Identitas Pasien</p>
+                  <p className="text-xs font-medium text-text-subtle uppercase tracking-wider">Identitas Pasien</p>
                 </div>
                 <div className="px-4 py-3 grid grid-cols-[120px_1fr] gap-x-3 gap-y-1.5 text-sm">
                   <span className="text-text-subtle">Nama</span><span className="font-medium text-text">{mapped.patient?.name || "—"}</span>
@@ -332,13 +332,13 @@ export default function PathwayImportModal({
               {mapped.diagnoses?.length > 0 && (
                 <div className="rounded-lg border border-border/80 overflow-hidden">
                   <div className="bg-surface-elevated/50 px-4 py-2.5 border-b border-border/60 flex items-center justify-between">
-                    <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Diagnosis</p>
+                    <p className="text-xs font-medium text-text-subtle uppercase tracking-wider">Diagnosis</p>
                     <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">{mapped.diagnoses.length} item</span>
                   </div>
                   <div className="divide-y divide-border/50">
                     {mapped.diagnoses.map((d, i) => (
                       <div key={i} className="px-4 py-2.5 flex items-center gap-3 text-sm">
-                        <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{d.code}</span>
+                        <span className="font-mono text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded">{d.code}</span>
                         <span className="flex-1 text-text">{d.name}</span>
                         <span className="text-xs text-text-faint capitalize">{d.type}</span>
                       </div>
@@ -351,7 +351,7 @@ export default function PathwayImportModal({
               {mapped.procedures?.length > 0 && (
                 <div className="rounded-lg border border-border/80 overflow-hidden">
                   <div className="bg-surface-elevated/50 px-4 py-2.5 border-b border-border/60 flex items-center justify-between">
-                    <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Tindakan / Prosedur</p>
+                    <p className="text-xs font-medium text-text-subtle uppercase tracking-wider">Tindakan / Prosedur</p>
                     <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">{mapped.procedures.length} item</span>
                   </div>
                   <div className="divide-y divide-border/50">
@@ -371,7 +371,7 @@ export default function PathwayImportModal({
               {mapped.medications?.length > 0 && (
                 <div className="rounded-lg border border-border/80 overflow-hidden">
                   <div className="bg-surface-elevated/50 px-4 py-2.5 border-b border-border/60 flex items-center justify-between">
-                    <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Obat / Medikamentosa</p>
+                    <p className="text-xs font-medium text-text-subtle uppercase tracking-wider">Obat / Medikamentosa</p>
                     <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">{mapped.medications.length} item</span>
                   </div>
                   <div className="divide-y divide-border/50">
@@ -390,13 +390,13 @@ export default function PathwayImportModal({
               {mapped.documents?.length > 0 && (
                 <div className="rounded-lg border border-border/80 overflow-hidden">
                   <div className="bg-surface-elevated/50 px-4 py-2.5 border-b border-border/60 flex items-center justify-between">
-                    <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Dokumen Pendukung</p>
+                    <p className="text-xs font-medium text-text-subtle uppercase tracking-wider">Dokumen Pendukung</p>
                     <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">{mapped.documents.length} item</span>
                   </div>
                   <div className="divide-y divide-border/50">
                     {mapped.documents.map((d, i) => (
                       <div key={i} className="px-4 py-3 flex flex-col gap-1 text-sm">
-                        <span className="font-semibold text-text">{d.type}</span>
+                        <span className="font-medium text-text">{d.type}</span>
                         <span className="text-text-subtle text-xs">{d.conclusion || "—"}</span>
                       </div>
                     ))}
@@ -415,7 +415,7 @@ export default function PathwayImportModal({
                 </svg>
               </div>
               <div>
-                <p className="font-semibold text-text mb-1">AI Mapping Gagal</p>
+                <p className="font-medium text-text mb-1">AI Mapping Gagal</p>
                 <p className="text-sm text-text-subtle max-w-sm">{error}</p>
               </div>
             </div>

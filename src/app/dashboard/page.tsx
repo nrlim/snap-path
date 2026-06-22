@@ -128,15 +128,15 @@ function getPatientName(inputPayload: unknown) {
 function getStatusTone(status: string) {
   switch (status) {
     case 'COMPLETED':
-      return 'bg-green-500/10 text-green-700 ring-green-600/20'
+      return 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
     case 'FAILED':
-      return 'bg-red-500/10 text-red-700 ring-red-600/20'
+      return 'bg-red-50 text-red-700 ring-red-600/20'
     case 'PROCESSING':
     case 'PRE_PROCESSING':
     case 'POST_PROCESSING':
-      return 'bg-sky-500/10 text-sky-700 ring-sky-600/20'
+      return 'bg-indigo-50 text-indigo-700 ring-indigo-600/20'
     default:
-      return 'bg-orange-500/10 text-orange-700 ring-orange-600/20'
+      return 'bg-amber-50 text-amber-700 ring-amber-600/20'
   }
 }
 
@@ -235,162 +235,162 @@ export default async function DashboardPage(props: {
     return { ...item, x, y }
   })
   const chartLinePoints = chartCoordinates.map((item) => `${item.x},${item.y}`).join(' ')
-  const chartAreaPoints = chartCoordinates.length > 0
-    ? `${chartPadding},${chartHeight - chartPadding} ${chartLinePoints} ${chartWidth - chartPadding},${chartHeight - chartPadding}`
-    : ''
   const trendTotal = trendPoints.reduce((sum, item) => sum + item.count, 0)
 
   const summaryCards = [
-    { label: 'Validasi bulan ini', value: formatNumber(monthJobs.length), helper: `${completedJobs} selesai, ${inProgressJobs} berjalan`, tone: 'text-primary' },
-    { label: 'Skor rata-rata', value: scores.length ? `${Math.round(averageScore)}/100` : 'Belum ada', helper: 'Rata-rata hasil validasi klaim', tone: 'text-secondary' },
-    { label: 'Kuota request tersedia', value: isSuperAdmin ? '∞' : formatRequestQuota(requestBalance), helper: isSuperAdmin ? 'Super admin tidak dibatasi kuota request' : 'Berkurang 1 setiap request validasi', tone: 'text-text' },
+    { label: 'Validasi bulan ini', value: formatNumber(monthJobs.length), helper: `${completedJobs} selesai, ${inProgressJobs} berjalan`, tone: 'text-foreground' },
+    { label: 'Skor rata-rata', value: scores.length ? `${Math.round(averageScore)}/100` : 'Belum ada', helper: 'Rata-rata hasil validasi klaim', tone: 'text-foreground' },
+    { label: 'Kuota request tersedia', value: isSuperAdmin ? '∞' : formatRequestQuota(requestBalance), helper: isSuperAdmin ? 'Super admin tidak dibatasi kuota request' : 'Berkurang 1 setiap request validasi', tone: 'text-foreground' },
     ...(isPlatformAdmin ? [
-      { label: 'Estimasi pemakaian layanan', value: `${formatUsd(serviceUsageCostUsd)} / ${formatCurrency(serviceUsageCostIdr)}`, helper: `${formatNumber(totalTokens)} unit pemrosesan`, tone: 'text-accent-foreground' },
-      { label: 'Credit tersedia', value: formatCredit(creditBalance), helper: `Berkurang sesuai estimasi pemakaian AI`, tone: 'text-text' },
+      { label: 'Estimasi pemakaian layanan', value: `${formatUsd(serviceUsageCostUsd)} / ${formatCurrency(serviceUsageCostIdr)}`, helper: `${formatNumber(totalTokens)} unit pemrosesan`, tone: 'text-foreground' },
+      { label: 'Credit tersedia', value: formatCredit(creditBalance), helper: `Berkurang sesuai estimasi pemakaian AI`, tone: 'text-foreground' },
     ] : []),
   ]
 
   return (
     <div className="space-y-6">
-      <section className="overflow-hidden rounded-2xl border border-primary/15 bg-surface-elevated/90 shadow-sm shadow-primary/10 backdrop-blur-sm">
-        <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[1.5fr_1fr] lg:p-8">
+      <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="grid gap-6 p-6 lg:grid-cols-[1.5fr_1fr] lg:p-8">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary">Dashboard Operasional</p>
-            <h1 className="mt-2 max-w-3xl text-2xl font-bold tracking-tight text-text sm:text-3xl">
-              Ringkasan validasi klaim dan kesiapan data bulan ini.
+            <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Dashboard Operasional</p>
+            <h1 className="mt-4 max-w-3xl text-2xl font-light tracking-tight text-foreground sm:text-3xl">
+              Ringkasan validasi klaim dan <span className="font-medium text-primary">kesiapan data bulan ini.</span>
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-text-subtle">
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground font-light">
               Pantau volume workflow, kualitas hasil validasi, kuota request, dan kesiapan master data tanpa menampilkan detail teknis engine internal.
             </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Link href="/dashboard/clinical-pathway" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-primary/25 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Link href="/dashboard/clinical-pathway" className="inline-flex min-h-11 items-center justify-center rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus:outline-none">
                 Buka Clinical Pathway
               </Link>
-              <Link href="/dashboard/master-data/buku-tarif" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text focus:outline-none focus:ring-2 focus:ring-primary/30">
+              <Link href="/dashboard/master-data/buku-tarif" className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-card px-5 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus:outline-none">
                 Cek Master Data
               </Link>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/80 bg-surface p-4">
-            <div className="flex items-center justify-between gap-3">
+          <div className="rounded-xl border border-border bg-background p-5">
+            <div className="flex items-center justify-between gap-3 border-b border-border pb-4 mb-4">
               <div>
-                <p className="text-sm font-semibold text-text">Status bulan berjalan</p>
-                <p className="mt-1 text-xs text-text-subtle">Periode {new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(now)}</p>
+                <p className="text-sm font-medium text-foreground">Status bulan berjalan</p>
+                <p className="mt-1 text-xs text-muted-foreground font-light">Periode {new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(now)}</p>
               </div>
-              <span className="rounded-full bg-primary-soft px-3 py-1 text-xs font-bold text-primary ring-1 ring-primary/15">Aktif</span>
+              <span className="rounded-sm bg-emerald-50 px-2 py-1 text-[10px] font-medium text-emerald-700 ring-1 ring-emerald-600/20 uppercase tracking-widest">Aktif</span>
             </div>
-            <div className="mt-5 grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl bg-green-500/10 p-3">
-                <p className="text-lg font-bold tabular-nums text-green-700">{completedJobs}</p>
-                <p className="text-[11px] font-medium text-green-700">Selesai</p>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-2xl font-light tabular-nums text-foreground">{completedJobs}</p>
+                <p className="mt-1 text-xs font-medium text-muted-foreground">Selesai</p>
               </div>
-              <div className="rounded-xl bg-sky-500/10 p-3">
-                <p className="text-lg font-bold tabular-nums text-sky-700">{inProgressJobs}</p>
-                <p className="text-[11px] font-medium text-sky-700">Berjalan</p>
+              <div>
+                <p className="text-2xl font-light tabular-nums text-foreground">{inProgressJobs}</p>
+                <p className="mt-1 text-xs font-medium text-muted-foreground">Berjalan</p>
               </div>
-              <div className="rounded-xl bg-red-500/10 p-3">
-                <p className="text-lg font-bold tabular-nums text-red-700">{failedJobs}</p>
-                <p className="text-[11px] font-medium text-red-700">Gagal</p>
+              <div>
+                <p className="text-2xl font-light tabular-nums text-foreground">{failedJobs}</p>
+                <p className="mt-1 text-xs font-medium text-muted-foreground">Gagal</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card) => (
-          <div key={card.label} className="rounded-xl border border-border/80 bg-surface p-4 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wider text-text-faint">{card.label}</p>
-            <p className={`mt-2 text-2xl font-bold tabular-nums ${card.tone}`}>{card.value}</p>
-            <p className="mt-2 text-xs leading-5 text-text-subtle">{card.helper}</p>
+          <div key={card.label} className="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">{card.label}</p>
+            <p className={`mt-3 text-3xl font-light tabular-nums ${card.tone}`}>{card.value}</p>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground font-light pt-3 border-t border-border/50">{card.helper}</p>
           </div>
         ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.2fr]">
-        <div className="rounded-xl border border-border/80 bg-surface p-5 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_1.2fr]">
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm flex flex-col">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between border-b border-border pb-4">
             <div>
-              <h2 className="text-base font-bold text-text">Tren workflow</h2>
-              <p className="mt-1 text-sm text-text-subtle">{trendTotal} validasi dalam {trendMode === 'monthly' ? '30 hari terakhir' : '7 hari terakhir'}.</p>
+              <h2 className="text-lg font-medium text-foreground">Tren Workflow</h2>
+              <p className="mt-1 text-sm text-muted-foreground font-light">{trendTotal} validasi dalam {trendMode === 'monthly' ? '30 hari terakhir' : '7 hari terakhir'}.</p>
             </div>
-            <div className="inline-flex rounded-full border border-border bg-surface-elevated p-1">
-              <Link href="/dashboard?trend=weekly" className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${trendMode === 'weekly' ? 'bg-primary text-white shadow-sm' : 'text-text-subtle hover:text-text'}`}>Mingguan</Link>
-              <Link href="/dashboard?trend=monthly" className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${trendMode === 'monthly' ? 'bg-primary text-white shadow-sm' : 'text-text-subtle hover:text-text'}`}>Bulanan</Link>
+            <div className="inline-flex rounded-md border border-border bg-background p-1">
+              <Link href="/dashboard?trend=weekly" className={`rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${trendMode === 'weekly' ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Mingguan</Link>
+              <Link href="/dashboard?trend=monthly" className={`rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${trendMode === 'monthly' ? 'bg-foreground text-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>Bulanan</Link>
             </div>
           </div>
-          <div className="mt-6 rounded-2xl border border-border/60 bg-surface-elevated/40 p-4" aria-label={`Grafik workflow ${trendMode === 'monthly' ? 'bulanan' : 'mingguan'}`}>
+          
+          <div className="mt-6 flex-1 rounded-xl border border-border bg-background p-5" aria-label={`Grafik workflow ${trendMode === 'monthly' ? 'bulanan' : 'mingguan'}`}>
             <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-44 w-full overflow-visible" role="img" aria-label="Line chart jumlah workflow validasi">
-              <defs>
-                <linearGradient id="workflowTrendArea" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-primary)" stopOpacity="0.24" />
-                  <stop offset="100%" stopColor="var(--color-primary)" stopOpacity="0.02" />
-                </linearGradient>
-              </defs>
+              {/* Horizontal Grid lines */}
               {[0, 1, 2, 3].map((line) => {
                 const y = chartPadding + (line * ((chartHeight - chartPadding * 2) / 3))
-                return <line key={line} x1={chartPadding} x2={chartWidth - chartPadding} y1={y} y2={y} stroke="var(--color-border)" strokeWidth="1" strokeDasharray="4 6" />
+                return <line key={line} x1={chartPadding} x2={chartWidth - chartPadding} y1={y} y2={y} stroke="var(--color-border)" strokeWidth="1" strokeDasharray="2 4" />
               })}
-              {chartAreaPoints && <polygon points={chartAreaPoints} fill="url(#workflowTrendArea)" />}
-              {chartLinePoints && <polyline points={chartLinePoints} fill="none" stroke="var(--color-primary)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+              
+              {/* Line and dots */}
+              {chartLinePoints && <polyline points={chartLinePoints} fill="none" stroke="var(--color-foreground)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
               {chartCoordinates.map((item, index) => (
                 <g key={`${item.label}-${index}`}>
-                  <circle cx={item.x} cy={item.y} r="4" fill="var(--color-surface)" stroke="var(--color-primary)" strokeWidth="2.5" />
+                  {/* Vertical line connecting dot to bottom */}
+                  <line x1={item.x} y1={chartHeight - chartPadding} x2={item.x} y2={item.y} stroke="var(--color-border)" strokeWidth="1" />
+                  {/* The dot */}
+                  <circle cx={item.x} cy={item.y} r="3.5" fill="var(--color-card)" stroke="var(--color-foreground)" strokeWidth="2" />
+                  
+                  {/* X-Axis labels */}
                   {(trendMode === 'weekly' || index === 0 || index === chartCoordinates.length - 1 || index % 7 === 0) && (
-                    <text x={item.x} y={chartHeight + 6} textAnchor="middle" className="fill-[var(--color-text-subtle)] text-[10px] font-medium">{item.label}</text>
+                    <text x={item.x} y={chartHeight + 8} textAnchor="middle" className="fill-[var(--color-muted-foreground)] text-[10px] font-mono">{item.label}</text>
                   )}
                 </g>
               ))}
             </svg>
-            <div className="mt-5 grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl bg-surface p-3 ring-1 ring-border/70">
-                <p className="text-xs text-text-subtle">Total</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-text">{trendTotal}</p>
-              </div>
-              <div className="rounded-xl bg-surface p-3 ring-1 ring-border/70">
-                <p className="text-xs text-text-subtle">Tertinggi</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-primary">{maxTrendCount}</p>
-              </div>
-              <div className="rounded-xl bg-surface p-3 ring-1 ring-border/70">
-                <p className="text-xs text-text-subtle">Rata-rata</p>
-                <p className="mt-1 text-lg font-bold tabular-nums text-secondary">{(trendTotal / trendDays).toFixed(1)}</p>
-              </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-3 gap-4 text-center">
+            <div className="rounded-lg bg-background p-3 border border-border">
+              <p className="text-[10px] font-mono uppercase text-muted-foreground">Total</p>
+              <p className="mt-1.5 text-xl font-medium tabular-nums text-foreground">{trendTotal}</p>
+            </div>
+            <div className="rounded-lg bg-background p-3 border border-border">
+              <p className="text-[10px] font-mono uppercase text-muted-foreground">Tertinggi</p>
+              <p className="mt-1.5 text-xl font-medium tabular-nums text-foreground">{maxTrendCount}</p>
+            </div>
+            <div className="rounded-lg bg-background p-3 border border-border">
+              <p className="text-[10px] font-mono uppercase text-muted-foreground">Rata-rata</p>
+              <p className="mt-1.5 text-xl font-medium tabular-nums text-foreground">{(trendTotal / trendDays).toFixed(1)}</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-border/80 bg-surface shadow-sm">
-          <div className="flex items-center justify-between gap-3 border-b border-border/60 p-5">
+        <div className="rounded-xl border border-border bg-card shadow-sm flex flex-col">
+          <div className="flex items-center justify-between gap-3 border-b border-border p-6">
             <div>
-              <h2 className="text-base font-bold text-text">Aktivitas terbaru</h2>
-              <p className="mt-1 text-sm text-text-subtle">Ringkasan klaim terakhir yang diproses.</p>
+              <h2 className="text-lg font-medium text-foreground">Aktivitas Terbaru</h2>
+              <p className="mt-1 text-sm text-muted-foreground font-light">Ringkasan klaim terakhir yang diproses.</p>
             </div>
-            <Link href="/dashboard/clinical-pathway" className="text-sm font-semibold text-primary hover:text-primary-hover">Lihat semua</Link>
+            <Link href="/dashboard/clinical-pathway" className="text-sm font-medium text-foreground hover:underline">Lihat semua →</Link>
           </div>
-          <div className="divide-y divide-border/60">
+          <div className="divide-y divide-border">
             {recentJobs.length === 0 ? (
-              <div className="p-8 text-center">
-                <p className="text-sm font-semibold text-text">Belum ada aktivitas</p>
-                <p className="mt-1 text-sm text-text-subtle">Mulai validasi klaim untuk melihat histori workflow di sini.</p>
+              <div className="p-8 text-center flex-1 flex flex-col justify-center">
+                <p className="text-sm font-medium text-foreground">Belum ada aktivitas</p>
+                <p className="mt-1 text-sm text-muted-foreground font-light">Mulai validasi klaim untuk melihat histori workflow di sini.</p>
               </div>
             ) : recentJobs.map((rawJob) => {
               const job = applyClaimDisplayMetadataToJob(rawJob)
               const score = getDisplayScore(job.outputResult)
               return (
-                <Link key={job.id} href={`/dashboard/clinical-pathway/${job.id}`} className="block p-4 transition-colors hover:bg-surface-elevated/50">
+                <Link key={job.id} href={`/dashboard/clinical-pathway/${job.id}`} className="block p-5 transition-colors hover:bg-muted group">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-bold text-text">{getPatientName(job.inputPayload)}</p>
-                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${getStatusTone(job.status)}`}>{job.status}</span>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <p className="truncate text-sm font-medium text-foreground group-hover:text-primary transition-colors">{getPatientName(job.inputPayload)}</p>
+                        <span className={`rounded-sm px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em] ring-1 ${getStatusTone(job.status)}`}>{job.status}</span>
                       </div>
-                      <p className="mt-1 truncate text-sm text-text-subtle">{getDiagnosis(job.inputPayload, job.outputResult)}</p>
+                      <p className="mt-2 truncate text-sm text-muted-foreground font-mono">{getDiagnosis(job.inputPayload, job.outputResult)}</p>
                     </div>
                     <div className="flex items-center justify-between gap-4 sm:justify-end">
                       <div className="text-right">
-                        <p className="text-sm font-bold tabular-nums text-text">{score !== null ? `${Math.round(score)}/100` : '-'}</p>
-                        <p className="text-xs text-text-faint">{formatDate(job.createdAt)}</p>
+                        <p className="text-lg font-light tabular-nums text-foreground">{score !== null ? `${Math.round(score)}/100` : '-'}</p>
+                        <p className="mt-1 text-xs text-muted-foreground font-mono">{formatDate(job.createdAt)}</p>
                       </div>
                     </div>
                   </div>
@@ -402,19 +402,19 @@ export default async function DashboardPage(props: {
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-border/80 bg-surface p-5 shadow-sm">
-          <p className="text-sm font-bold text-text">Kesiapan tim</p>
-          <p className="mt-2 text-2xl font-bold tabular-nums text-primary">{teamUsers}</p>
-          <p className="mt-1 text-sm text-text-subtle">User terdaftar dalam ruang kerja ini.</p>
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+          <p className="text-sm font-medium text-foreground">Kesiapan Tim</p>
+          <p className="mt-3 text-3xl font-light tabular-nums text-foreground">{teamUsers}</p>
+          <p className="mt-2 text-sm text-muted-foreground font-light pt-3 border-t border-border/50">User terdaftar dalam ruang kerja ini.</p>
         </div>
-        <div className="rounded-xl border border-border/80 bg-surface p-5 shadow-sm">
-          <p className="text-sm font-bold text-text">Kredensial integrasi</p>
-          <p className="mt-2 text-2xl font-bold tabular-nums text-secondary">{activeApiKeys}</p>
-          <p className="mt-1 text-sm text-text-subtle">Kunci aktif untuk integrasi API client.</p>
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+          <p className="text-sm font-medium text-foreground">Kredensial Integrasi</p>
+          <p className="mt-3 text-3xl font-light tabular-nums text-foreground">{activeApiKeys}</p>
+          <p className="mt-2 text-sm text-muted-foreground font-light pt-3 border-t border-border/50">Kunci aktif untuk integrasi API client.</p>
         </div>
-        <div className="rounded-xl border border-border/80 bg-surface p-5 shadow-sm">
-          <p className="text-sm font-bold text-text">Catatan layanan</p>
-          <p className="mt-2 text-sm leading-6 text-text-subtle">Estimasi pemakaian bersifat operasional dan dapat berubah mengikuti volume workflow serta kompleksitas data klaim.</p>
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+          <p className="text-sm font-medium text-foreground">Catatan Layanan</p>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground font-light">Estimasi pemakaian bersifat operasional dan dapat berubah mengikuti volume workflow serta kompleksitas data klaim yang dikirimkan ke mesin AI.</p>
         </div>
       </section>
     </div>

@@ -164,37 +164,37 @@ export default function ClientApiKeysClient({ clients, assignableProviders, canM
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-border/80 bg-surface shadow-sm">
-        <div className="flex flex-col gap-4 border-b border-border/60 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="rounded-lg border border-border bg-card shadow-sm">
+        <div className="flex flex-col gap-4 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-base font-bold text-text">Daftar Client API Access</h2>
-            <p className="mt-1 text-sm text-text-subtle">Expand row client untuk melihat seluruh API key per environment.</p>
+            <h2 className="text-base font-medium text-foreground">Daftar Client API Access</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Expand row client untuk melihat seluruh API key per environment.</p>
           </div>
           {canManageClients && (
-            <button type="button" onClick={() => setClientModal({ open: true, client: null })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-hover">
+            <button type="button" onClick={() => setClientModal({ open: true, client: null })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-hover">
               <Plus className="h-4 w-4" /> Add Client
             </button>
           )}
         </div>
 
-        <div className={`grid grid-cols-1 gap-3 border-b border-border/60 p-4 ${canManageClients ? "lg:grid-cols-[1fr_180px_190px_120px]" : "lg:grid-cols-[1fr_180px_120px]"}`}> 
+        <div className={`grid grid-cols-1 gap-3 border-b border-border p-4 ${canManageClients ? "lg:grid-cols-[1fr_180px_190px_120px]" : "lg:grid-cols-[1fr_180px_120px]"}`}> 
           <TableSearch value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Search client, code, model, key name..." />
-          <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">
+          <select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }} className="rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm">
             <option value="all">Semua status</option><option value="active">Active</option><option value="inactive">Inactive</option>
           </select>
           {canManageClients && (
-            <select value={gatewayFilter} onChange={(event) => { setGatewayFilter(event.target.value); setPage(1); }} className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">
+            <select value={gatewayFilter} onChange={(event) => { setGatewayFilter(event.target.value); setPage(1); }} className="rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm">
               <option value="all">Semua gateway</option><option value="global">Global config</option><option value="vercel-ai-gateway">Vercel AI Gateway</option><option value="sumopod">SumoPod</option><option value="custom">Custom</option>
             </select>
           )}
-          <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">
+          <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm">
             {defaultPageSizes.map((size) => <option key={size} value={size}>{size} / page</option>)}
           </select>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="bg-surface-elevated/50 text-xs uppercase tracking-wider text-text-subtle">
+            <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
                 <th className="w-10 px-4 py-3"></th>
                 <th className="px-4 py-3"><SortButton field="name" label="Client" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
@@ -208,7 +208,7 @@ export default function ClientApiKeysClient({ clients, assignableProviders, canM
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
-              {paginatedClients.length === 0 ? <tr><td colSpan={canManageClients ? 9 : 6} className="px-4 py-10 text-center text-text-subtle">Tidak ada client yang sesuai filter.</td></tr> : paginatedClients.map((client) => {
+              {paginatedClients.length === 0 ? <tr><td colSpan={canManageClients ? 9 : 6} className="px-4 py-10 text-center text-muted-foreground">Tidak ada client yang sesuai filter.</td></tr> : paginatedClients.map((client) => {
                 const isExpanded = expandedClientIds.has(client.id);
                 return (
                   <FragmentRow key={client.id} client={client} assignableProviders={assignableProviders} isExpanded={isExpanded} canManageClients={canManageClients} onToggle={() => toggleExpanded(client.id)} onEdit={() => setClientModal({ open: true, client })} onDelete={() => handleDeleteClient(client)} onGenerate={() => { setCredential(null); setKeyModal({ open: true, client }); }} onToggleKey={toggleKey} onAssignProvider={submitProviderAssignment} />
@@ -230,32 +230,32 @@ export default function ClientApiKeysClient({ clients, assignableProviders, canM
 function FragmentRow({ client, assignableProviders, isExpanded, canManageClients, onToggle, onEdit, onDelete, onGenerate, onToggleKey, onAssignProvider }: { client: Client; assignableProviders: AssignableProvider[]; isExpanded: boolean; canManageClients: boolean; onToggle: () => void; onEdit: () => void; onDelete: () => void; onGenerate: () => void; onToggleKey: (id: string, isActive: boolean) => void; onAssignProvider: (formData: FormData) => void }) {
   return (
     <>
-      <tr className="hover:bg-surface-elevated/30">
-        <td className="px-4 py-3"><button type="button" onClick={onToggle} className="rounded-md p-1.5 text-text-subtle hover:bg-surface-elevated">{isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button></td>
-        <td className="px-4 py-3"><p className="font-bold text-text">{client.name}</p><p className="text-xs text-text-faint">Request-based usage</p></td>
-        <td className="px-4 py-3 font-mono text-xs text-text-subtle">{client.code}</td>
-        <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${client.isActive ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700"}`}>{client.isActive ? "Active" : "Inactive"}</span></td>
-        {canManageClients && <td className="px-4 py-3 text-text-subtle">{client.aiProvider || "Global config"}</td>}
-        {canManageClients && <td className="px-4 py-3 text-text-subtle">{client.aiModel || "Global model"}</td>}
-        <td className="px-4 py-3 text-right font-mono font-bold text-text">{client.apiKeys.length}</td>
-        {canManageClients && <td className="px-4 py-3 text-right font-mono font-bold text-text">{client.providers.length}</td>}
-        <td className="px-4 py-3"><div className="flex justify-end gap-2">{canManageClients ? <><button type="button" onClick={onEdit} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-2 text-xs font-semibold text-text-subtle hover:bg-surface-elevated"><Edit3 className="h-3.5 w-3.5" /> Edit</button><button type="button" onClick={onDelete} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Delete</button></> : <button type="button" onClick={onGenerate} className="rounded-md border border-primary/30 px-2.5 py-2 text-xs font-semibold text-primary hover:bg-primary/5">Generate key</button>}</div></td>
+      <tr className="hover:bg-muted/50">
+        <td className="px-4 py-3"><button type="button" onClick={onToggle} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">{isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button></td>
+        <td className="px-4 py-3"><p className="font-medium text-foreground">{client.name}</p><p className="text-xs text-muted-foreground">Request-based usage</p></td>
+        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{client.code}</td>
+        <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-medium ${client.isActive ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700"}`}>{client.isActive ? "Active" : "Inactive"}</span></td>
+        {canManageClients && <td className="px-4 py-3 text-muted-foreground">{client.aiProvider || "Global config"}</td>}
+        {canManageClients && <td className="px-4 py-3 text-muted-foreground">{client.aiModel || "Global model"}</td>}
+        <td className="px-4 py-3 text-right font-mono font-medium text-foreground">{client.apiKeys.length}</td>
+        {canManageClients && <td className="px-4 py-3 text-right font-mono font-medium text-foreground">{client.providers.length}</td>}
+        <td className="px-4 py-3"><div className="flex justify-end gap-2">{canManageClients ? <><button type="button" onClick={onEdit} className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-muted"><Edit3 className="h-3.5 w-3.5" /> Edit</button><button type="button" onClick={onDelete} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" /> Delete</button></> : <button type="button" onClick={onGenerate} className="rounded-md border border-primary/30 px-2.5 py-2 text-xs font-medium text-primary hover:bg-primary/5">Generate key</button>}</div></td>
       </tr>
       {isExpanded && (
-        <tr className="bg-surface-elevated/20">
+        <tr className="bg-muted/50">
           <td></td>
           <td colSpan={canManageClients ? 8 : 5} className="px-4 py-4">
             <div className="space-y-4">
             {canManageClients && (
-              <div className="rounded-lg border border-border/70 bg-surface">
-                <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="rounded-lg border border-border bg-card">
+                <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-text-subtle">Master Buku Tarif</p>
-                    <p className="mt-1 text-xs text-text-faint">Client memakai buku tarif dari provider yang diassign di sini.</p>
+                    <p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">Master Buku Tarif</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Client memakai buku tarif dari provider yang diassign di sini.</p>
                   </div>
                   <form action={onAssignProvider} className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input type="hidden" name="clientId" value={client.id} />
-                    <select name="providerId" required className="min-h-11 rounded-md border border-border bg-surface px-3 text-base text-text sm:min-w-[260px] sm:text-sm">
+                    <select name="providerId" required className="min-h-11 rounded-md border border-border bg-card px-3 text-base text-foreground sm:min-w-[260px] sm:text-sm">
                       <option value="">Pilih provider buku tarif...</option>
                       {assignableProviders.map((provider) => (
                         <option key={provider.id} value={provider.id}>
@@ -263,23 +263,23 @@ function FragmentRow({ client, assignableProviders, isExpanded, canManageClients
                         </option>
                       ))}
                     </select>
-                    <button className="min-h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-white hover:bg-primary-hover">Assign</button>
+                    <button className="min-h-11 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-hover">Assign</button>
                   </form>
                 </div>
-                {client.providers.length === 0 ? <p className="px-4 py-5 text-sm text-text-subtle">Belum ada provider buku tarif untuk client ini.</p> : (
+                {client.providers.length === 0 ? <p className="px-4 py-5 text-sm text-muted-foreground">Belum ada provider buku tarif untuk client ini.</p> : (
                   <div className="divide-y divide-border/60">{client.providers.map((provider) => (
                     <div key={provider.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div><p className="font-semibold text-text">{provider.name}</p><p className="font-mono text-xs text-text-faint">{provider.code}</p></div>
-                      <div className="flex items-center gap-3"><span className="text-xs text-text-subtle">{provider._count?.tariffBook || 0} tarif</span><form action={onAssignProvider}><input type="hidden" name="providerId" value={provider.id} /><button className="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-text-subtle hover:bg-surface-elevated">Lepas</button></form></div>
+                      <div><p className="font-medium text-foreground">{provider.name}</p><p className="font-mono text-xs text-muted-foreground">{provider.code}</p></div>
+                      <div className="flex items-center gap-3"><span className="text-xs text-muted-foreground">{provider._count?.tariffBook || 0} tarif</span><form action={onAssignProvider}><input type="hidden" name="providerId" value={provider.id} /><button className="rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted">Lepas</button></form></div>
                     </div>
                   ))}</div>
                 )}
               </div>
             )}
-            <div className="rounded-lg border border-border/70 bg-surface">
-              <div className="flex items-center justify-between border-b border-border/60 px-4 py-3"><p className="text-xs font-bold uppercase tracking-wider text-text-subtle">API Key List</p><button type="button" onClick={onGenerate} className="text-xs font-bold text-primary hover:underline">+ Generate key</button></div>
-              {client.apiKeys.length === 0 ? <p className="px-4 py-5 text-sm text-text-subtle">Belum ada API key untuk client ini.</p> : (
-                <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="text-xs text-text-subtle"><tr><th className="px-4 py-2 text-left">Name / Environment</th><th className="px-4 py-2 text-left">API Key</th><th className="px-4 py-2 text-left">API Secret</th><th className="px-4 py-2 text-left">Created</th><th className="px-4 py-2 text-left">Expired</th><th className="px-4 py-2 text-right">Status</th></tr></thead><tbody className="divide-y divide-border/60">{client.apiKeys.map((key) => <tr key={key.id}><td className="px-4 py-2 font-semibold text-text">{key.name}</td><td className="px-4 py-2"><CredentialCell value={key.apiKey} unavailableLabel="Key lama tidak tersedia" /></td><td className="px-4 py-2"><CredentialCell value={key.apiSecret} unavailableLabel="Secret lama tidak tersedia" /></td><td className="px-4 py-2 text-text-subtle">{formatDate(key.createdAt)}</td><td className="px-4 py-2 text-text-subtle">{formatDate(key.expiresAt)}</td><td className="px-4 py-2 text-right"><button type="button" onClick={() => onToggleKey(key.id, !key.isActive)} className={`rounded-md px-2.5 py-1.5 text-xs font-bold ${key.isActive ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700"}`}>{key.isActive ? "Active" : "Inactive"}</button></td></tr>)}</tbody></table></div>
+            <div className="rounded-lg border border-border bg-card">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3"><p className="text-xs font-medium uppercase tracking-[0.1em] text-muted-foreground">API Key List</p><button type="button" onClick={onGenerate} className="text-xs font-medium text-primary hover:underline">+ Generate key</button></div>
+              {client.apiKeys.length === 0 ? <p className="px-4 py-5 text-sm text-muted-foreground">Belum ada API key untuk client ini.</p> : (
+                <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="text-xs text-muted-foreground"><tr><th className="px-4 py-2 text-left">Name / Environment</th><th className="px-4 py-2 text-left">API Key</th><th className="px-4 py-2 text-left">API Secret</th><th className="px-4 py-2 text-left">Created</th><th className="px-4 py-2 text-left">Expired</th><th className="px-4 py-2 text-right">Status</th></tr></thead><tbody className="divide-y divide-border/60">{client.apiKeys.map((key) => <tr key={key.id}><td className="px-4 py-2 font-medium text-foreground">{key.name}</td><td className="px-4 py-2"><CredentialCell value={key.apiKey} unavailableLabel="Key lama tidak tersedia" /></td><td className="px-4 py-2"><CredentialCell value={key.apiSecret} unavailableLabel="Secret lama tidak tersedia" /></td><td className="px-4 py-2 text-muted-foreground">{formatDate(key.createdAt)}</td><td className="px-4 py-2 text-muted-foreground">{formatDate(key.expiresAt)}</td><td className="px-4 py-2 text-right"><button type="button" onClick={() => onToggleKey(key.id, !key.isActive)} className={`rounded-md px-2.5 py-1.5 text-xs font-medium ${key.isActive ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700"}`}>{key.isActive ? "Active" : "Inactive"}</button></td></tr>)}</tbody></table></div>
               )}
             </div>
             </div>
@@ -291,12 +291,12 @@ function FragmentRow({ client, assignableProviders, isExpanded, canManageClients
 }
 
 function CredentialCell({ value, unavailableLabel }: { value?: string | null; unavailableLabel: string }) {
-  if (!value) return <span className="text-xs text-text-faint">{unavailableLabel}</span>;
+  if (!value) return <span className="text-xs text-muted-foreground">{unavailableLabel}</span>;
 
   return (
     <div className="flex max-w-[240px] items-center gap-2">
-      <code className="min-w-0 flex-1 truncate rounded bg-surface-elevated px-2 py-1 text-xs text-text" title={value}>{value}</code>
-      <button type="button" onClick={() => navigator.clipboard.writeText(value)} className="shrink-0 rounded-md border border-border px-2 py-1 text-xs font-semibold text-text-subtle hover:bg-surface-elevated">Copy</button>
+      <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs text-foreground" title={value}>{value}</code>
+      <button type="button" onClick={() => navigator.clipboard.writeText(value)} className="shrink-0 rounded-md border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted">Copy</button>
     </div>
   );
 }
@@ -306,37 +306,37 @@ function ClientModal({ client, isPending, onClose, onSubmit }: { client: Client 
   const usesGlobalConfig = aiProvider === "";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 backdrop-blur-sm sm:items-center">
-      <form action={onSubmit} className="w-full max-w-2xl overflow-hidden rounded-[24px] border border-border/80 bg-surface shadow-xl">
-        <div className="flex items-center justify-between border-b border-border/60 px-5 py-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4  sm:items-center">
+      <form action={onSubmit} className="w-full max-w-2xl overflow-hidden rounded-[24px] border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h3 className="text-base font-bold text-text">{client ? "Edit Client" : "Add Client"}</h3>
-            <p className="text-sm text-text-subtle">Konfigurasi tenant dan override AI hanya jika berbeda dari global config.</p>
+            <h3 className="text-base font-medium text-foreground">{client ? "Edit Client" : "Add Client"}</h3>
+            <p className="text-sm text-muted-foreground">Konfigurasi tenant dan override AI hanya jika berbeda dari global config.</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md p-2 text-text-subtle hover:bg-surface-elevated"><X className="h-4 w-4" /></button>
+          <button type="button" onClick={onClose} className="rounded-md p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
         </div>
 
         <div className="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto p-5 sm:grid-cols-2">
           <input type="hidden" name="id" value={client?.id || ""} />
-          <label className="text-sm font-medium text-text">
+          <label className="text-sm font-medium text-foreground">
             Kode Client
-            <input name="code" defaultValue={client?.code || ""} className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" placeholder="RS_ABC" />
+            <input name="code" defaultValue={client?.code || ""} className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm" placeholder="RS_ABC" />
           </label>
-          <label className="text-sm font-medium text-text">
+          <label className="text-sm font-medium text-foreground">
             Nama Client
-            <input name="name" defaultValue={client?.name || ""} className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" placeholder="RS ABC" />
+            <input name="name" defaultValue={client?.name || ""} className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm" placeholder="RS ABC" />
           </label>
 
-          <label className="text-sm font-medium text-text sm:col-span-2">
+          <label className="text-sm font-medium text-foreground sm:col-span-2">
             AI Gateway Options
-            <select name="aiProvider" value={aiProvider} onChange={(event) => setAiProvider(event.target.value)} className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm">
+            <select name="aiProvider" value={aiProvider} onChange={(event) => setAiProvider(event.target.value)} className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm">
               <option value="">Ikuti global config</option>
               <option value="vercel-ai-gateway">Override: Vercel AI Gateway</option>
               <option value="sumopod">Override: SumoPod AI Gateway</option>
               <option value="custom">Override: Custom Gateway</option>
             </select>
             {usesGlobalConfig && (
-              <span className="mt-2 block text-xs leading-5 text-text-faint">
+              <span className="mt-2 block text-xs leading-5 text-muted-foreground">
                 Client ini akan memakai konfigurasi dari Core AI Integration. Field model, max token, temperature, dan gateway URL disembunyikan agar tidak duplikatif.
               </span>
             )}
@@ -345,33 +345,33 @@ function ClientModal({ client, isPending, onClose, onSubmit }: { client: Client 
           {!usesGlobalConfig && (
             <>
               {aiProvider === "custom" && (
-                <label className="text-sm font-medium text-text sm:col-span-2">
+                <label className="text-sm font-medium text-foreground sm:col-span-2">
                   Custom Gateway URL
-                  <input name="aiGatewayUrl" defaultValue={client?.aiGatewayUrl || ""} className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" placeholder="https://api.example.com/v1" />
+                  <input name="aiGatewayUrl" defaultValue={client?.aiGatewayUrl || ""} className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm" placeholder="https://api.example.com/v1" />
                 </label>
               )}
-              <label className="text-sm font-medium text-text">
+              <label className="text-sm font-medium text-foreground">
                 AI Model
-                <input name="aiModel" defaultValue={client?.aiModel || ""} className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" placeholder="gpt-4o-mini" />
+                <input name="aiModel" defaultValue={client?.aiModel || ""} className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm" placeholder="gpt-4o-mini" />
               </label>
-              <label className="text-sm font-medium text-text">
+              <label className="text-sm font-medium text-foreground">
                 Max Tokens
-                <input name="aiMaxTokens" type="number" defaultValue={client?.aiMaxTokens || ""} className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" />
+                <input name="aiMaxTokens" type="number" defaultValue={client?.aiMaxTokens || ""} className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm" />
               </label>
-              <label className="text-sm font-medium text-text">
+              <label className="text-sm font-medium text-foreground">
                 Temperature
-                <input name="aiTemperature" type="number" min="0" max="2" step="0.1" defaultValue={client?.aiTemperature ?? ""} className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" />
+                <input name="aiTemperature" type="number" min="0" max="2" step="0.1" defaultValue={client?.aiTemperature ?? ""} className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm" />
               </label>
             </>
           )}
 
-          <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-text">
+          <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-foreground">
             <input name="isActive" type="checkbox" defaultChecked={client?.isActive ?? true} className="h-4 w-4 rounded border-border text-primary" /> Client aktif
           </label>
         </div>
 
-        <div className="flex justify-end gap-3 border-t border-border/60 px-5 py-4">
-          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-text-subtle hover:bg-surface-elevated">Cancel</button>
+        <div className="flex justify-end gap-3 border-t border-border px-5 py-4">
+          <button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">Cancel</button>
           <button disabled={isPending} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">Save Client</button>
         </div>
       </form>
@@ -380,5 +380,5 @@ function ClientModal({ client, isPending, onClose, onSubmit }: { client: Client 
 }
 
 function CredentialModal({ client, isPending, onClose, onSubmit }: { client: Client | null; isPending: boolean; onClose: () => void; onSubmit: (formData: FormData) => void }) {
-  return <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 backdrop-blur-sm sm:items-center"><form action={onSubmit} className="w-full max-w-lg overflow-hidden rounded-[24px] border border-border/80 bg-surface shadow-xl"><div className="flex items-center justify-between border-b border-border/60 px-5 py-4"><div><h3 className="text-base font-bold text-text">Generate API Key & Secret</h3><p className="text-sm text-text-subtle">Client: {client?.name}</p></div><button type="button" onClick={onClose} className="rounded-md p-2 text-text-subtle hover:bg-surface-elevated"><X className="h-4 w-4" /></button></div><div className="grid grid-cols-1 gap-4 p-5"><input type="hidden" name="clientId" value={client?.id || ""} /><label className="text-sm font-medium text-text">Credential Name / Env<input name="name" required placeholder="Production / Staging / Development" className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" /></label><label className="text-sm font-medium text-text">Expired At<input name="expiresAt" type="date" className="mt-2 block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base text-text sm:text-sm" /></label></div><div className="flex justify-end gap-3 border-t border-border/60 px-5 py-4"><button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-text-subtle hover:bg-surface-elevated">Cancel</button><button disabled={isPending} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">Generate</button></div></form></div>;
+  return <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4  sm:items-center"><form action={onSubmit} className="w-full max-w-lg overflow-hidden rounded-[24px] border border-border bg-card shadow-xl"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h3 className="text-base font-medium text-foreground">Generate API Key & Secret</h3><p className="text-sm text-muted-foreground">Client: {client?.name}</p></div><button type="button" onClick={onClose} className="rounded-md p-2 text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button></div><div className="grid grid-cols-1 gap-4 p-5"><input type="hidden" name="clientId" value={client?.id || ""} /><label className="text-sm font-medium text-foreground">Credential Name / Env<input name="name" required placeholder="Production / Staging / Development" className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm" /></label><label className="text-sm font-medium text-foreground">Expired At<input name="expiresAt" type="date" className="mt-2 block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base text-foreground sm:text-sm" /></label></div><div className="flex justify-end gap-3 border-t border-border px-5 py-4"><button type="button" onClick={onClose} className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted">Cancel</button><button disabled={isPending} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50">Generate</button></div></form></div>;
 }

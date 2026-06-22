@@ -124,8 +124,9 @@ export default async function AIUsageLogsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-2xl font-bold tracking-tight text-transparent">AI Usage Logs</h1>
-          <p className="mt-1 max-w-3xl text-sm text-text-subtle">
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Settings</p>
+          <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">AI Usage Logs</h1>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
             Hanya mencatat request AI untuk audit biaya internal. Detail penggunaan dan credit hanya tersedia untuk super admin.
           </p>
         </div>

@@ -425,7 +425,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       </div>
       <div className="border border-border/80 rounded-md bg-surface overflow-visible">
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle">
+          <thead className="bg-surface-elevated/50 text-xs font-medium text-text-subtle">
             <tr>
               <th className="px-4 py-3 w-1/4">Document Type</th>
               <th className="px-4 py-3 w-1/6">Date</th>
@@ -498,7 +498,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       </div>
       <div className="border border-border/80 rounded-md bg-surface overflow-visible">
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle">
+          <thead className="bg-surface-elevated/50 text-xs font-medium text-text-subtle">
             <tr>
               <th className="px-4 py-3 w-1/4">ICD-10 Code</th>
               <th className="px-4 py-3">Diagnosis Name</th>
@@ -542,7 +542,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       </div>
       <div className="border border-border/80 rounded-md bg-surface overflow-visible">
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle">
+          <thead className="bg-surface-elevated/50 text-xs font-medium text-text-subtle">
             <tr>
               <th className="px-4 py-3 w-1/5">ICD-9 / Proc Code</th>
               <th className="px-4 py-3">Procedure Name</th>
@@ -594,7 +594,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       </div>
       <div className="border border-border/80 rounded-md bg-surface overflow-visible">
         <table className="w-full text-left text-sm">
-          <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle">
+          <thead className="bg-surface-elevated/50 text-xs font-medium text-text-subtle">
             <tr>
               <th className="px-4 py-3">Medication Name</th>
               <th className="px-4 py-3 w-32">Price (IDR)</th>
@@ -725,7 +725,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
             return (
               <div key={s.num} className="relative z-10 flex flex-col items-center flex-1 px-4 cursor-pointer group" onClick={() => setStep(s.num)}>
                 <div className="flex flex-col items-center gap-2 bg-surface px-2">
-                  <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-colors ${
                     isActive ? "bg-primary text-white shadow-md shadow-primary/30" : 
                     isPassed ? "bg-primary-soft text-primary border border-primary/20" : 
                     "bg-surface text-text-subtle border border-border/80 group-hover:border-border"
@@ -733,7 +733,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
                     {s.num}
                   </div>
                   <div className="text-center">
-                    <span className={`block text-xs font-semibold ${isActive || isPassed ? "text-primary" : "text-text-subtle"}`}>{s.label}</span>
+                    <span className={`block text-xs font-medium ${isActive || isPassed ? "text-primary" : "text-text-subtle"}`}>{s.label}</span>
                     <span className="block text-[10px] text-text-faint">{s.subLabel}</span>
                   </div>
                 </div>

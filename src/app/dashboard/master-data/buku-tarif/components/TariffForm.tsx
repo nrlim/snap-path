@@ -58,12 +58,12 @@ export default function TariffForm({ initialData, providers, categories }: { ini
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2 md:col-span-2">
-          <label className="text-sm font-medium text-text">Insurance Provider</label>
+          <label className="text-sm font-medium text-foreground">Insurance Provider</label>
           <select 
             name="providerId" 
             defaultValue={initialData?.providerId || ""}
             required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           >
             <option value="" disabled>Select Provider...</option>
             {providers.map(p => (
@@ -73,36 +73,36 @@ export default function TariffForm({ initialData, providers, categories }: { ini
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text">Procedure Code (CPT / INA-CBG)</label>
+          <label className="text-sm font-medium text-foreground">Procedure Code (CPT / INA-CBG)</label>
           <input 
             type="text" 
             name="procedureCode" 
             defaultValue={initialData?.procedureCode || ""}
             required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             placeholder="e.g., 87.44"
           />
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text">Procedure Name</label>
+          <label className="text-sm font-medium text-foreground">Procedure Name</label>
           <input 
             type="text" 
             name="procedureName" 
             defaultValue={initialData?.procedureName || ""}
             required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             placeholder="e.g., Routine chest x-ray"
           />
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text">Category</label>
+          <label className="text-sm font-medium text-foreground">Category</label>
           <select 
             name="category" 
             defaultValue={initialData?.category || categories[0]?.value || "RAWAT_JALAN"}
             required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           >
             {categories.map((category) => (
               <option key={category.value} value={category.value}>{category.label}</option>
@@ -111,66 +111,66 @@ export default function TariffForm({ initialData, providers, categories }: { ini
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text">Region Code (Optional)</label>
+          <label className="text-sm font-medium text-foreground">Region Code (Optional)</label>
           <input 
             type="text" 
             name="regionCode" 
             defaultValue={initialData?.regionCode || ""}
-            className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             placeholder="e.g., JKT"
           />
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text">Base Price</label>
+          <label className="text-sm font-medium text-foreground">Base Price</label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-text-subtle">Rp</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
             <input 
               type="number" 
               name="basePrice" 
               defaultValue={initialData?.basePrice || ""}
               required
               min="0"
-              className="w-full rounded-xl border border-border bg-surface pl-10 pr-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full rounded-md border border-border bg-background pl-10 pr-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               placeholder="0"
             />
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text">Max Price</label>
+          <label className="text-sm font-medium text-foreground">Max Price</label>
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-text-subtle">Rp</span>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
             <input 
               type="number" 
               name="maxPrice" 
               defaultValue={initialData?.maxPrice || ""}
               required
               min="0"
-              className="w-full rounded-xl border border-border bg-surface pl-10 pr-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-full rounded-md border border-border bg-background pl-10 pr-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               placeholder="0"
             />
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text">Effective Start Date</label>
+          <label className="text-sm font-medium text-foreground">Effective Start Date</label>
           <input 
             type="date" 
             name="effectiveFrom" 
             defaultValue={formatDate(initialData?.effectiveFrom)}
             required
-            className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-text">Effective End Date (Optional)</label>
+          <label className="text-sm font-medium text-foreground">Effective End Date (Optional)</label>
           <input 
             type="date" 
             name="effectiveTo" 
             defaultValue={formatDate(initialData?.effectiveTo)}
-            className="w-full rounded-xl border border-border bg-surface px-4 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full rounded-md border border-border bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
 
@@ -182,23 +182,23 @@ export default function TariffForm({ initialData, providers, categories }: { ini
               defaultChecked={initialData ? initialData.isActive : true}
               className="h-5 w-5 rounded border-border text-primary focus:ring-primary"
             />
-            <span className="text-sm font-medium text-text">Active Status</span>
+            <span className="text-sm font-medium text-foreground">Active Status</span>
           </label>
         </div>
       </div>
 
-      <div className="pt-6 border-t border-border/80 flex items-center justify-end gap-4">
+      <div className="pt-6 border-t border-border flex items-center justify-end gap-4">
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-lg px-5 py-2.5 text-sm font-medium text-text-subtle hover:bg-surface-elevated hover:text-text transition-colors"
+          className="rounded-md px-5 py-2.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-primary-hover focus:ring-2 focus:ring-primary/40 focus:ring-offset-2 disabled:opacity-50 transition-all"
+          className="rounded-lg bg-foreground px-6 py-2.5 text-sm font-medium text-background hover:bg-foreground/90 disabled:opacity-50 transition-all"
         >
           {isSubmitting ? 'Saving...' : 'Save Data'}
         </button>

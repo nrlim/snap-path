@@ -51,13 +51,13 @@ export default function ValidationSummaryCard({
   return (
     <div className={`rounded-2xl border ${config.border} ${config.bg} p-5 flex flex-col justify-between`}>
       <div className="flex justify-between items-start mb-4">
-        <h3 className="text-sm font-semibold text-text/80">{title}</h3>
+        <h3 className="text-sm font-medium text-text/80">{title}</h3>
         <div className={`p-2 rounded-xl ${config.iconBg} ${config.iconColor}`}>
           {icon}
         </div>
       </div>
       <div>
-        <p className={`text-2xl font-bold ${config.text} tracking-tight`}>{value}</p>
+        <p className={`text-2xl font-medium ${config.text} tracking-tight`}>{value}</p>
         {detail && <p className="text-xs text-text-subtle mt-2 font-medium">{detail}</p>}
       </div>
     </div>

@@ -260,7 +260,7 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
         <div className="p-5 border-b border-border/60 flex items-center justify-between bg-surface sticky top-0 z-20">
           <div className="min-w-0">
             {!isMinimized && <div className="w-12 h-1.5 bg-border/80 rounded-full mx-auto mb-4 lg:hidden" />}
-            <h2 className={`${isMinimized ? "text-base" : "text-xl"} font-bold text-text mb-1 flex items-center gap-2`}>
+            <h2 className={`${isMinimized ? "text-base" : "text-xl"} font-medium text-text mb-1 flex items-center gap-2`}>
               AI Brain Validation
               {isMinimized && currentStepIdx < steps.length && <span className="relative ml-1 flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-primary" /></span>}
             </h2>
@@ -281,8 +281,8 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
         {isMinimized && currentStep ? (
           <div className="border-b border-border/60 px-5 py-3">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="truncate text-xs font-bold uppercase tracking-wider text-primary">{currentStep.label}</span>
-              <span className="font-mono text-xs font-semibold text-text-subtle">{elapsedSec}s</span>
+              <span className="truncate text-xs font-medium uppercase tracking-[0.1em] text-primary">{currentStep.label}</span>
+              <span className="font-mono text-xs font-medium text-text-subtle">{elapsedSec}s</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-surface-elevated">
               <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${Math.min(100, ((Math.min(currentStepIdx + 1, steps.length)) / steps.length) * 100)}%` }} />
@@ -303,7 +303,7 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
               </div>
               <div className={`flex-1 pt-1 pb-1 ${step.status === "waiting" ? "opacity-50" : "opacity-100"}`}>
                 <div className="flex items-center justify-between mb-0.5">
-                  <h4 className={`font-semibold text-sm ${step.status === "failed" ? "text-red-600" : "text-text"}`}>{step.label}</h4>
+                  <h4 className={`font-medium text-sm ${step.status === "failed" ? "text-red-600" : "text-text"}`}>{step.label}</h4>
                   <div className="flex items-center gap-2">
                     {step.status === "running" && <span className="text-xs font-mono text-primary font-medium">{((now - (stepStartTimes.current[idx] || now)) / 1000).toFixed(1)}s</span>}
                     {step.status === "completed" && step.durationSec && <span className="text-xs font-mono text-text-subtle">{step.durationSec}s</span>}

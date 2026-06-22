@@ -65,7 +65,7 @@ export default function TariffBulkImport({ providers }: { providers: any[] }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6 backdrop-blur-sm">
           <div className="relative flex w-full max-w-4xl max-h-[90vh] flex-col rounded-lg bg-surface shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-border/80 px-6 py-4">
-              <h2 className="text-lg font-semibold text-text">Bulk Import Fee Schedules</h2>
+              <h2 className="text-lg font-medium text-text">Bulk Import Fee Schedules</h2>
               <button onClick={handleClose} className="p-2 text-text-subtle hover:text-text rounded-full hover:bg-surface-elevated transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               </button>

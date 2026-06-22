@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PathwayTimeline from "./PathwayTimeline";
-import { ArrowUp, BrainCircuit, Calculator, CheckCheck, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MinusCircle } from 'lucide-react';
+import { ArrowUp, BrainCircuit, Calculator, CheckCheck, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MinusCircle, FileText, Pill, Stethoscope } from 'lucide-react';
 import { resolveActualLosDays } from '@/lib/los';
 
 export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?: number }) {
@@ -34,8 +34,8 @@ export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?
         />
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="font-extrabold text-text leading-none" style={{ fontSize: size * 0.23 }}>{score}</span>
-        <span className="font-bold text-text-subtle uppercase tracking-wider mt-0.5" style={{ fontSize: size * 0.08 }}>Score</span>
+        <span className="font-extrabold text-foreground leading-none" style={{ fontSize: size * 0.23 }}>{score}</span>
+        <span className="font-medium text-muted-foreground uppercase tracking-wider mt-0.5" style={{ fontSize: size * 0.08 }}>Score</span>
       </div>
     </div>
   );
@@ -43,14 +43,14 @@ export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?
 
 function ConformanceRow({ label, value, badgeLabel, isSuccess, isWarning }: { label: string; value: string; badgeLabel: string; isSuccess: boolean; isWarning?: boolean }) {
   return (
-    <div className="flex flex-col gap-2 px-4 py-3 bg-surface border border-border/60 rounded-md sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <span className="text-sm font-medium text-text-subtle">{label}</span>
-      <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3">
-        <span className="text-sm font-bold text-text">{value}</span>
-        <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md ${
-          isSuccess ? 'bg-green-500/10 text-green-600 ring-1 ring-inset ring-green-500/20' :
-          isWarning ? 'bg-yellow-500/10 text-yellow-600 ring-1 ring-inset ring-yellow-500/20' :
-          'bg-red-500/10 text-red-600 ring-1 ring-inset ring-red-500/20'
+    <div className="flex items-center justify-between gap-4 py-3 border-b border-border/60 last:border-0">
+      <span className="text-sm font-light text-muted-foreground shrink-0">{label}</span>
+      <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
+        <span className="text-sm font-light text-foreground text-right">{value}</span>
+        <span className={`shrink-0 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em] rounded ${
+          isSuccess ? 'bg-green-500/10 text-green-700 ring-1 ring-inset ring-green-500/20' :
+          isWarning ? 'bg-yellow-500/10 text-yellow-700 ring-1 ring-inset ring-yellow-500/20' :
+          'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'
         }`}>
           {badgeLabel}
         </span>
@@ -99,51 +99,47 @@ function ScoreBreakdownPanel({ score, items }: { score: number; items: ScoreBrea
   const calculatedScore = Math.max(0, Math.round(totalEarnedScore));
 
   return (
-    <div className="rounded-xl border border-border/70 bg-surface/95 p-4">
-      <div className="flex flex-col gap-3 border-b border-border/60 pb-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-subtle">
-            <Calculator className="h-4 w-4 text-primary" />
-            Skor per Aspek
-          </div>
-          <p className="mt-1 text-sm text-text-subtle">Setiap aspek menampilkan poin yang diperoleh dari bobot maksimum, sehingga hasil lebih mudah dibaca.</p>
+    <div className="rounded-lg border border-border bg-card">
+      {/* Header with totals */}
+      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border bg-muted/40">
+        <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-[0.15em] text-muted-foreground">
+          <Calculator className="h-3.5 w-3.5 text-primary" />
+          Skor per Aspek
         </div>
-        <div className="grid grid-cols-3 overflow-hidden rounded-lg border border-border/60 bg-surface-elevated/30 text-center sm:min-w-[300px]">
-          <div className="px-3 py-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Maksimum</p>
-            <p className="text-lg font-extrabold text-text">{totalMaxScore}</p>
-          </div>
-          <div className="border-x border-border/60 px-3 py-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Diperoleh</p>
-            <p className="text-lg font-extrabold text-primary">{Number.isFinite(score) ? score : calculatedScore}</p>
-          </div>
-          <div className="px-3 py-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-text-subtle">Temuan</p>
-            <p className="text-lg font-extrabold text-amber-600">{totalFindings}</p>
-          </div>
+        <div className="flex items-center gap-4 text-xs">
+          <span className="text-muted-foreground">Maks: <span className="font-mono text-foreground font-light">{totalMaxScore}</span></span>
+          <span className="text-muted-foreground">Diperoleh: <span className="font-mono text-primary font-light">{Number.isFinite(score) ? score : calculatedScore}</span></span>
+          <span className="text-muted-foreground">Temuan: <span className="font-mono text-amber-600 font-light">{totalFindings}</span></span>
         </div>
       </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+      {/* Score items as compact rows */}
+      <div className="divide-y divide-border/60">
         {items.map((item) => {
           const maxScore = item.maxScore ?? item.maxDeduction;
           const earnedScore = typeof item.score === 'number' ? item.score : Math.max(0, maxScore - item.deducted);
           const hasDeduction = item.deducted > 0;
           const isPartial = hasDeduction && earnedScore > 0;
           return (
-            <div key={item.label} className={`rounded-lg border p-3 ${hasDeduction ? (isPartial ? 'border-amber-500/20 bg-amber-500/5' : 'border-red-500/20 bg-red-500/5') : 'border-green-500/20 bg-green-500/5'}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2">
-                  {hasDeduction ? <MinusCircle className={`mt-0.5 h-4 w-4 shrink-0 ${isPartial ? 'text-amber-600' : 'text-red-600'}`} /> : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />}
-                  <div>
-                    <p className="text-sm font-bold text-text">{item.label}</p>
-                    <p className="mt-0.5 text-xs leading-5 text-text-subtle">{item.reason}</p>
-                    {hasDeduction && <p className="mt-1 text-[11px] font-medium text-text-subtle">Pengurang: {item.deducted} poin</p>}
-                  </div>
+            <div key={item.label} className="flex gap-3 px-4 py-3">
+              <div className="mt-0.5 shrink-0">
+                {hasDeduction
+                  ? <MinusCircle className={`h-3.5 w-3.5 ${isPartial ? 'text-amber-500' : 'text-red-500'}`} />
+                  : <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-light text-foreground">{item.label}</p>
+                  <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-mono tabular-nums font-light ${
+                    hasDeduction
+                      ? (isPartial ? 'bg-amber-500/10 text-amber-700' : 'bg-red-500/10 text-red-700')
+                      : 'bg-green-500/10 text-green-700'
+                  }`}>
+                    {earnedScore}/{maxScore}
+                  </span>
                 </div>
-                <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-extrabold ${hasDeduction ? (isPartial ? 'bg-amber-500/10 text-amber-700' : 'bg-red-500/10 text-red-700') : 'bg-green-500/10 text-green-700'}`}>
-                  {earnedScore} / {maxScore}
-                </span>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{item.reason}</p>
+                {hasDeduction && <p className="mt-0.5 text-[11px] text-muted-foreground font-mono">−{item.deducted} poin</p>}
               </div>
             </div>
           );
@@ -191,22 +187,21 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   }, [job.id, job.status]);
 
   if (job.status !== "COMPLETED" && job.status !== "FAILED") {
-    // Processing UI
     return (
-      <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden p-12 text-center">
+      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden p-12 text-center">
         <div className="mx-auto w-16 h-16 rounded-full border-[3px] border-primary/20 border-t-primary animate-spin mb-6"></div>
-        <h2 className="text-xl font-bold text-text mb-2">AI Brain is processing...</h2>
-        <p className="text-text-subtle mb-8 max-w-md mx-auto">
+        <h2 className="text-xl font-light text-foreground mb-2">AI Brain is processing...</h2>
+        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
           Analyzing claim data, validating procedures against Master Fee Schedule, checking drug prices, and compiling clinical pathway.
         </p>
         
         {/* Progress indicator */}
         <div className="max-w-xl mx-auto space-y-4 text-left">
-          <div className="flex justify-between text-xs font-medium text-text-subtle mb-1">
+          <div className="flex justify-between text-xs font-light text-muted-foreground mb-1">
             <span>Status</span>
             <span className="text-primary uppercase">{job.status}</span>
           </div>
-          <div className="w-full bg-surface-elevated rounded-full h-2 overflow-hidden">
+          <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
             <div className={`bg-primary h-2 rounded-full transition-all duration-1000 ${
               job.status === "QUEUED" ? "w-1/4" : 
               job.status === "PRE_PROCESSING" ? "w-2/4" :
@@ -224,7 +219,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
           <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
         </div>
-        <h3 className="text-lg font-semibold text-red-800">Processing Failed</h3>
+        <h3 className="text-lg font-medium text-red-800">Processing Failed</h3>
         <p className="text-sm text-red-600 mt-2 max-w-md mx-auto">{job.error || "Internal error occurred in AI Engine."}</p>
       </div>
     );
@@ -248,7 +243,6 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     REVIEW_NEEDED: { color: "warning", label: "Review Needed" }
   }[result.status as string] || { color: "neutral", label: "Unknown" };
 
-  // Calculate some metrics for the cards
   const inputPayload = job.inputPayload as any;
   const tariffItems = result.tariffValidation?.items || result.tariffValidations || [];
   const tariffOver = tariffItems.filter((t: any) => t.status === "OVER_THRESHOLD").length;
@@ -296,7 +290,6 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const fallbackDrugDeduction = drugItems.length > 0 ? Math.min(20, Math.ceil((drugIssues / drugItems.length) * 20)) : 0;
   const unmatchedProcedures = (diagDetails as LooseValidationItem[]).reduce((acc, d) => acc + (d.unmatchedProcedures?.length || 0), 0);
 
-  // Calculate detailed summary metrics
   const totalTariff = tariffItems.length;
   const passedTariff = tariffItems.filter((t: any) => t.status === "WITHIN_RANGE").length;
   const totalDrugs = drugItems.length;
@@ -308,7 +301,6 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const passedItems = passedTariff + passedDrugs + passedDiags;
   const aiPassRate = totalItems > 0 ? Math.round((passedItems / totalItems) * 100) : 100;
 
-  // Extract LOS details — fix: data is in inputPayload not inputData
   const losValidation = result.losValidation;
   const expectedLOSVal = losValidation?.expectedLos || result.clinicalPathway?.estimatedLos || result.clinicalPathway?.recommendedPathway?.estimatedLos || 0;
   const actualLOSVal = losValidation?.actualLos ?? resolveActualLosDays(inputPayload);
@@ -506,85 +498,68 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     }
   };
 
+  const tabs = [
+    { id: "pathway", label: "Pathway Klinis", icon: <Stethoscope className="h-4 w-4" /> },
+    { id: "tariff", label: "Biaya & Obat", icon: <Pill className="h-4 w-4" /> },
+    { id: "diagnosis", label: "Diagnosis & Dokumen", icon: <FileText className="h-4 w-4" /> },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-0">
+      {/* Scroll to top button */}
       <button
         type="button"
         onClick={scrollToTop}
-        className="fixed bottom-24 right-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border/80 bg-surface-elevated/95 text-text-subtle shadow-lg shadow-surface-accent/20 backdrop-blur transition-colors hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/40 lg:bottom-6 lg:right-6"
+        className="fixed bottom-24 right-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-primary hover:text-white focus:outline-none focus:ring-2 focus:ring-primary/40 lg:bottom-6 lg:right-6"
         aria-label="Kembali ke atas halaman"
       >
         <ArrowUp className="h-5 w-5" />
       </button>
-      {/* Hero Score Banner & Summary Panel */}
-      <div className="rounded-xl border border-border/80 bg-surface shadow-sm overflow-hidden relative">
-        <div className="p-6 border-b border-border/60 flex items-center justify-between bg-surface-elevated/20">
-          <div>
-            <h2 className="text-lg font-bold text-text flex items-center gap-2">
-              <BrainCircuit className="w-5 h-5 text-primary" />
-              AI Outcome & Validation Summary
-              {workflowLatencyMs > 0 && (
-                <span className="text-xs font-mono text-text-subtle font-normal ml-2">
-                  ({(workflowLatencyMs / 1000).toFixed(2)}s)
-                </span>
-              )}
-            </h2>
-            <p className="text-sm text-text-subtle mt-1">
-              Hasil validasi item-by-item dari Brain AI — mencerminkan analisis tindakan, harga obat, dan kepatuhan pathway
-            </p>
+
+      {/* ── SECTION 1: Score & Summary Banner ─────────────────────────── */}
+      <div className="rounded-t-lg border border-border bg-card overflow-hidden">
+        {/* Top bar */}
+        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border bg-muted/40">
+          <div className="flex items-center gap-2.5">
+            <BrainCircuit className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-light text-foreground">AI Outcome & Validation Summary</h2>
+            {workflowLatencyMs > 0 && (
+              <span className="text-xs font-mono text-muted-foreground">
+                ({(workflowLatencyMs / 1000).toFixed(2)}s)
+              </span>
+            )}
           </div>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold">
-            <ClipboardCheck className="w-3.5 h-3.5" />
-            AI Verified
-          </span>
-        </div>
-        
-        <div className="p-6 md:p-8 grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-8 items-center bg-gradient-to-br from-surface to-primary/5">
-          {/* Score Gauge */}
-          <div className="flex flex-col items-center gap-4">
-            <ScoreCircularGauge score={validationScore} size={140} />
-            <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-              statusConfig.color === 'success' ? 'bg-green-500/10 text-green-600 border border-green-500/20' :
-              statusConfig.color === 'warning' ? 'bg-yellow-500/10 text-yellow-600 border border-yellow-500/20' :
-              'bg-red-500/10 text-red-600 border border-red-500/20'
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-[0.15em] ${
+              statusConfig.color === 'success' ? 'bg-green-500/10 text-green-700 border border-green-500/20' :
+              statusConfig.color === 'warning' ? 'bg-yellow-500/10 text-yellow-700 border border-yellow-500/20' :
+              'bg-red-500/10 text-red-700 border border-red-500/20'
             }`}>
+              <ClipboardCheck className="w-3 h-3" />
               {statusConfig.label}
             </span>
           </div>
+        </div>
 
-          {/* Conformance Metrics */}
-          <div className="space-y-4 w-full max-w-4xl">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h3 className="text-xs font-bold text-text-subtle uppercase tracking-wider">Perhitungan Skor & Metrik Kepatuhan</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleCopySanitizedInput}
-                  disabled={loadingInput}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text sm:min-h-0 sm:py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Copy input JSON yang dikirim ke AI (sudah disanitasi PII)"
-                >
-                  {copiedInput ? <CheckCheck className="w-3.5 h-3.5 text-green-500" /> : loadingInput ? <span className="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin inline-block" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copiedInput ? 'Copied!' : 'Copy AI Input'}
-                </button>
-                <button
-                  onClick={handleCopyJSON}
-                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-2 text-xs font-medium text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text sm:min-h-0 sm:py-1.5"
-                  title="Copy hasil output JSON dari AI"
-                >
-                  {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? 'Copied!' : 'Export JSON'}
-                </button>
-              </div>
-            </div>
-            <ScoreBreakdownPanel score={validationScore} items={scoreBreakdown} />
-            <ConformanceRow 
-              label="Validasi Obat & Tindakan" 
-              value={`${aiPassRate}% Sesuai`} 
+        {/* Score row: gauge left, conformance rows right */}
+        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] divide-y lg:divide-y-0 lg:divide-x divide-border">
+          {/* Score gauge column */}
+          <div className="flex flex-col items-center justify-center gap-3 p-6 bg-muted/20">
+            <ScoreCircularGauge score={validationScore} size={130} />
+            <p className="text-xs font-mono uppercase tracking-[0.15em] text-muted-foreground text-center">Skor Validasi</p>
+          </div>
+
+          {/* Conformance metrics column */}
+          <div className="px-6 py-4">
+            <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Metrik Kepatuhan</p>
+            <ConformanceRow
+              label="Validasi Obat & Tindakan"
+              value={`${aiPassRate}% Sesuai`}
               isSuccess={aiPassRate >= 80}
               isWarning={aiPassRate >= 50 && aiPassRate < 80}
-              badgeLabel={aiPassRate >= 80 ? 'Sesuai Standar' : aiPassRate >= 50 ? 'Perlu Review' : 'Bermasalah'} 
+              badgeLabel={aiPassRate >= 80 ? 'Sesuai Standar' : aiPassRate >= 50 ? 'Perlu Review' : 'Bermasalah'}
             />
-            <ConformanceRow 
+            <ConformanceRow
               label="Length of Stay (LOS)"
               value={
                 losValidation ? (
@@ -613,13 +588,13 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                   : losIsMissingActual ? 'Data Kurang' : 'Data Kurang'
               }
             />
-            <ConformanceRow 
-              label="Kelengkapan Dokumen Medis" 
+            <ConformanceRow
+              label="Kelengkapan Dokumen Medis"
               value={docWarnings === 0
                 ? `${docDetails.providedDocuments?.length || 0} dokumen wajib dilampirkan`
                 : `Mandatory document tidak terlampir: ${docDetails.missingRequiredDocuments?.join(', ')}`}
               isSuccess={docWarnings === 0}
-              badgeLabel={docWarnings === 0 ? 'Lengkap' : `${docWarnings} Dokumen Hilang`} 
+              badgeLabel={docWarnings === 0 ? 'Lengkap' : `${docWarnings} Dokumen Hilang`}
             />
             <ConformanceRow
               label="Waktu Workflow"
@@ -628,171 +603,200 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               isWarning={workflowLatencyMs > 60000}
               badgeLabel={workflowLatencyMs > 0 ? 'Tercatat Real-time' : 'Tidak Tercatat'}
             />
-            
-            <div className="mt-4 p-4 bg-surface-elevated/40 rounded-lg border border-border/40 space-y-4">
-              <div>
-                <span className="text-xs font-bold text-text-subtle uppercase tracking-wider block mb-1">Catatan Varians & Outcome</span>
-                <p className="text-sm text-text font-medium italic">{varianceText}</p>
-              </div>
-              {losValidation?.aiJustification && (
-                <div className="border-t border-border/40 pt-3">
-                  <span className="text-xs font-bold text-primary uppercase tracking-wider block mb-1">Konteks Medis LOS (AI Analysis)</span>
-                  <p className="text-sm text-text-subtle">{losValidation.aiJustification}</p>
-                  {losValidation.references && losValidation.references.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {losValidation.references.map((ref: string, idx: number) => (
-                        <span key={idx} className="inline-flex text-[10px] bg-surface border border-border px-1.5 py-0.5 rounded text-text-subtle">
-                          {ref}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* Variance note */}
+            <div className="mt-3 pt-3 border-t border-border/60">
+              <span className="text-xs font-mono uppercase tracking-[0.15em] text-muted-foreground">Catatan Varians</span>
+              <p className="mt-1 text-sm font-light text-foreground italic">{varianceText}</p>
             </div>
+            {losValidation?.aiJustification && (
+              <div className="mt-3 pt-3 border-t border-border/60">
+                <span className="text-xs font-mono uppercase tracking-[0.15em] text-primary">Konteks Medis LOS (AI)</span>
+                <p className="mt-1 text-sm text-muted-foreground">{losValidation.aiJustification}</p>
+                {losValidation.references && losValidation.references.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {losValidation.references.map((ref: string, idx: number) => (
+                      <span key={idx} className="inline-flex text-[10px] bg-muted border border-border px-1.5 py-0.5 rounded text-muted-foreground">
+                        {ref}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Score Breakdown (collapsed by default within summary) */}
+        <div className="border-t border-border">
+          <div className="px-6 py-3 flex items-center justify-between bg-muted/20">
+            <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Perhitungan Skor per Aspek</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCopySanitizedInput}
+                disabled={loadingInput}
+                className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1 text-xs font-light text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Copy input JSON yang dikirim ke AI (sudah disanitasi PII)"
+              >
+                {copiedInput ? <CheckCheck className="w-3 h-3 text-green-500" /> : loadingInput ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin inline-block" /> : <Copy className="w-3 h-3" />}
+                {copiedInput ? 'Copied!' : 'Copy AI Input'}
+              </button>
+              <button
+                onClick={handleCopyJSON}
+                className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1 text-xs font-light text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                title="Copy hasil output JSON dari AI"
+              >
+                {copied ? <CheckCheck className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                {copied ? 'Copied!' : 'Export JSON'}
+              </button>
+            </div>
+          </div>
+          <div className="px-6 pb-6">
+            <ScoreBreakdownPanel score={validationScore} items={scoreBreakdown} />
           </div>
         </div>
       </div>
 
-      {/* Main Content Area Tabs */}
-      <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden">
-        {/* Tabs */}
-        <div className="flex border-b border-border/80 overflow-x-auto bg-surface-elevated/20 hide-scrollbar">
-          {[
-            { id: "pathway", label: "Pathway Klinis" },
-            { id: "tariff", label: "Biaya & Obat" },
-            { id: "diagnosis", label: "Diagnosis & Dokumen" },
-          ].map(tab => (
+      {/* ── SECTION 2: Detail Tabs ─────────────────────────────────────── */}
+      <div className="border-x border-b border-border rounded-b-lg bg-card overflow-hidden">
+        {/* Tab strip */}
+        <div className="flex border-b border-border overflow-x-auto bg-muted/40 hide-scrollbar">
+          {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-6 py-4 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === tab.id 
-                  ? "border-primary text-primary bg-surface" 
-                  : "border-transparent text-text-subtle hover:text-text hover:bg-surface-elevated/40"
+              className={`flex items-center gap-2 px-5 py-3.5 text-xs font-mono uppercase tracking-[0.15em] border-b-2 whitespace-nowrap transition-colors ${
+                activeTab === tab.id
+                  ? "border-primary text-primary bg-card"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
               }`}
             >
+              {tab.icon}
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Tab Contents */}
+        {/* Tab content */}
         <div className="p-6 sm:p-8">
-          
-          {/* PATHWAY TAB — Patient Summary + Timeline */}
+
+          {/* ── TAB: PATHWAY KLINIS ──────────────────────────────────────── */}
           {activeTab === "pathway" && (
-            <div className="space-y-6 animate-fade-in">
-              {/* Patient Clinical Summary Card */}
+            <div className="space-y-8 animate-fade-in">
+              {/* Patient Clinical Summary */}
               {inputPayload && (
-                <div className="rounded-lg border border-border/80 bg-surface-elevated/20 overflow-hidden">
-                  <div className="px-5 py-3.5 border-b border-border/60 bg-surface-elevated/40">
-                    <h3 className="text-sm font-bold text-text">Ringkasan Klinis Pasien</h3>
-                  </div>
-                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-                    {/* Identitas */}
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Identitas Pasien</p>
-                      <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1 text-sm">
-                        <span className="text-text-subtle font-medium">Nama</span>
-                        <span className="text-text font-semibold">{inputPayload.patient?.name || '—'}</span>
-                        <span className="text-text-subtle font-medium">Gender/Tgl Lahir</span>
-                        <span className="text-text">{inputPayload.patient?.gender || '—'} · {inputPayload.patient?.birthDate ? new Date(inputPayload.patient.birthDate).toLocaleDateString('id-ID') : '—'}</span>
-                        <span className="text-text-subtle font-medium">MRN</span>
-                        <span className="text-text">{inputPayload.patient?.identifier?.[0]?.value || '—'}</span>
-                        <span className="text-text-subtle font-medium">Asuransi</span>
-                        <span className="text-text">{inputPayload.extra?.insuranceNumber || '—'}</span>
+                <div>
+                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Ringkasan Klinis Pasien</p>
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+                      {/* Identitas */}
+                      <div className="p-5">
+                        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Identitas Pasien</p>
+                        <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
+                          <span className="text-muted-foreground font-light">Nama</span>
+                          <span className="text-foreground font-light">{inputPayload.patient?.name || '—'}</span>
+                          <span className="text-muted-foreground font-light">Gender / Tgl Lahir</span>
+                          <span className="text-foreground font-light">{inputPayload.patient?.gender || '—'} · {inputPayload.patient?.birthDate ? new Date(inputPayload.patient.birthDate).toLocaleDateString('id-ID') : '—'}</span>
+                          <span className="text-muted-foreground font-light">MRN</span>
+                          <span className="text-foreground font-light font-mono">{inputPayload.patient?.identifier?.[0]?.value || '—'}</span>
+                          <span className="text-muted-foreground font-light">Asuransi</span>
+                          <span className="text-foreground font-light">{inputPayload.extra?.insuranceNumber || '—'}</span>
+                        </div>
+                      </div>
+                      {/* Episode */}
+                      <div className="p-5">
+                        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Episode Perawatan</p>
+                        <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
+                          <span className="text-muted-foreground font-light">Jenis</span>
+                          <span className="text-foreground font-light">{inputPayload.encounter?.class?.code || '—'}</span>
+                          <span className="text-muted-foreground font-light">Masuk</span>
+                          <span className="text-foreground font-light">{inputPayload.encounter?.period?.start ? new Date(inputPayload.encounter.period.start).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
+                          <span className="text-muted-foreground font-light">Pulang</span>
+                          <span className="text-foreground font-light">{inputPayload.encounter?.period?.end ? new Date(inputPayload.encounter.period.end).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
+                          <span className="text-muted-foreground font-light">LOS</span>
+                          {actualLOSVal > 0 ? (
+                            <span className="text-foreground font-light">{actualLOSVal} Hari <span className="text-muted-foreground">{expectedLOSVal > 0 ? `(Standar AI: ${expectedLOSVal} hari)` : ''}</span></span>
+                          ) : (
+                            <span className="text-foreground font-light">—</span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    {/* Episode */}
-                    <div className="space-y-3">
-                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Episode Perawatan</p>
-                      <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1 text-sm">
-                        <span className="text-text-subtle font-medium">Jenis</span>
-                        <span className="text-text">{inputPayload.encounter?.class?.code || '—'}</span>
-                        <span className="text-text-subtle font-medium">Masuk</span>
-                        <span className="text-text">{inputPayload.encounter?.period?.start ? new Date(inputPayload.encounter.period.start).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
-                        <span className="text-text-subtle font-medium">Pulang</span>
-                        <span className="text-text">{inputPayload.encounter?.period?.end ? new Date(inputPayload.encounter.period.end).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
-                        <span className="text-text-subtle font-medium">LOS</span>
-                        {actualLOSVal > 0 ? (
-                          <span className="text-text font-semibold">{actualLOSVal} Hari <span className="text-text-subtle font-normal">{expectedLOSVal > 0 ? `(Standar AI: ${expectedLOSVal} hari)` : ''}</span></span>
-                        ) : (
-                          <span className="text-text">—</span>
-                        )}
-                      </div>
-                    </div>
+
                     {/* Diagnoses */}
                     {inputPayload.diagnoses?.length > 0 && (
-                      <div className="space-y-2 md:col-span-2">
-                        <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Diagnosis</p>
-                        <div className="flex flex-wrap gap-2">
+                      <div className="border-t border-border p-5">
+                        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Diagnosis</p>
+                        <div className="flex flex-wrap gap-2 mb-3">
                           {inputPayload.diagnoses.map((d: any, i: number) => (
-                            <span key={i} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${
-                              d.type === 'primary' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-surface-elevated text-text-subtle border-border/60'
+                            <span key={i} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-light border ${
+                              d.type === 'primary' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-muted text-muted-foreground border-border'
                             }`}>
-                              <span className="font-mono font-bold">{d.code}</span>
+                              <span className="font-mono">{d.code}</span>
                               {(d.description || d.name) && <span>— {d.description || d.name}</span>}
-                              <span className="opacity-60">({d.type})</span>
+                              <span className="opacity-60 text-[10px]">({d.type})</span>
                             </span>
                           ))}
                         </div>
-                        {/* AI Clinical Summary */}
                         {result.diagnosisValidation?.details?.[0]?.clinicalSummary && (
-                          <div className="mt-2 p-3 bg-primary/5 border border-primary/10 rounded-md">
-                            <p className="text-xs font-bold text-primary mb-1">Konteks Klinis AI</p>
-                            <p className="text-sm text-text-subtle italic">{result.diagnosisValidation.details[0].clinicalSummary}</p>
+                          <div className="p-3 bg-primary/5 border border-primary/10 rounded-md">
+                            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-primary mb-1.5">Konteks Klinis AI</p>
+                            <p className="text-sm text-muted-foreground font-light italic">{result.diagnosisValidation.details[0].clinicalSummary}</p>
                           </div>
                         )}
                       </div>
                     )}
+
                     {/* Procedures & Medications summary */}
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Tindakan Diklaim ({inputPayload.procedures?.length || 0})</p>
-                      <ul className="space-y-0.5">
-                        {(inputPayload.procedures || []).slice(0, 5).map((p: any, i: number) => {
-                          const name = p.name || p.description || p.procedureName || 'Tindakan medis';
-                          const code = p.code || p.procedureCode;
-                          return <li key={i} className="text-xs text-text-subtle">• <span className="font-medium text-text">{name}</span>{code ? <span className="font-mono text-text-faint"> — {code}</span> : null}</li>;
-                        })}
-                        {inputPayload.procedures?.length > 5 && <li className="text-xs text-text-faint">+ {inputPayload.procedures.length - 5} lainnya...</li>}
-                      </ul>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-text-subtle uppercase tracking-wider">Obat Diklaim ({inputPayload.medications?.length || 0})</p>
-                      <ul className="space-y-0.5">
-                        {(inputPayload.medications || []).slice(0, 5).map((m: any, i: number) => (
-                          <li key={i} className="text-xs text-text-subtle">• {m.name}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</li>
-                        ))}
-                        {inputPayload.medications?.length > 5 && <li className="text-xs text-text-faint">+ {inputPayload.medications.length - 5} lainnya...</li>}
-                      </ul>
+                    <div className="border-t border-border grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+                      <div className="p-5">
+                        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Tindakan Diklaim ({inputPayload.procedures?.length || 0})</p>
+                        <ul className="space-y-1">
+                          {(inputPayload.procedures || []).slice(0, 5).map((p: any, i: number) => {
+                            const name = p.name || p.description || p.procedureName || 'Tindakan medis';
+                            const code = p.code || p.procedureCode;
+                            return <li key={i} className="text-xs text-muted-foreground font-light">· <span className="text-foreground">{name}</span>{code ? <span className="font-mono"> — {code}</span> : null}</li>;
+                          })}
+                          {inputPayload.procedures?.length > 5 && <li className="text-xs text-muted-foreground">+ {inputPayload.procedures.length - 5} lainnya...</li>}
+                        </ul>
+                      </div>
+                      <div className="p-5">
+                        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Obat Diklaim ({inputPayload.medications?.length || 0})</p>
+                        <ul className="space-y-1">
+                          {(inputPayload.medications || []).slice(0, 5).map((m: any, i: number) => (
+                            <li key={i} className="text-xs text-muted-foreground font-light">· {m.name}{m.quantity > 1 ? ` ×${m.quantity}` : ''}</li>
+                          ))}
+                          {inputPayload.medications?.length > 5 && <li className="text-xs text-muted-foreground">+ {inputPayload.medications.length - 5} lainnya...</li>}
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
+              {/* Pathway Timeline */}
               <div>
-                <h3 className="text-base font-bold text-text mb-4 flex items-center gap-2">
-                  Rekomendasi Pathway Terapi (AI)
+                <div className="flex items-center gap-3 mb-4">
+                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Rekomendasi Pathway Terapi (AI)</p>
                   {expectedLOSVal > 0 && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-light bg-primary/10 text-primary border border-primary/20">
                       Hari 1{expectedLOSVal > 1 ? ` - ${expectedLOSVal}` : ''}
                     </span>
                   )}
-                </h3>
+                </div>
                 <PathwayTimeline phases={job.clinicalPathway?.phases || result.clinicalPathway?.recommendedPathway || result.clinicalPathway?.phases || []} />
               </div>
             </div>
           )}
 
-          {/* TARIFF & OBAT TAB */}
+          {/* ── TAB: BIAYA & OBAT ────────────────────────────────────────── */}
           {activeTab === "tariff" && (
-            <div className="space-y-8 animate-fade-in">
+            <div className="space-y-10 animate-fade-in">
+              {/* Fee Schedule Validation */}
               <div>
-                <h3 className="text-lg font-bold text-text mb-4">Master Fee Schedule Validation</h3>
-                <div className="overflow-x-auto rounded-xl border border-border/80">
+                <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Master Fee Schedule Validation</p>
+                <div className="overflow-x-auto rounded-lg border border-border">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle uppercase tracking-wider">
+                    <thead className="bg-muted/40 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground border-b border-border">
                       <tr>
                         <th className="px-4 py-3">Procedure</th>
                         <th className="px-4 py-3 text-right">Qty</th>
@@ -811,24 +815,24 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         const claimedTotal = getProcedureClaimedTotal(item);
                         const claimedUnit = getProcedureClaimedUnit(item);
                         return (
-                          <tr key={i} className={isOver ? "bg-red-500/5" : isNotFound || isUnder ? "bg-yellow-500/5" : ""}>
+                          <tr key={i} className={`transition-colors ${isOver ? "bg-red-500/5" : isNotFound || isUnder ? "bg-yellow-500/5" : "hover:bg-muted/30"}`}>
                             <td className="px-4 py-3">
-                              <p className="font-medium text-text">{getProcedureDisplayName(item)}</p>
-                              {getProcedureDisplayCode(item) && <p className="mt-0.5 font-mono text-[10px] text-text-faint">{getProcedureDisplayCode(item)}</p>}
+                              <p className="font-light text-foreground">{getProcedureDisplayName(item)}</p>
+                              {getProcedureDisplayCode(item) && <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{getProcedureDisplayCode(item)}</p>}
                             </td>
-                            <td className="px-4 py-3 text-right font-medium text-text-subtle">
+                            <td className="px-4 py-3 text-right font-mono text-xs font-light text-muted-foreground">
                               {item.quantity || 1}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <div className="font-medium">{claimedTotal ? new Intl.NumberFormat('id-ID').format(claimedTotal) : '—'}</div>
+                              <div className="font-mono text-sm font-light text-foreground">{claimedTotal ? new Intl.NumberFormat('id-ID').format(claimedTotal) : '—'}</div>
                               {claimedUnit ? (
-                                <div className="text-[10px] text-text-subtle font-normal mt-0.5">@ {new Intl.NumberFormat('id-ID').format(claimedUnit)}</div>
+                                <div className="text-[10px] text-muted-foreground font-mono mt-0.5">@ {new Intl.NumberFormat('id-ID').format(claimedUnit)}</div>
                               ) : null}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <div className="text-text-subtle font-medium">{item.expectedTotal > 0 ? new Intl.NumberFormat('id-ID').format(item.expectedTotal) : (item.masterMaxPrice || item.expectedMaxPrice ? new Intl.NumberFormat('id-ID').format((item.quantity || 1) * (item.masterMaxPrice || item.expectedMaxPrice)) : '—')}</div>
+                              <div className="font-mono text-sm font-light text-muted-foreground">{item.expectedTotal > 0 ? new Intl.NumberFormat('id-ID').format(item.expectedTotal) : (item.masterMaxPrice || item.expectedMaxPrice ? new Intl.NumberFormat('id-ID').format((item.quantity || 1) * (item.masterMaxPrice || item.expectedMaxPrice)) : '—')}</div>
                               {item.masterMaxPrice || item.expectedMaxPrice ? (
-                                <div className="text-[10px] text-text-subtle/70 font-normal mt-0.5">@ {new Intl.NumberFormat('id-ID').format(item.masterMaxPrice || item.expectedMaxPrice)}</div>
+                                <div className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">@ {new Intl.NumberFormat('id-ID').format(item.masterMaxPrice || item.expectedMaxPrice)}</div>
                               ) : null}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-xs">
@@ -840,13 +844,13 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                             </td>
                             <td className="px-4 py-3 text-center">
                               {isOver ? (
-                                <span className="inline-flex items-center rounded-md bg-red-500/10 px-2 py-1 text-xs font-bold text-red-600 ring-1 ring-inset ring-red-500/20">⚠ Overcharge</span>
+                                <span className="inline-flex items-center rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-red-600 ring-1 ring-inset ring-red-500/20">Overcharge</span>
                               ) : isUnder ? (
-                                <span className="inline-flex items-center rounded-md bg-yellow-500/10 px-2 py-1 text-xs font-bold text-yellow-600 ring-1 ring-inset ring-yellow-500/20">↓ Undercharge</span>
+                                <span className="inline-flex items-center rounded bg-yellow-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-yellow-600 ring-1 ring-inset ring-yellow-500/20">Undercharge</span>
                               ) : isNotFound ? (
-                                <span className="inline-flex items-center rounded-md bg-orange-500/10 px-2 py-1 text-xs font-bold text-orange-600 ring-1 ring-inset ring-orange-500/20">⚡ Unregistered</span>
+                                <span className="inline-flex items-center rounded bg-orange-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-orange-600 ring-1 ring-inset ring-orange-500/20">Unregistered</span>
                               ) : (
-                                <span className="inline-flex items-center rounded-md bg-green-500/10 px-2 py-1 text-xs font-medium text-green-600 ring-1 ring-inset ring-green-500/20">✓ Compliant</span>
+                                <span className="inline-flex items-center rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-green-600 ring-1 ring-inset ring-green-500/20">Compliant</span>
                               )}
                             </td>
                           </tr>
@@ -857,17 +861,18 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                 </div>
                 {tariffItems.some((t: any) => t.status === 'NOT_FOUND') && (
                   <div className="mt-3 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                    <p className="text-xs text-orange-700 font-medium">⚡ Beberapa tindakan berstatus <strong>Unregistered</strong> — belum terdaftar di Master Buku Tarif untuk provider ini. Harap daftarkan sebelum klaim diproses.</p>
+                    <p className="text-xs text-orange-700 font-light">Beberapa tindakan berstatus <strong className="font-medium">Unregistered</strong> — belum terdaftar di Master Buku Tarif untuk provider ini. Harap daftarkan sebelum klaim diproses.</p>
                   </div>
                 )}
               </div>
 
+              {/* Drug Price Validation */}
               {drugItems && drugItems.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-bold text-text mb-4">Drug Price Validation</h3>
-                  <div className="overflow-x-auto rounded-xl border border-border/80">
+                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Drug Price Validation</p>
+                  <div className="overflow-x-auto rounded-lg border border-border">
                     <table className="w-full text-left text-sm">
-                      <thead className="bg-surface-elevated/50 text-xs font-semibold text-text-subtle uppercase tracking-wider">
+                      <thead className="bg-muted/40 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground border-b border-border">
                         <tr>
                           <th className="px-4 py-3">Drug Name</th>
                           <th className="px-4 py-3 text-right">Qty</th>
@@ -887,35 +892,35 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           const drugClaimedTotal = getDrugClaimedTotal(item);
                           const drugClaimedUnit = getDrugClaimedUnit(item);
                           return (
-                            <tr key={i} className={isDrugOver ? "bg-red-500/5" : isDrugNotFound || isDrugUnder ? "bg-yellow-500/5" : ""}>
+                            <tr key={i} className={`transition-colors ${isDrugOver ? "bg-red-500/5" : isDrugNotFound || isDrugUnder ? "bg-yellow-500/5" : "hover:bg-muted/30"}`}>
                               <td className="px-4 py-3">
-                                <p className="font-medium text-text">{item.name || item.medicationName}</p>
+                                <p className="font-light text-foreground">{item.name || item.medicationName}</p>
                                 {item.resolvedProductName && (
                                   <p className="text-[10px] text-primary/80 mt-0.5">Referensi: {item.resolvedProductName}</p>
                                 )}
                                 {item.unitBasis && (
-                                  <p className="text-[10px] text-text-subtle/70 mt-0.5">Unit: {item.unitBasis}</p>
+                                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">Unit: {item.unitBasis}</p>
                                 )}
                                 {Array.isArray(item.sources) && item.sources.length > 0 && (
-                                  <p className="text-[10px] text-text-subtle/70 mt-0.5">Sumber referensi: Master data farmalkes lokal</p>
+                                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">Sumber referensi: Master data farmalkes lokal</p>
                                 )}
                               </td>
-                              <td className="px-4 py-3 text-right font-medium text-text-subtle">
+                              <td className="px-4 py-3 text-right font-mono text-xs font-light text-muted-foreground">
                                 {item.quantity || 1}
                               </td>
                               <td className="px-4 py-3 text-right">
-                                <div className="font-medium">{drugClaimedTotal ? new Intl.NumberFormat('id-ID').format(drugClaimedTotal) : '—'}</div>
+                                <div className="font-mono text-sm font-light text-foreground">{drugClaimedTotal ? new Intl.NumberFormat('id-ID').format(drugClaimedTotal) : '—'}</div>
                                 {drugClaimedUnit ? (
-                                  <div className="text-[10px] text-text-subtle font-normal mt-0.5">@ {new Intl.NumberFormat('id-ID').format(drugClaimedUnit)}</div>
+                                  <div className="text-[10px] text-muted-foreground font-mono mt-0.5">@ {new Intl.NumberFormat('id-ID').format(drugClaimedUnit)}</div>
                                 ) : null}
                               </td>
                               <td className="px-4 py-3 text-right">
-                                <div className="text-text-subtle font-medium">{item.expectedTotal > 0 ? new Intl.NumberFormat('id-ID').format(item.expectedTotal) : (item.marketPriceMaxWithThreshold || item.marketMaxPrice ? new Intl.NumberFormat('id-ID').format((item.quantity || 1) * (item.marketPriceMaxWithThreshold || item.marketMaxPrice)) : '—')}</div>
+                                <div className="font-mono text-sm font-light text-muted-foreground">{item.expectedTotal > 0 ? new Intl.NumberFormat('id-ID').format(item.expectedTotal) : (item.marketPriceMaxWithThreshold || item.marketMaxPrice ? new Intl.NumberFormat('id-ID').format((item.quantity || 1) * (item.marketPriceMaxWithThreshold || item.marketMaxPrice)) : '—')}</div>
                                 {item.marketPriceMaxWithThreshold || item.marketMaxPrice ? (
-                                  <div className="text-[10px] text-text-subtle/70 font-normal mt-0.5">@ {new Intl.NumberFormat('id-ID').format(item.marketPriceMaxWithThreshold || item.marketMaxPrice)}</div>
+                                  <div className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">@ {new Intl.NumberFormat('id-ID').format(item.marketPriceMaxWithThreshold || item.marketMaxPrice)}</div>
                                 ) : null}
                                 {(item.fixPrice || item.hetPrice || item.maxReferencePrice) ? (
-                                  <div className="mt-1 text-[10px] text-text-subtle/70 font-normal">
+                                  <div className="mt-1 text-[10px] text-muted-foreground/70 font-mono">
                                     Fix {item.fixPrice ? new Intl.NumberFormat('id-ID').format(item.fixPrice) : '—'} · HET {item.hetPrice ? new Intl.NumberFormat('id-ID').format(item.hetPrice) : '—'} · Max {new Intl.NumberFormat('id-ID').format(item.maxReferencePrice || item.marketPriceMax || 0)}
                                   </div>
                                 ) : null}
@@ -929,15 +934,15 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                               </td>
                               <td className="px-4 py-3 text-center">
                                 {isDrugOver ? (
-                                  <span className="inline-flex items-center rounded-md bg-red-500/10 px-2 py-1 text-xs font-bold text-red-600 ring-1 ring-inset ring-red-500/20">⚠ Overcharge</span>
+                                  <span className="inline-flex items-center rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-red-600 ring-1 ring-inset ring-red-500/20">Overcharge</span>
                                 ) : isDrugUnder ? (
-                                  <span className="inline-flex items-center rounded-md bg-yellow-500/10 px-2 py-1 text-xs font-bold text-yellow-600 ring-1 ring-inset ring-yellow-500/20">↓ Undercharge</span>
+                                  <span className="inline-flex items-center rounded bg-yellow-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-yellow-600 ring-1 ring-inset ring-yellow-500/20">Undercharge</span>
                                 ) : isDrugNonMed ? (
-                                  <span className="inline-flex items-center rounded-md bg-slate-500/10 px-2 py-1 text-xs font-medium text-slate-500 ring-1 ring-inset ring-slate-500/20">Bukan Obat</span>
+                                  <span className="inline-flex items-center rounded bg-slate-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-slate-500 ring-1 ring-inset ring-slate-500/20">Bukan Obat</span>
                                 ) : isDrugNotFound ? (
-                                  <span className="inline-flex items-center rounded-md bg-orange-500/10 px-2 py-1 text-xs font-bold text-orange-600 ring-1 ring-inset ring-orange-500/20">Referensi belum tersedia</span>
+                                  <span className="inline-flex items-center rounded bg-orange-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-orange-600 ring-1 ring-inset ring-orange-500/20">Referensi N/A</span>
                                 ) : (
-                                  <span className="inline-flex items-center rounded-md bg-green-500/10 px-2 py-1 text-xs font-medium text-green-600 ring-1 ring-inset ring-green-500/20">✓ Compliant</span>
+                                  <span className="inline-flex items-center rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-green-600 ring-1 ring-inset ring-green-500/20">Compliant</span>
                                 )}
                               </td>
                             </tr>
@@ -951,217 +956,218 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
             </div>
           )}
 
-          {/* DIAGNOSIS & DOKUMEN TAB */}
+          {/* ── TAB: DIAGNOSIS & DOKUMEN ─────────────────────────────────── */}
           {activeTab === "diagnosis" && (
-            <div className="space-y-8 animate-fade-in">
+            <div className="space-y-10 animate-fade-in">
+              {/* Diagnosis vs Procedure Validation */}
               <div>
-                              <h3 className="text-lg font-bold text-text mb-4">Diagnosis vs Procedure Validation</h3>
-                <div className="space-y-4">
+                <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Diagnosis vs Procedure Validation</p>
+                <div className="space-y-3">
                   {diagDetails.map((diag: any, i: number) => {
                     const diagnosisKey = `${diag.diagnosisCode || 'diagnosis'}-${i}`;
                     const isExpanded = isDiagnosisDetailExpanded(diagnosisKey);
 
                     return (
-                    <div key={diagnosisKey} className="rounded-xl border border-border/80 overflow-hidden">
-                      {/* Diag header */}
-                      <div className="flex flex-col gap-3 px-5 py-3.5 bg-surface-elevated/40 border-b border-border/60 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">{diag.diagnosisCode}</span>
-                            <h4 className="font-semibold text-text text-sm">{diag.diagnosisName || diag.diagnosisCode}</h4>
+                      <div key={diagnosisKey} className="rounded-lg border border-border overflow-hidden">
+                        {/* Diag header */}
+                        <div className="flex flex-col gap-3 px-5 py-3.5 bg-muted/40 border-b border-border sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-xs font-light text-primary bg-primary/10 px-2 py-0.5 rounded">{diag.diagnosisCode}</span>
+                              <h4 className="font-light text-foreground text-sm">{diag.diagnosisName || diag.diagnosisCode}</h4>
+                            </div>
+                            {diag.clinicalSummary && isExpanded && (
+                              <p className="text-xs text-muted-foreground mt-1.5 italic max-w-xl">{diag.clinicalSummary}</p>
+                            )}
                           </div>
-                          {diag.clinicalSummary && isExpanded && (
-                            <p className="text-xs text-text-subtle mt-1.5 italic max-w-xl">{diag.clinicalSummary}</p>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleDiagnosisDetail(diagnosisKey)}
+                            aria-expanded={isExpanded}
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded border border-border bg-card px-3 py-2 text-xs font-light text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shrink-0"
+                          >
+                            {isExpanded ? 'Sembunyikan detail' : 'Tampilkan detail'}
+                            <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => toggleDiagnosisDetail(diagnosisKey)}
-                          aria-expanded={isExpanded}
-                          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs font-semibold text-text-subtle transition-colors hover:bg-surface-elevated hover:text-text focus:outline-none focus:ring-2 focus:ring-primary/30"
-                        >
-                          {isExpanded ? 'Sembunyikan detail' : 'Tampilkan detail'}
-                          <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                        </button>
-                      </div>
-                      
-                      {isExpanded && <div className="p-5 space-y-3">
-                        {diag.missingRequiredProcedures && diag.missingRequiredProcedures.length > 0 && (
-                          <div className="p-3 bg-orange-500/5 border border-orange-500/20 rounded-md">
-                            <p className="text-xs font-bold text-orange-600 mb-1.5">Prosedur wajib belum diklaim ({diag.missingRequiredProcedures.length})</p>
-                            <p className="mb-2 text-xs leading-5 text-orange-700/80">Daftar ini hanya untuk prosedur yang dianggap wajib oleh mapping/pathway. Setiap item perlu dicek terhadap konteks klinis pasien.</p>
-                            <ul className="space-y-2">
-                              {diag.missingRequiredProcedures.map((p: string, j: number) => {
-                                const detail = diag.missingRequiredProcedureDetails?.find((item: any) => p.includes(item.code) || item.code === p);
-                                return (
-                                  <li key={j} className="rounded-md bg-surface/70 p-2 text-sm text-orange-800">
-                                    <p className="font-semibold">{detail?.name || p}</p>
-                                    {detail?.code && <p className="mt-0.5 font-mono text-[11px] text-orange-700/70">{detail.code}</p>}
-                                    {detail?.reason && <p className="mt-1 text-xs leading-5 text-orange-700/80">Alasan: {detail.reason}</p>}
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </div>
-                        )}
                         
-                        {diag.procedureFindings && diag.procedureFindings.length > 0 && (
-                          <div className="p-3 bg-slate-500/5 border border-border/60 rounded-md">
-                            <p className="text-xs font-bold text-text mb-1.5">Kesesuaian tindakan terhadap diagnosis ({diag.procedureFindings.length})</p>
-                            <p className="mb-2 text-xs leading-5 text-text-subtle">Bagian ini menjelaskan apakah tindakan yang diklaim sesuai, perlu konteks tambahan, atau tidak sesuai terhadap diagnosis.</p>
-                            <ul className="space-y-2">
-                              {diag.procedureFindings.map((p: any, j: number) => {
-                                const isIssue = p.status === 'REVIEW_NEEDED' || p.status === 'INAPPROPRIATE';
-                                return (
-                                  <li key={j} className={`rounded-md bg-surface/70 p-2 text-sm ${isIssue ? 'text-amber-800' : 'text-green-800'}`}>
-                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                      <div>
-                                        <p className="font-semibold">{getProcedureLine(p).name}</p>
-                                        {getProcedureLine(p).code && <p className="mt-0.5 font-mono text-[11px] opacity-70">{getProcedureLine(p).code}</p>}
+                        {isExpanded && <div className="p-5 space-y-3">
+                          {diag.missingRequiredProcedures && diag.missingRequiredProcedures.length > 0 && (
+                            <div className="p-3 bg-orange-500/5 border border-orange-500/20 rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-orange-600 mb-1.5">Prosedur wajib belum diklaim ({diag.missingRequiredProcedures.length})</p>
+                              <p className="mb-2 text-xs leading-5 text-orange-700/80">Daftar ini hanya untuk prosedur yang dianggap wajib oleh mapping/pathway. Setiap item perlu dicek terhadap konteks klinis pasien.</p>
+                              <ul className="space-y-2">
+                                {diag.missingRequiredProcedures.map((p: string, j: number) => {
+                                  const detail = diag.missingRequiredProcedureDetails?.find((item: any) => p.includes(item.code) || item.code === p);
+                                  return (
+                                    <li key={j} className="rounded bg-card p-2 text-sm text-orange-800">
+                                      <p className="font-light">{detail?.name || p}</p>
+                                      {detail?.code && <p className="mt-0.5 font-mono text-[11px] text-orange-700/70">{detail.code}</p>}
+                                      {detail?.reason && <p className="mt-1 text-xs leading-5 text-orange-700/80">Alasan: {detail.reason}</p>}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          )}
+                          
+                          {diag.procedureFindings && diag.procedureFindings.length > 0 && (
+                            <div className="p-3 bg-slate-500/5 border border-border rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-foreground mb-1.5">Kesesuaian tindakan terhadap diagnosis ({diag.procedureFindings.length})</p>
+                              <p className="mb-2 text-xs leading-5 text-muted-foreground">Bagian ini menjelaskan apakah tindakan yang diklaim sesuai, perlu konteks tambahan, atau tidak sesuai terhadap diagnosis.</p>
+                              <ul className="space-y-2">
+                                {diag.procedureFindings.map((p: any, j: number) => {
+                                  const isIssue = p.status === 'REVIEW_NEEDED' || p.status === 'INAPPROPRIATE';
+                                  return (
+                                    <li key={j} className={`rounded bg-card p-2 text-sm ${isIssue ? 'text-amber-800' : 'text-green-800'}`}>
+                                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                          <p className="font-light">{getProcedureLine(p).name}</p>
+                                          {getProcedureLine(p).code && <p className="mt-0.5 font-mono text-[11px] opacity-70">{getProcedureLine(p).code}</p>}
+                                        </div>
+                                        <span className={`w-fit rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${p.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : p.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                                          {p.status === 'APPROPRIATE' ? 'Sesuai' : p.status === 'INAPPROPRIATE' ? 'Tidak sesuai' : 'Perlu review'}
+                                        </span>
                                       </div>
-                                      <span className={`w-fit rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${p.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : p.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
-                                        {p.status === 'APPROPRIATE' ? 'Sesuai' : p.status === 'INAPPROPRIATE' ? 'Tidak sesuai' : 'Perlu review'}
-                                      </span>
-                                    </div>
-                                    <p className="mt-1 text-xs leading-5 opacity-80">Alasan: {p.reason}</p>
-                                    <p className="mt-1 text-[11px] opacity-70">Dinilai terhadap: {p.againstDiagnosis || diag.diagnosisCode} · Keyakinan: {p.confidence === 'HIGH' ? 'Tinggi' : p.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</p>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </div>
-                        )}
+                                      <p className="mt-1 text-xs leading-5 opacity-80">Alasan: {p.reason}</p>
+                                      <p className="mt-1 text-[11px] opacity-70">Dinilai terhadap: {p.againstDiagnosis || diag.diagnosisCode} · Keyakinan: {p.confidence === 'HIGH' ? 'Tinggi' : p.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</p>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          )}
 
-                        {((diag.irrelevantProcedures && diag.irrelevantProcedures.length > 0) || (diag.unmatchedProcedures && diag.unmatchedProcedures.length > 0)) && (
-                          <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-md">
-                            <p className="text-xs font-bold text-red-600 mb-1.5">Tindakan perlu review relevansi ({(diag.irrelevantProcedures?.length || diag.unmatchedProcedures?.length || 0)})</p>
-                            <p className="mb-2 text-xs leading-5 text-red-700/80">Tindakan di bawah ini hanya ditandai jika AI memberi alasan klinis spesifik. Tidak relevan berarti tidak ada hubungan jelas terhadap diagnosis yang dinilai.</p>
-                            <ul className="space-y-2">
-                              {(diag.irrelevantProcedures?.length ? diag.irrelevantProcedures : diag.unmatchedProcedures).map((item: any, j: number) => {
-                                const isDetailed = typeof item === 'object' && item !== null;
-                                return (
-                                  <li key={j} className="rounded-md bg-surface/70 p-2 text-sm text-red-800">
-                                    {isDetailed ? (
-                                      <div>
-                                        <p className="font-semibold">{getProcedureLine(item).name}</p>
-                                        {getProcedureLine(item).code && <p className="mt-0.5 font-mono text-[11px] text-red-700/70">{getProcedureLine(item).code}</p>}
+                          {((diag.irrelevantProcedures && diag.irrelevantProcedures.length > 0) || (diag.unmatchedProcedures && diag.unmatchedProcedures.length > 0)) && (
+                            <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-red-600 mb-1.5">Tindakan perlu review relevansi ({(diag.irrelevantProcedures?.length || diag.unmatchedProcedures?.length || 0)})</p>
+                              <p className="mb-2 text-xs leading-5 text-red-700/80">Tindakan di bawah ini hanya ditandai jika AI memberi alasan klinis spesifik. Tidak relevan berarti tidak ada hubungan jelas terhadap diagnosis yang dinilai.</p>
+                              <ul className="space-y-2">
+                                {(diag.irrelevantProcedures?.length ? diag.irrelevantProcedures : diag.unmatchedProcedures).map((item: any, j: number) => {
+                                  const isDetailed = typeof item === 'object' && item !== null;
+                                  return (
+                                    <li key={j} className="rounded bg-card p-2 text-sm text-red-800">
+                                      {isDetailed ? (
+                                        <div>
+                                          <p className="font-light">{getProcedureLine(item).name}</p>
+                                          {getProcedureLine(item).code && <p className="mt-0.5 font-mono text-[11px] text-red-700/70">{getProcedureLine(item).code}</p>}
+                                        </div>
+                                      ) : (
+                                        <p className="font-light">{String(item).split(':')[0]}</p>
+                                      )}
+                                      {isDetailed ? (
+                                        <div className="mt-1 space-y-1 text-xs leading-5 text-red-700/80">
+                                          <p>Alasan: {item.reason}</p>
+                                          <p>Dinilai terhadap: {item.againstDiagnosis || diag.diagnosisCode}</p>
+                                          <p>Keyakinan AI: {item.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</p>
+                                        </div>
+                                      ) : String(item).includes(':') ? (
+                                        <p className="mt-1 text-xs leading-5 text-red-700/80">Alasan: {String(item).split(':').slice(1).join(':').trim()}</p>
+                                      ) : null}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          )}
+
+                          {diag.medicationFindings && diag.medicationFindings.length > 0 && (
+                            <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-blue-700 mb-1.5">Kesesuaian obat terhadap diagnosis ({diag.medicationFindings.length})</p>
+                              <p className="mb-2 text-xs leading-5 text-blue-700/80">Bagian ini menilai apakah obat yang diklaim selaras dengan diagnosis, termasuk terapi utama, suportif, simptomatik, antibiotik, cairan, atau obat komorbid.</p>
+                              <ul className="space-y-2">
+                                {diag.medicationFindings.map((m: any, j: number) => {
+                                  const isIssue = m.status === 'REVIEW_NEEDED' || m.status === 'INAPPROPRIATE';
+                                  return (
+                                    <li key={j} className={`rounded bg-card p-2 text-sm ${isIssue ? 'text-amber-800' : 'text-green-800'}`}>
+                                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                        <p className="font-light">{m.medicationName}{m.genericName ? ` (${m.genericName})` : ''}</p>
+                                        <span className={`w-fit rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${m.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : m.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                                          {m.status === 'APPROPRIATE' ? 'Sesuai' : m.status === 'INAPPROPRIATE' ? 'Tidak sesuai' : 'Perlu review'}
+                                        </span>
                                       </div>
-                                    ) : (
-                                      <p className="font-semibold">{String(item).split(':')[0]}</p>
-                                    )}
-                                    {isDetailed ? (
-                                      <div className="mt-1 space-y-1 text-xs leading-5 text-red-700/80">
-                                        <p>Alasan: {item.reason}</p>
-                                        <p>Dinilai terhadap: {item.againstDiagnosis || diag.diagnosisCode}</p>
-                                        <p>Keyakinan AI: {item.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</p>
-                                      </div>
-                                    ) : String(item).includes(':') ? (
-                                      <p className="mt-1 text-xs leading-5 text-red-700/80">Alasan: {String(item).split(':').slice(1).join(':').trim()}</p>
-                                    ) : null}
+                                      <p className="mt-1 text-xs leading-5 opacity-80">Alasan: {m.reason}</p>
+                                      <p className="mt-1 text-[11px] opacity-70">Dinilai terhadap: {m.againstDiagnosis || diag.diagnosisCode} · Keyakinan AI: {m.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</p>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          )}
+
+                          {diag.suggestedProcedures && diag.suggestedProcedures.length > 0 && (
+                            <div className="p-3 bg-primary/5 border border-primary/10 rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-primary mb-1.5">Saran tindakan tambahan AI, belum diklaim</p>
+                              <p className="mb-2 text-xs leading-5 text-primary/75">Saran ini bersifat pendukung/advisory, bukan otomatis wajib. Gunakan untuk review apakah tindakan tambahan memang diperlukan.</p>
+                              <ul className="space-y-2">
+                                {diag.suggestedProcedures.map((s: any, j: number) => (
+                                  <li key={j} className="rounded bg-card p-2 text-sm">
+                                    <p className="font-light text-primary">{s.name || 'Tindakan medis'}</p>
+                                    {s.code && <p className="mt-0.5 font-mono text-[11px] text-primary/65">{s.code}</p>}
+                                    {s.rationale && <p className="mt-1 text-xs leading-5 text-primary/70">Alasan saran: {s.rationale}</p>}
+                                    {s.evidenceLevel && <p className="mt-1 text-[11px] font-mono uppercase tracking-[0.15em] text-primary/60">Level: {s.evidenceLevel === 'COMMON' ? 'Umum pada pathway' : 'Opsional sesuai indikasi'}</p>}
                                   </li>
-                                );
-                              })}
-                            </ul>
-                          </div>
-                        )}
+                                ))}
+                              </ul>
+                            </div>
+                          )}
 
-                        {diag.medicationFindings && diag.medicationFindings.length > 0 && (
-                          <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-md">
-                            <p className="text-xs font-bold text-blue-700 mb-1.5">Kesesuaian obat terhadap diagnosis ({diag.medicationFindings.length})</p>
-                            <p className="mb-2 text-xs leading-5 text-blue-700/80">Bagian ini menilai apakah obat yang diklaim selaras dengan diagnosis, termasuk terapi utama, suportif, simptomatik, antibiotik, cairan, atau obat komorbid.</p>
-                            <ul className="space-y-2">
-                              {diag.medicationFindings.map((m: any, j: number) => {
-                                const isIssue = m.status === 'REVIEW_NEEDED' || m.status === 'INAPPROPRIATE';
-                                return (
-                                  <li key={j} className={`rounded-md bg-surface/70 p-2 text-sm ${isIssue ? 'text-amber-800' : 'text-green-800'}`}>
-                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                      <p className="font-semibold">{m.medicationName}{m.genericName ? ` (${m.genericName})` : ''}</p>
-                                      <span className={`w-fit rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${m.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : m.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
-                                        {m.status === 'APPROPRIATE' ? 'Sesuai' : m.status === 'INAPPROPRIATE' ? 'Tidak sesuai' : 'Perlu review'}
-                                      </span>
-                                    </div>
-                                    <p className="mt-1 text-xs leading-5 opacity-80">Alasan: {m.reason}</p>
-                                    <p className="mt-1 text-[11px] opacity-70">Dinilai terhadap: {m.againstDiagnosis || diag.diagnosisCode} · Keyakinan AI: {m.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</p>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </div>
-                        )}
-
-                        {diag.suggestedProcedures && diag.suggestedProcedures.length > 0 && (
-                          <div className="p-3 bg-primary/5 border border-primary/10 rounded-md">
-                            <p className="text-xs font-bold text-primary mb-1.5">Saran tindakan tambahan AI, belum diklaim</p>
-                            <p className="mb-2 text-xs leading-5 text-primary/75">Saran ini bersifat pendukung/advisory, bukan otomatis wajib. Gunakan untuk review apakah tindakan tambahan memang diperlukan.</p>
-                            <ul className="space-y-2">
-                              {diag.suggestedProcedures.map((s: any, j: number) => (
-                                <li key={j} className="rounded-md bg-surface/70 p-2 text-sm">
-                                  <p className="font-semibold text-primary">{s.name || 'Tindakan medis'}</p>
-                                  {s.code && <p className="mt-0.5 font-mono text-[11px] text-primary/65">{s.code}</p>}
-                                  {s.rationale && <p className="mt-1 text-xs leading-5 text-primary/70">Alasan saran: {s.rationale}</p>}
-                                  {s.evidenceLevel && <p className="mt-1 text-[11px] font-medium uppercase tracking-wider text-primary/60">Level: {s.evidenceLevel === 'COMMON' ? 'Umum pada pathway' : 'Opsional sesuai indikasi'}</p>}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {(!diag.missingRequiredProcedures?.length && !diag.unmatchedProcedures?.length) && (
-                          <div className="flex items-center text-sm text-green-600">
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                            All procedures match the diagnosis.
-                          </div>
-                        )}
-                        {diag.notes && (
-                          <p className="text-xs text-text-subtle italic border-t border-border/40 pt-2 mt-2">AI Note: {diag.notes}</p>
-                        )}
-                      </div>}
-                    </div>
+                          {(!diag.missingRequiredProcedures?.length && !diag.unmatchedProcedures?.length) && (
+                            <div className="flex items-center gap-1.5 text-sm text-green-600">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                              All procedures match the diagnosis.
+                            </div>
+                          )}
+                          {diag.notes && (
+                            <p className="text-xs text-muted-foreground italic border-t border-border pt-2 mt-2">AI Note: {diag.notes}</p>
+                          )}
+                        </div>}
+                      </div>
                     );
                   })}
                 </div>
               </div>
 
+              {/* Document Completeness */}
               <div>
-                <h3 className="text-lg font-bold text-text mb-4">Document Completeness Validation</h3>
-                <div className="rounded-xl border border-border/80 p-5 bg-surface-elevated/20">
+                <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Document Completeness Validation</p>
+                <div className="rounded-lg border border-border overflow-hidden">
                   {docDetails.missingRequiredDocuments?.length > 0 && (
-                    <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      <p className="font-semibold text-red-800">Mandatory document tidak terlampir.</p>
-                      <p className="mt-1">Admin perlu melengkapi atau meminta ulang dokumen berikut sebelum klaim diproses lebih lanjut: {docDetails.missingRequiredDocuments.join(', ')}.</p>
+                    <div className="px-5 py-4 border-b border-red-200 bg-red-50">
+                      <p className="text-sm font-light text-red-800">Mandatory document tidak terlampir.</p>
+                      <p className="mt-1 text-xs text-red-700/80 leading-5">Admin perlu melengkapi atau meminta ulang dokumen berikut sebelum klaim diproses lebih lanjut: {docDetails.missingRequiredDocuments.join(', ')}.</p>
                     </div>
                   )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <p className="text-sm font-medium text-text mb-2">Attached Documents:</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+                    <div className="p-5">
+                      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Attached Documents</p>
                       {docDetails.providedDocuments?.length > 0 ? (
-                        <ul className="space-y-1">
+                        <ul className="space-y-1.5">
                           {docDetails.providedDocuments.map((doc: string, i: number) => (
-                            <li key={i} className="text-sm text-text-subtle flex items-center">
-                              <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                            <li key={i} className="flex items-center gap-2 text-sm font-light text-muted-foreground">
+                              <svg className="w-4 h-4 shrink-0 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                               {doc}
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="text-sm text-text-subtle italic">None</p>
+                        <p className="text-sm font-light text-muted-foreground italic">None</p>
                       )}
                     </div>
-                    
-                    <div>
-                      <p className="text-sm font-medium text-text mb-2">Missing Required Documents:</p>
+                    <div className="p-5">
+                      <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Missing Required Documents</p>
                       {docDetails.missingRequiredDocuments?.length > 0 ? (
-                        <ul className="space-y-1">
+                        <ul className="space-y-1.5">
                           {docDetails.missingRequiredDocuments.map((doc: string, i: number) => (
-                            <li key={i} className="text-sm text-red-600 flex items-center">
-                              <svg className="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            <li key={i} className="flex items-center gap-2 text-sm font-light text-red-600">
+                              <svg className="w-4 h-4 shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                               {doc}
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="text-sm text-green-600 flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                        <p className="flex items-center gap-1.5 text-sm font-light text-green-600">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                           All required documents fulfilled
                         </p>
                       )}

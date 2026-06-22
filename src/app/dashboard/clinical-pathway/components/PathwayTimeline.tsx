@@ -82,7 +82,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
             
             <div className="pl-1 sm:pl-2">
               <div className="mb-4">
-                <h3 className="text-lg font-bold text-text">{displayName}</h3>
+                <h3 className="text-lg font-medium text-text">{displayName}</h3>
                 <p className="text-sm font-medium text-text-subtle mt-1">{translateCommonClinicalText(phase.objectives)}</p>
               </div>
 
@@ -90,7 +90,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
                 {/* Assessments */}
                 {phase.assessments && phase.assessments.length > 0 && (
                   <div className="rounded-xl bg-surface-elevated/40 border border-border/50 p-4">
-                    <h4 className="text-sm font-semibold text-text mb-3 flex items-center">
+                    <h4 className="text-sm font-medium text-text mb-3 flex items-center">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-2"></span>
                       Asesmen Klinis
                     </h4>
@@ -108,7 +108,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
                 {/* Treatments & Procedures */}
                 {phase.treatments && phase.treatments.length > 0 && (
                   <div className="rounded-xl bg-surface-elevated/40 border border-border/50 p-4">
-                    <h4 className="text-sm font-semibold text-text mb-3 flex items-center">
+                    <h4 className="text-sm font-medium text-text mb-3 flex items-center">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-2"></span>
                       Tindakan Medis
                     </h4>
@@ -126,7 +126,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
                 {/* Medications */}
                 {phase.medications && phase.medications.length > 0 && (
                   <div className="rounded-xl bg-surface-elevated/40 border border-border/50 p-4">
-                    <h4 className="text-sm font-semibold text-text mb-3 flex items-center">
+                    <h4 className="text-sm font-medium text-text mb-3 flex items-center">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2"></span>
                       Medikamentosa (Obat)
                     </h4>
@@ -144,7 +144,7 @@ export default function PathwayTimeline({ phases }: { phases: any[] }) {
                 {/* Nursing & Nutrition */}
                 {(phase.nursing?.length > 0 || phase.nutrition) && (
                   <div className="rounded-xl bg-surface-elevated/40 border border-border/50 p-4">
-                    <h4 className="text-sm font-semibold text-text mb-3 flex items-center">
+                    <h4 className="text-sm font-medium text-text mb-3 flex items-center">
                       <span className="w-1.5 h-1.5 rounded-full bg-purple-500 mr-2"></span>
                       Keperawatan & Nutrisi
                     </h4>

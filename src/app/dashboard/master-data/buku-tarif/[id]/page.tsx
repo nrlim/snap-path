@@ -19,16 +19,17 @@ export default async function EditBukuTarifPage(props: {
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between border-b border-border pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-text">Edit Fee Entry</h1>
-          <p className="text-sm text-text-subtle mt-1">
-            Update procedure data for <strong>{entry.procedureName}</strong>{entry.procedureCode ? <span className="font-mono text-text-faint"> — {entry.procedureCode}</span> : null}.
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Buku Tarif</p>
+          <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">Edit Fee Entry</h1>
+          <p className="text-sm text-muted-foreground font-light mt-2 max-w-2xl leading-6">
+            Update procedure data for <strong className="text-foreground">{entry.procedureName}</strong>{entry.procedureCode ? <span className="font-mono text-muted-foreground"> — {entry.procedureCode}</span> : null}.
           </p>
         </div>
       </div>
 
-      <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden p-6 sm:p-8">
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden p-6 sm:p-8">
         <TariffForm initialData={entry} providers={providers} categories={categories} />
       </div>
     </div>

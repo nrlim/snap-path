@@ -15,11 +15,12 @@ export default async function ClinicalPathwayResultPage(props: {
 
   return (
     <div className="w-full space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 border-b border-border pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">Clinical Pathway Results</h1>
-          <p className="text-sm text-text-subtle mt-1">
-            Claim validation for patient
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Workflow Detail</p>
+          <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">Clinical Pathway Results</h1>
+          <p className="text-sm text-muted-foreground font-light mt-2 max-w-2xl leading-6">
+            Detailed validation report for the processed claim
           </p>
         </div>
       </div>

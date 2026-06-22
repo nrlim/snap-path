@@ -60,38 +60,39 @@ export default function AIProviderForm({ config }: { config: any }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">AI Provider Configuration</h1>
-          <p className="text-sm text-text-subtle mt-1">
+          <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Settings</p>
+          <h1 className="mt-2 text-3xl font-light tracking-tight text-foreground">AI Provider Configuration</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Configure your AI models, API routing, and generation parameters.
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="w-full animate-in fade-in duration-300">
-        <div className="rounded-lg border border-border/80 bg-surface shadow-sm overflow-hidden">
+        <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
           <div className="px-6 py-6 sm:p-8">
           <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
             <div>
-              <label htmlFor="primaryProvider" className="block text-sm font-medium text-text">Primary Provider</label>
+              <label htmlFor="primaryProvider" className="block text-sm font-medium text-foreground">Primary Provider</label>
               <div className="mt-2 relative">
                 <select
                   id="primaryProvider" name="primaryProvider" 
                   value={provider}
                   onChange={handleProviderChange}
-                  className="block w-full appearance-none rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="block w-full appearance-none rounded-md border border-border bg-card px-3 py-2.5 text-base sm:text-sm text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="vercel-ai-gateway">Vercel AI Gateway</option>
                   <option value="sumopod">SumoPod AI Gateway</option>
                   <option value="custom">Custom Gateway</option>
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-text-subtle">
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                 </div>
               </div>
             </div>
 
             <div>
-              <label htmlFor="gatewayUrl" className="block text-sm font-medium text-text">Base URL (Gateway URL)</label>
+              <label htmlFor="gatewayUrl" className="block text-sm font-medium text-foreground">Base URL (Gateway URL)</label>
               <div className="mt-2 relative">
                 <input 
                   id="gatewayUrl" 
@@ -101,35 +102,35 @@ export default function AIProviderForm({ config }: { config: any }) {
                   onChange={(e) => setGatewayUrl(e.target.value)}
                   readOnly={provider !== "custom"}
                   required 
-                  className={`block w-full rounded-md border border-border px-3 py-2.5 text-base sm:text-sm transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary ${provider !== 'custom' ? 'bg-surface-elevated/50 text-text-subtle cursor-not-allowed' : 'bg-surface text-text'}`}
+                  className={`block w-full rounded-md border border-border px-3 py-2.5 text-base sm:text-sm transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary ${provider !== 'custom' ? 'bg-muted/40 text-muted-foreground cursor-not-allowed' : 'bg-card text-foreground'}`}
                 />
               </div>
-              <p className="mt-2 text-xs text-text-faint">
+              <p className="mt-2 text-xs text-muted-foreground">
                 {provider === "custom" ? "Enter your custom gateway URL." : "Auto-filled based on selected provider. API key remains in server environment."}
               </p>
             </div>
 
             <div>
-              <label htmlFor="aiModel" className="block text-sm font-medium text-text">AI Model</label>
+              <label htmlFor="aiModel" className="block text-sm font-medium text-foreground">AI Model</label>
               <div className="mt-2 relative">
-                <input id="aiModel" name="aiModel" type="text" defaultValue={config.aiModel} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+                <input id="aiModel" name="aiModel" type="text" defaultValue={config.aiModel} className="block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base sm:text-sm text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
-              <p className="mt-2 text-xs leading-5 text-text-faint">E.g., gpt-4o-mini, gpt-4o, claude-3-haiku, kimi-k2.6</p>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">E.g., gpt-4o-mini, gpt-4o, claude-3-haiku, kimi-k2.6</p>
             </div>
 
             <div>
-              <label htmlFor="maxTokens" className="block text-sm font-medium text-text">Max Tokens (Budget)</label>
+              <label htmlFor="maxTokens" className="block text-sm font-medium text-foreground">Max Tokens (Budget)</label>
               <div className="mt-2 relative">
-                <input id="maxTokens" name="maxTokens" type="number" min="1" defaultValue={config.aiMaxTokens} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+                <input id="maxTokens" name="maxTokens" type="number" min="1" defaultValue={config.aiMaxTokens} className="block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base sm:text-sm text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
             </div>
 
             <div>
-              <label htmlFor="temperature" className="block text-sm font-medium text-text">Temperature</label>
+              <label htmlFor="temperature" className="block text-sm font-medium text-foreground">Temperature</label>
               <div className="mt-2 relative">
-                <input id="temperature" name="temperature" type="number" min="0" max="2" step="0.1" defaultValue={config.aiTemperature} className="block w-full rounded-md border border-border bg-surface px-3 py-2.5 text-base sm:text-sm text-text transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+                <input id="temperature" name="temperature" type="number" min="0" max="2" step="0.1" defaultValue={config.aiTemperature} className="block w-full rounded-md border border-border bg-card px-3 py-2.5 text-base sm:text-sm text-foreground transition-colors focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
               </div>
-              <p className="mt-2 text-xs leading-5 text-text-faint">Lower for deterministic output.</p>
+              <p className="mt-2 text-xs leading-5 text-muted-foreground">Lower for deterministic output.</p>
             </div>
           </div>
         </div>
@@ -140,7 +141,7 @@ export default function AIProviderForm({ config }: { config: any }) {
         <input type="hidden" name="thresholdLosDays" value={config.thresholdLosDays || 1} />
 
         <div className="flex items-center justify-end gap-4 pt-6">
-          <button type="submit" className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm shadow-primary/30 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">
+          <button type="submit" className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm  transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2">
             Save AI Provider
           </button>
         </div>
