@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { ConsulLogoIcon } from '@/components/ui/ConsulLogoIcon'
 import { useState, useEffect, useRef } from 'react'
 import WorkflowProgressModal, { ACTIVE_WORKFLOW_STORAGE_KEY } from '@/app/dashboard/clinical-pathway/components/WorkflowProgressModal'
 
@@ -95,8 +96,9 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
         {isNavVisible && (
           <aside className="sticky top-0 flex h-dvh w-56 shrink-0 flex-col border-r border-border bg-sidebar">
             <div className="flex h-14 items-center border-b border-border px-6">
-              <Link href="/dashboard" className="text-xl font-medium tracking-tight text-foreground font-logo">
-                CONSUL
+              <Link href="/dashboard" className="flex items-center gap-[1px] group" aria-label="Consul Dashboard">
+                <ConsulLogoIcon className="h-[22px] w-auto transition-transform group-hover:scale-105" />
+                <span className="text-xl font-medium tracking-tight text-foreground font-logo pt-[2px]">ONSUL</span>
               </Link>
             </div>
 

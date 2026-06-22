@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Menu } from "lucide-react";
+import { ConsulLogoIcon } from "@/components/ui/ConsulLogoIcon";
 
 export default function Navbar() {
   return (
@@ -7,8 +8,9 @@ export default function Navbar() {
       <div className="flex h-20 items-center px-6 lg:px-12 max-w-screen-2xl mx-auto">
         {/* Left Side: Logo */}
         <div className="w-1/4 flex items-center">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-2xl font-bold tracking-tighter text-foreground font-logo">CONSUL</span>
+          <Link href="/" className="flex items-center gap-[1px] group" aria-label="Consul Home">
+            <ConsulLogoIcon className="h-7 w-auto transition-transform group-hover:scale-105" />
+            <span className="text-2xl font-bold tracking-tighter text-foreground font-logo pt-[3px]">ONSUL</span>
           </Link>
         </div>
         

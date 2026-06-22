@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft } from "lucide-react";
+import { ConsulLogoIcon } from "@/components/ui/ConsulLogoIcon";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -23,8 +24,9 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         
         {/* Logo and Tagline overlayed on the image */}
         <div className="relative z-10 mt-auto p-12 pb-16">
-          <Link href="/" className="inline-block mb-5">
-            <span className="text-4xl font-bold tracking-tighter font-logo text-foreground">CONSUL</span>
+          <Link href="/" className="inline-flex items-center gap-[1px] mb-5 group">
+            <ConsulLogoIcon className="h-10 w-auto text-foreground transition-transform group-hover:scale-105" />
+            <span className="text-4xl font-bold tracking-tighter font-logo text-foreground pt-[4px]">ONSUL</span>
           </Link>
           <p className="text-lg text-muted-foreground font-light max-w-md leading-relaxed">
             Sistem deterministik untuk meringkas clinical pathway dan memvalidasi riwayat pasien dengan presisi tinggi.
@@ -39,9 +41,10 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         <div className="absolute top-8 left-8 flex items-center justify-between lg:hidden">
           <Link
             href="/"
-            className="text-2xl font-bold tracking-tighter text-foreground font-logo"
+            className="flex items-center gap-[1px] group"
           >
-            CONSUL
+            <ConsulLogoIcon className="h-7 w-auto transition-transform group-hover:scale-105" />
+            <span className="text-2xl font-bold tracking-tighter text-foreground font-logo pt-[3px]">ONSUL</span>
           </Link>
         </div>
 

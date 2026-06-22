@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
+import { ConsulLogoIcon } from "@/components/ui/ConsulLogoIcon"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -59,7 +60,10 @@ export default function RegisterPage() {
     <div>
       <div className="mb-6 text-left">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Pendaftaran <span className="font-logo tracking-tighter">CONSUL</span>
+          Pendaftaran <span className="inline-flex items-center gap-[1px] align-baseline">
+            <ConsulLogoIcon className="h-[0.85em] w-auto inline relative -top-[1px]" />
+            <span className="font-logo tracking-tighter pt-[2px]">ONSUL</span>
+          </span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground font-light">
           Buat profil profesional Anda untuk akses validasi klinis.

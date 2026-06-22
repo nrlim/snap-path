@@ -19,11 +19,11 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "CONSUL | AI Clinical Pathway",
+  title: "CONSUL | AI Analysis",
   description: "Platform deterministik untuk meringkas clinical pathway dan memvalidasi riwayat pasien.",
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
   openGraph: {
-    title: "CONSUL | AI Clinical Pathway",
+    title: "CONSUL | AI Analysis",
     description: "Platform deterministik untuk meringkas clinical pathway dan memvalidasi riwayat pasien.",
     siteName: "CONSUL",
     images: [
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "CONSUL | AI Clinical Pathway",
+    title: "CONSUL | AI Analysis",
     description: "Platform deterministik untuk meringkas clinical pathway dan memvalidasi riwayat pasien.",
     images: ["/og-image.png"],
   },
