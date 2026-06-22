@@ -1,60 +1,136 @@
 import Link from "next/link";
+import { ArrowRight, ArrowUpRight, Database, Cpu, CheckCircle2 } from "lucide-react";
+
+// Metrics — unique data point, shown once here, removed from MetricsStrip
+const metrics = [
+  { value: "5", label: "Lapisan Validasi" },
+  { value: "100%", label: "Sanitasi PII" },
+  { value: "< 30d", label: "Proses per Klaim" },
+  { value: "Penuh", label: "Jejak Audit" },
+];
 
 export default function Hero() {
   return (
-    <section className="relative overflow-hidden border-b border-primary/15 bg-[radial-gradient(circle_at_20%_10%,var(--color-primary-soft)_0,transparent_32%),radial-gradient(circle_at_80%_0%,var(--color-secondary-soft)_0,transparent_30%),linear-gradient(135deg,var(--color-surface-elevated)_0%,var(--color-surface)_54%,var(--color-accent-soft)_100%)] pt-24 pb-32 sm:pt-32 sm:pb-40">
-      {/* Subtle Background Pattern - Grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,color-mix(in srgb, var(--color-primary) 8%, transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in srgb, var(--color-secondary) 7%, transparent)_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
-      <div className="absolute left-1/2 top-20 h-44 w-44 -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
+    <section className="relative w-full bg-background min-h-screen flex items-center pt-28 pb-16 overflow-hidden">
+      {/* Thin top accent line */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent" />
 
-      <div className="relative mx-auto max-w-7xl px-6 lg:px-8 text-center">
-        <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-screen-2xl px-6 lg:px-12 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-20 items-center">
+          
+          {/* === Left Side: Text & CTAs === */}
+          <div className="animate-fade-in-up">
 
-          <h1 className="text-4xl font-bold tracking-tight text-text sm:text-7xl">
-            Validasi klaim dan clinical pathway <br className="hidden sm:block" />
-            <span className="bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">yang terstruktur, auditabel, dan deterministik.</span>
-          </h1>
-          <p className="mx-auto mt-8 max-w-3xl text-lg leading-8 text-text-subtle sm:text-xl">
-            SnapPath membantu rumah sakit, klinik, dan institusi kesehatan merangkum data pasien, memvalidasi diagnosis-tindakan, mengecek tarif dan obat, serta menghasilkan pathway klinis berbasis workflow yang konsisten.
-          </p>
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight text-foreground leading-[1.1] mb-6">
+              Klaim bersih.<br />
+              <span className="font-semibold text-primary">Cair lebih cepat.</span>
+            </h1>
+            <p className="text-lg text-muted-foreground font-light mb-10 max-w-md">
+              Tinggalkan audit manual yang rentan error. Otomasi pencocokan diagnosis, tarif, dan LOS dalam hitungan detik.
+            </p>
 
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 text-sm font-medium text-text-subtle">
-            <div className="flex items-center gap-2">
-              <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>Automasi Pathway Klinis</span>
+            {/* CTAs */}
+            <div className="flex flex-col sm:flex-row items-start gap-4 mb-16">
+              <Link
+                href="/login"
+                className="inline-flex h-12 items-center justify-center rounded-lg bg-foreground px-8 text-sm font-medium text-background transition-transform hover:-translate-y-0.5 focus:outline-none"
+              >
+                Mulai Integrasi
+              </Link>
+              <Link
+                href="#workflow"
+                className="inline-flex h-12 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors group"
+              >
+                Lihat Cara Kerja
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
             </div>
-            <div className="flex items-center gap-2">
-              <svg className="h-5 w-5 text-secondary" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>Validasi Klaim Akurat</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <svg className="h-5 w-5 text-accent" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>Privasi Data Terjamin</span>
+
+            {/* Metrics inline — horizontal */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+              {metrics.map((m) => (
+                <div key={m.label} className="flex flex-col border-l-2 border-border pl-4">
+                  <span className="text-2xl font-mono font-semibold text-foreground tracking-tight">{m.value}</span>
+                  <span className="text-xs text-muted-foreground mt-1">{m.label}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-x-4">
-            <Link
-              href="#features"
-              className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-6 py-3 text-sm font-semibold text-white shadow-sm shadow-primary/25 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-            >
-              Lihat kapabilitas
-            </Link>
-            <Link
-              href="#technology"
-              className="inline-flex min-h-11 items-center justify-center rounded-md border border-secondary/25 bg-secondary-soft/70 px-6 py-3 text-sm font-semibold text-secondary transition-colors hover:bg-secondary-soft focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2"
-            >
-              Pelajari arsitektur
-            </Link>
+          {/* === Right Side: Data Flow Timeline === */}
+          <div className="animate-fade-in-up w-full max-w-[460px] ml-auto relative" style={{ animationDelay: "200ms" }}>
+            <div className="relative border border-border rounded-2xl bg-surface/50 p-8 shadow-elegant backdrop-blur-sm">
+              
+              {/* Connecting Line */}
+              <div className="absolute left-[39px] top-[48px] bottom-[48px] w-px bg-gradient-to-b from-primary/30 via-primary/10 to-transparent"></div>
+
+              <div className="space-y-10 relative">
+                
+                {/* Step 1 */}
+                <div className="relative flex gap-5 group">
+                  <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-[30px] h-[30px] rounded-full bg-background border border-primary/30 text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 shadow-sm">
+                    <Database className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="pt-1">
+                    <p className="text-xs font-mono text-primary/70 tracking-widest uppercase mb-1">Fase 01</p>
+                    <h3 className="text-base font-medium text-foreground mb-1.5">Tarik Data Medis</h3>
+                    <p className="text-sm text-muted-foreground font-light leading-relaxed">
+                      Hubungkan EMR Anda dalam hitungan menit. Kami ekstrak data pasien, diagnosis, dan tindakan secara aman tanpa hambatan.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 2 */}
+                <div className="relative flex gap-5 group">
+                  <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-[30px] h-[30px] rounded-full bg-background border border-primary/30 text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 shadow-sm">
+                    <Cpu className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="pt-1">
+                    <p className="text-xs font-mono text-primary/70 tracking-widest uppercase mb-1">Fase 02</p>
+                    <h3 className="text-base font-medium text-foreground mb-1.5">Validasi Deterministik</h3>
+                    <p className="text-sm text-muted-foreground font-light leading-relaxed">
+                      Mesin kami memproses jutaan aturan: mencocokkan tarif, memeriksa anomali LOS, dan mengaudit interaksi obat tanpa tebakan.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 3 */}
+                <div className="relative flex gap-5 group">
+                  <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-[30px] h-[30px] rounded-full bg-background border border-primary/30 text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300 shadow-sm">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="pt-1">
+                    <p className="text-xs font-mono text-primary/70 tracking-widest uppercase mb-1">Fase 03</p>
+                    <h3 className="text-base font-medium text-foreground mb-1.5">Klaim Lolos Audit</h3>
+                    <p className="text-sm text-muted-foreground font-light leading-relaxed">
+                      Dapatkan laporan audit instan. Klaim bebas error yang siap diajukan ke BPJS atau asuransi dengan tingkat persetujuan maksimal.
+                    </p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Bottom link */}
+            <div className="mt-4 flex justify-end">
+              <Link
+                href="#features"
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors group"
+              >
+                Lihat detail alur kerja
+                <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </Link>
+            </div>
+            
+            {/* Subtle glow underneath right panel */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-primary/5 blur-3xl -z-10 rounded-full pointer-events-none"></div>
           </div>
+
         </div>
       </div>
+
+      {/* Bottom divider */}
+      <div className="absolute bottom-0 left-0 right-0 h-px bg-border/50" />
     </section>
   );
 }

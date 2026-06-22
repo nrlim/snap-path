@@ -2,23 +2,29 @@ import Link from "next/link";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-primary/15 bg-surface py-12">
+    <footer className="border-t border-border bg-surface py-12">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-          <p className="text-sm text-text-faint">
-            &copy; 2026 SnapPath. Platform AI clinical pathway dan claim validation.
-          </p>
-          <div className="flex gap-6 text-sm font-medium text-text-subtle">
-            <Link href="/compliance" className="hover:text-text transition-colors">
+          <div className="flex flex-col items-center sm:items-start gap-1">
+            <span className="text-2xl font-bold text-primary tracking-tighter font-logo">CONSUL</span>
+            <p className="text-sm text-muted-foreground">
+              &copy; 2026 CONSUL. Platform AI clinical pathway dan claim validation.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm font-medium text-muted-foreground">
+            <Link href="/compliance" className="hover:text-foreground transition-colors">
               Kepatuhan
             </Link>
-            <Link href="/privacy" className="hover:text-text transition-colors">
+            <span>&middot;</span>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">
               Privasi
             </Link>
-            <Link href="/terms" className="hover:text-text transition-colors">
+            <span>&middot;</span>
+            <Link href="/terms" className="hover:text-foreground transition-colors">
               Ketentuan
             </Link>
-            <Link href="/docs" className="hover:text-text transition-colors">
+            <span>&middot;</span>
+            <Link href="/docs" className="hover:text-foreground transition-colors">
               Dokumentasi API
             </Link>
           </div>

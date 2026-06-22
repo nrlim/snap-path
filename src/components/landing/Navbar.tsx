@@ -1,32 +1,50 @@
 import Link from "next/link";
+import { Menu } from "lucide-react";
 
 export default function Navbar() {
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-primary/15 bg-surface-elevated/85 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-xl font-bold tracking-tight text-transparent">
-            SnapPath
+    <header className="fixed top-0 left-0 right-0 z-50 w-full bg-background/40 backdrop-blur-xl border-b-0">
+      <div className="flex h-20 items-center px-6 lg:px-12 max-w-screen-2xl mx-auto">
+        {/* Left Side: Logo */}
+        <div className="w-1/4 flex items-center">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="text-2xl font-bold tracking-tighter text-foreground font-logo">CONSUL</span>
           </Link>
-          <nav className="hidden md:flex gap-6">
-            <Link href="#features" className="text-sm font-medium text-text-subtle hover:text-primary transition-colors">
+        </div>
+        
+        {/* Center: Navigation */}
+        <div className="hidden md:flex flex-1 justify-center items-center">
+          <nav className="flex items-center gap-8">
+            <Link href="#features" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              Konteks
+            </Link>
+            <Link href="#workflow" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              Alur Kerja
+            </Link>
+            <Link href="#services" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
               Kapabilitas
             </Link>
-            <Link href="#core-engine" className="text-sm font-medium text-text-subtle hover:text-secondary transition-colors">
-              Mesin Inti
-            </Link>
-            <Link href="#technology" className="text-sm font-medium text-text-subtle hover:text-accent transition-colors">
-              Teknologi
+            <Link href="#technology" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+              Privasi
             </Link>
           </nav>
         </div>
-        <Link
-          href="/login"
-          aria-label="Masuk"
-          className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-4 text-xs font-medium text-white shadow-sm shadow-primary/30 transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-        >
-          Masuk
-        </Link>
+        
+        {/* Right Side: CTA */}
+        <div className="w-1/4 flex justify-end items-center gap-4">
+          <div className="hidden md:flex items-center">
+            <Link
+              href="/login"
+              aria-label="Masuk"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-foreground px-6 text-sm font-medium text-background shadow-sm transition-transform hover:-translate-y-0.5 focus:outline-none"
+            >
+              Akses Sistem
+            </Link>
+          </div>
+          <button className="md:hidden p-2 text-muted-foreground hover:text-foreground" aria-label="Menu">
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
       </div>
     </header>
   );

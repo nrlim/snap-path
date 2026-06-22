@@ -1,34 +1,68 @@
 import { ReactNode } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { ArrowLeft } from "lucide-react";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-[linear-gradient(135deg,var(--color-surface-elevated)_0%,var(--color-primary-soft)_48%,var(--color-secondary-soft)_100%)] text-text">
-      <header className="relative z-10 border-b border-primary/15 bg-surface-elevated/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-8">
-          <Link
-            href="/"
-            className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-xl font-bold tracking-tight text-transparent"
-          >
-            SnapPath
+    <div className="flex min-h-dvh bg-background text-foreground font-sans">
+      
+      {/* Left Panel: Image/Abstract Art (Hidden on small screens) */}
+      <div className="relative hidden lg:flex flex-col w-1/2 bg-surface overflow-hidden border-r border-border">
+        <Image 
+          src="/auth-bg.png" 
+          alt="CONSUL Clinical Data Pathway" 
+          fill 
+          sizes="(max-width: 1024px) 0vw, 50vw"
+          priority
+          className="object-cover opacity-[0.85] mix-blend-multiply"
+        />
+        {/* Subtle overlay gradients for depth */}
+        <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-background/20" />
+        <div className="absolute inset-0 bg-primary/5 mix-blend-overlay" />
+        
+        {/* Logo and Tagline overlayed on the image */}
+        <div className="relative z-10 mt-auto p-12 pb-16">
+          <Link href="/" className="inline-block mb-5">
+            <span className="text-4xl font-bold tracking-tighter font-logo text-foreground">CONSUL</span>
           </Link>
+          <p className="text-lg text-muted-foreground font-light max-w-md leading-relaxed">
+            Sistem deterministik untuk meringkas clinical pathway dan memvalidasi riwayat pasien dengan presisi tinggi.
+          </p>
+        </div>
+      </div>
+
+      {/* Right Panel: Auth Form */}
+      <div className="relative flex flex-col w-full lg:w-1/2 bg-background justify-center px-6 py-12 sm:px-12 lg:px-16 xl:px-24">
+        
+        {/* Mobile/Tablet Header (Visible when Left Panel is hidden) */}
+        <div className="absolute top-8 left-8 flex items-center justify-between lg:hidden">
           <Link
             href="/"
-            className="inline-flex min-h-11 items-center justify-center rounded-md border border-secondary/20 bg-secondary-soft/70 px-4 py-2 text-sm font-medium text-secondary transition-colors hover:bg-secondary-soft focus:outline-none focus:ring-2 focus:ring-secondary focus:ring-offset-2"
+            className="text-2xl font-bold tracking-tighter text-foreground font-logo"
           >
-            Back
+            CONSUL
           </Link>
         </div>
-      </header>
 
-      <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-8 sm:px-6 lg:px-8">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,color-mix(in srgb, var(--color-primary) 8%, transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in srgb, var(--color-secondary) 7%, transparent)_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_55%_at_50%_0%,#000_70%,transparent_100%)]" />
-        <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-accent-soft/70 to-transparent" />
+        {/* Back Button (Absolute positioning for all screens) */}
+        <div className="absolute top-8 right-8">
+          <Link
+            href="/"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface px-4 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Kembali</span>
+          </Link>
+        </div>
 
-        <div className="relative w-full max-w-md rounded-2xl border border-primary/15 bg-surface-elevated/90 p-6 shadow-xl shadow-primary/10 backdrop-blur-sm sm:p-8">
+        {/* Form Container */}
+        <main className="mx-auto w-full max-w-[380px]">
           {children}
-        </div>
-      </main>
+        </main>
+
+      </div>
+
     </div>
   );
 }
