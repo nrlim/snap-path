@@ -92,7 +92,7 @@
 }
 
 :root {
-  --background: #f8f9fb;
+  --background: #f8fafc;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
@@ -116,19 +116,19 @@
   --chart-4: #0ea5e9;
   --chart-5: #64748b;
   --radius: 0.5rem;
-  --sidebar: #fdfcf9; /* Lighter warm tone for contrast against background */
-  --sidebar-foreground: #1c1917;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
   --sidebar-primary: #1e3a5f;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f5f4f1;
+  --sidebar-accent: #f1f5f9;
   --sidebar-accent-foreground: #1e3a5f;
-  --sidebar-border: #e7e5e4;
+  --sidebar-border: #f1f5f9;
   --sidebar-ring: #1e3a5f;
 }
 
 .dark {
   /* Fallback to light theme values since CONSUL uses a healthcare light theme natively. */
-  --background: #f8f9fb;
+  --background: #f8fafc;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
@@ -151,13 +151,13 @@
   --chart-3: #c4553a;
   --chart-4: #0ea5e9;
   --chart-5: #64748b;
-  --sidebar: #faf8f5;
-  --sidebar-foreground: #1c1917;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
   --sidebar-primary: #1e3a5f;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f5f4f1;
+  --sidebar-accent: #f1f5f9;
   --sidebar-accent-foreground: #1e3a5f;
-  --sidebar-border: #e7e5e4;
+  --sidebar-border: #f1f5f9;
   --sidebar-ring: #1e3a5f;
 }
 

@@ -103,7 +103,7 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
             </div>
 
             <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-2" aria-label="Dashboard navigation">
-              <Link href="/dashboard" className={`flex min-h-9 items-center rounded-md px-3 text-sm transition-colors ${pathname === '/dashboard' ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>
+              <Link href="/dashboard" className={`flex min-h-9 items-center rounded-md px-3 text-sm transition-colors ${pathname === '/dashboard' ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>
                 Overview
               </Link>
 
@@ -111,15 +111,15 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
               <div className="pt-2">
                 <button
                   onClick={() => toggleMenu('Reference Data')}
-                  className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-900 transition-colors"
                 >
                   <span>Master Data</span>
                   <svg className={`w-4 h-4 transition-transform ${openMenus['Reference Data'] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
                 {openMenus['Reference Data'] && (
                   <div className="mt-1 space-y-1 pl-3 border-l border-border/50 ml-3">
-                    <Link href="/dashboard/master-data/buku-tarif" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/buku-tarif') ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>Fee Schedule</Link>
-                    <Link href="/dashboard/master-data/obat" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/obat') ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>Drugs & Supplies</Link>
+                    <Link href="/dashboard/master-data/buku-tarif" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/buku-tarif') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Fee Schedule</Link>
+                    <Link href="/dashboard/master-data/obat" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/obat') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Drugs & Supplies</Link>
                   </div>
                 )}
               </div>
@@ -128,14 +128,14 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
               <div className="pt-2">
                 <button
                   onClick={() => toggleMenu('Clinical Workflows')}
-                  className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-900 transition-colors"
                 >
                   <span>Workflows</span>
                   <svg className={`w-4 h-4 transition-transform ${openMenus['Clinical Workflows'] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                 </button>
                 {openMenus['Clinical Workflows'] && (
                   <div className="mt-1 space-y-1 pl-3 border-l border-border/50 ml-3">
-                    <Link href="/dashboard/clinical-pathway" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/clinical-pathway') ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>Pathway Validation</Link>
+                    <Link href="/dashboard/clinical-pathway" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/clinical-pathway') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Pathway Validation</Link>
                   </div>
                 )}
               </div>
@@ -145,20 +145,21 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
                 <div className="pt-2">
                   <button
                     onClick={() => toggleMenu('Configuration')}
-                    className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
+                    className="flex w-full min-h-9 items-center justify-between rounded-md px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-900 transition-colors"
                   >
                     <span>Settings</span>
                     <svg className={`w-4 h-4 transition-transform ${openMenus['Configuration'] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                   </button>
                   {openMenus['Configuration'] && (
                     <div className="mt-1 space-y-1 pl-3 border-l border-border/50 ml-3">
-                      {canSeeCoreAI && <Link href="/dashboard/settings/ai-provider" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-provider') || pathname === '/dashboard/settings' ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>AI Integration</Link>}
-                      {(canSeeCoreAI || userRole === 'CLIENT_ADMIN') && <Link href="/dashboard/settings/privacy-config" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/privacy-config') ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>Privacy & PII</Link>}
-                      {canSeeUsageAndCredits && <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>Usage Logs</Link>}
-                      {canSeeClientConfig && <Link href="/dashboard/settings/client-api-keys" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/client-api-keys') ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>API Keys</Link>}
-                      {canSeeUsageAndCredits && <Link href="/dashboard/settings/credits" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/credits') ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>API Quotas</Link>}
-                      {canSeeClientConfig && <Link href="/dashboard/settings/user-management" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/user-management') ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>User Management</Link>}
-                      {canSeeClientConfig && <Link href="/dashboard/settings/threshold" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/threshold') ? 'bg-primary/10 text-primary font-normal' : 'text-muted-foreground hover:bg-muted hover:text-foreground font-light'}`}>Thresholds</Link>}
+                      {canSeeCoreAI && <Link href="/dashboard/settings/ai-provider" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-provider') || pathname === '/dashboard/settings' ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>AI Integration</Link>}
+                      {(canSeeCoreAI || userRole === 'CLIENT_ADMIN') && <Link href="/dashboard/settings/privacy-config" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/privacy-config') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Privacy & PII</Link>}
+                      {canSeeClientConfig && <Link href="/dashboard/settings/user-management" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/user-management') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>User Management</Link>}
+                      {canSeeClientConfig && <Link href="/dashboard/settings/client-api-keys" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/client-api-keys') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>API Keys</Link>}
+                      {canSeeUsageAndCredits && <Link href="/dashboard/settings/ai-usage-logs" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-usage-logs') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Usage Logs</Link>}
+                      {canSeeUsageAndCredits && <Link href="/dashboard/settings/credits" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/credits') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Credits & Requests</Link>}
+                      {canSeeCoreAI && <Link href="/dashboard/settings/ai-core" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/ai-core') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>AI Core Setup</Link>}
+                      {canSeeClientConfig && <Link href="/dashboard/settings/threshold" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/settings/threshold') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Thresholds</Link>}
                     </div>
                   )}
                 </div>
@@ -236,7 +237,7 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
       <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-[68px] items-center justify-around border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.02)]">
         <Link href="/dashboard" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-muted-foreground transition-colors hover:text-primary aria-[current=page]:text-primary" aria-current={pathname === '/dashboard' ? 'page' : undefined}>
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
-          <span className="text-[10px] font-light">Home</span>
+          <span className="text-[10px] font-medium">Home</span>
         </Link>
 
         {/* Center FAB */}
@@ -253,7 +254,7 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
         {canSeeConfig && (
           <Link href="/dashboard/settings" className="flex flex-col items-center justify-center w-16 h-full gap-1 text-muted-foreground transition-colors hover:text-primary aria-[current=page]:text-primary" aria-current={pathname === '/dashboard/settings' ? 'page' : undefined}>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            <span className="text-[10px] font-light">Settings</span>
+            <span className="text-[10px] font-medium">Settings</span>
           </Link>
         )}
       </nav>
@@ -286,14 +287,14 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
                   {profileInitial}
                 </span>
                 <div className="flex-1 overflow-hidden">
-                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Account</p>
-                  <p className="truncate text-sm font-light text-foreground">{userEmail}</p>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Account</p>
+                  <p className="truncate text-sm font-medium text-slate-900">{userEmail}</p>
                   <p className="mt-0.5 text-xs font-normal text-primary">Kuota: {formattedRequestBalance} request</p>
                 </div>
               </div>
 
               <div>
-                <p className="mb-3 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground ml-2">Navigation</p>
+                <p className="mb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider ml-2">Navigation</p>
                 <nav className="grid grid-cols-4 gap-2 sm:gap-4">
                   <Link href="/dashboard" className="group flex flex-col items-center justify-start gap-2 rounded-xl p-2 transition-colors hover:bg-muted text-foreground">
                     <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-background border border-border shadow-sm group-hover:bg-card transition-all text-muted-foreground group-hover:text-primary">
