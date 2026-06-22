@@ -9,7 +9,7 @@ import { defaultPageSizes, SortButton, TablePagination, TableSearch, type SortDi
 import type { ReviewQueueItem, ReviewQueueSummary } from "./actions";
 
 type SortField = "sla" | "claim" | "provider" | "score" | "policyExcess" | "findings" | "reviewStatus";
-type ReviewStatusFilter = "all" | ReviewStatusValue;
+type ReviewStatusFilter = "active" | "all" | ReviewStatusValue;
 
 function formatRupiah(value: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
@@ -60,7 +60,7 @@ function SummaryCard({ label, value, helper, icon }: { label: string; value: str
 
 export default function ReviewQueueTable({ items, summary }: { items: ReviewQueueItem[]; summary: ReviewQueueSummary }) {
   const [search, setSearch] = useState("");
-  const [reviewStatus, setReviewStatus] = useState<ReviewStatusFilter>("all");
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatusFilter>("active");
   const [sortField, setSortField] = useState<SortField>("sla");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(1);
@@ -71,7 +71,7 @@ export default function ReviewQueueTable({ items, summary }: { items: ReviewQueu
     return items
       .filter((item) => {
         const matchesSearch = !query || [item.claimId, item.patientName, item.providerName, item.validationStatus, item.reviewStatus].some((value) => value.toLowerCase().includes(query));
-        const matchesStatus = reviewStatus === "all" || item.reviewStatus === reviewStatus;
+        const matchesStatus = reviewStatus === "all" || (reviewStatus === "active" ? item.reviewStatus !== "DECIDED" : item.reviewStatus === reviewStatus);
         return matchesSearch && matchesStatus;
       })
       .sort((first, second) => {
@@ -107,6 +107,7 @@ export default function ReviewQueueTable({ items, summary }: { items: ReviewQueu
         <div className="grid grid-cols-1 gap-3 border-b border-border bg-background p-4 lg:grid-cols-[1fr_220px_140px]">
           <TableSearch value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Cari claim ID, pasien, provider, status..." />
           <select value={reviewStatus} onChange={(event) => { setReviewStatus(event.target.value as ReviewStatusFilter); setPage(1); }} className="rounded-md border border-border bg-background px-3 py-2.5 text-base font-light text-foreground outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm">
+            <option value="active">Perlu diproses</option>
             <option value="all">Semua status review</option>
             <option value="OPEN">Menunggu review</option>
             <option value="WAITING_DOCUMENTS">Menunggu dokumen</option>

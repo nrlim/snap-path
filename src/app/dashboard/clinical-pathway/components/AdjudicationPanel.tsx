@@ -79,7 +79,6 @@ function findingIcon(finding: HitlFinding) {
 export default function AdjudicationPanel({ jobId, inputPayload, outputResult, reviewDecisions }: AdjudicationPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const packet = useMemo(() => buildHitlPacket(inputPayload, outputResult), [inputPayload, outputResult]);
   const latestDecision = reviewDecisions[0] || null;
@@ -87,7 +86,6 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
   const hasFindings = packet.findings.length > 0;
 
   function onSubmit(formData: FormData): void {
-    setMessage(null);
     setError(null);
     startTransition(async () => {
       const result = await submitReviewDecision(formData);
@@ -95,7 +93,7 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
         setError(result.error || "Gagal menyimpan keputusan reviewer.");
         return;
       }
-      setMessage("Keputusan reviewer berhasil disimpan.");
+      router.replace("/dashboard/clinical-pathway/review");
       router.refresh();
     });
   }
@@ -320,11 +318,10 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
                   <textarea name="note" rows={5} placeholder="Tulis justifikasi keputusan, koreksi payable, atau dokumen yang harus diminta." className="mt-2 block w-full rounded-md border border-border bg-background px-3 py-2.5 text-base font-light leading-6 text-foreground outline-none transition-colors focus:ring-2 focus:ring-primary/20 sm:text-sm" />
                 </label>
 
-                {message && <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{message}</p>}
                 {error && <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
                 <button type="submit" disabled={isPending} className="inline-flex min-h-11 w-full items-center justify-center rounded-md bg-foreground px-4 py-2.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-60">
-                  {isPending ? "Menyimpan..." : "Simpan Keputusan"}
+                  {isPending ? "Menyimpan dan kembali ke queue..." : "Simpan Keputusan"}
                 </button>
               </div>
             </form>

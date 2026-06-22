@@ -312,6 +312,7 @@ export async function submitReviewDecision(formData: FormData): Promise<SubmitRe
 
   revalidatePath("/dashboard/clinical-pathway/review");
   revalidatePath(`/dashboard/clinical-pathway/${job.id}`);
+
   return { success: true };
 }
 
