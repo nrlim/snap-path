@@ -120,6 +120,7 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
                   <div className="mt-1 space-y-1 pl-3 border-l border-border/50 ml-3">
                     <Link href="/dashboard/master-data/buku-tarif" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/buku-tarif') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Fee Schedule</Link>
                     <Link href="/dashboard/master-data/obat" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/obat') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Drugs & Supplies</Link>
+                    <Link href="/dashboard/master-data/policy-rules" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/master-data/policy-rules') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Policy Rules</Link>
                   </div>
                 )}
               </div>
@@ -135,7 +136,8 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
                 </button>
                 {openMenus['Clinical Workflows'] && (
                   <div className="mt-1 space-y-1 pl-3 border-l border-border/50 ml-3">
-                    <Link href="/dashboard/clinical-pathway" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/clinical-pathway') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Pathway Validation</Link>
+                    <Link href="/dashboard/clinical-pathway" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/clinical-pathway') && !pathname.startsWith('/dashboard/clinical-pathway/review') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Validasi Klaim</Link>
+                    <Link href="/dashboard/clinical-pathway/review" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/clinical-pathway/review') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Review Klaim</Link>
                   </div>
                 )}
               </div>
@@ -317,11 +319,25 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
                     <span className="text-[10px] font-light text-center leading-tight">Drugs</span>
                   </Link>
 
+                  <Link href="/dashboard/master-data/policy-rules" className="group flex flex-col items-center justify-start gap-2 rounded-xl p-2 transition-colors hover:bg-muted text-foreground">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-background border border-border shadow-sm group-hover:bg-card transition-all text-muted-foreground group-hover:text-primary">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    </div>
+                    <span className="text-[10px] font-light text-center leading-tight">Policy Rules</span>
+                  </Link>
+
                   <Link href="/dashboard/clinical-pathway" className="group flex flex-col items-center justify-start gap-2 rounded-xl p-2 transition-colors hover:bg-muted text-foreground">
                     <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-background border border-border shadow-sm group-hover:bg-card transition-all text-muted-foreground group-hover:text-primary">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path></svg>
                     </div>
-                    <span className="text-[10px] font-light text-center leading-tight">Pathways</span>
+                    <span className="text-[10px] font-light text-center leading-tight">Validasi Klaim</span>
+                  </Link>
+
+                  <Link href="/dashboard/clinical-pathway/review" className="group flex flex-col items-center justify-start gap-2 rounded-xl p-2 transition-colors hover:bg-muted text-foreground">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-background border border-border shadow-sm group-hover:bg-card transition-all text-muted-foreground group-hover:text-primary">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11 12 14 22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                    </div>
+                    <span className="text-[10px] font-light text-center leading-tight">Review</span>
                   </Link>
                 </nav>
               </div>

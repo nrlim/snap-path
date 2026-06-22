@@ -77,3 +77,103 @@ export async function searchMedicalItemsForWizard(params: { search?: string; lim
     orderBy: [{ itemName: "asc" }, { createdAt: "desc" }],
   });
 }
+
+export async function createMedicalItem(data: any) {
+  try {
+    const expiresAt = new Date();
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1); // default expires in 1 year
+    
+    await prisma.medicalItemPriceMaster.create({
+      data: {
+        itemName: data.itemName,
+        itemGenericName: data.itemGenericName,
+        itemTypeCode: data.itemTypeCode,
+        itemTypeName: data.itemTypeName,
+        itemGroup: data.itemGroup,
+        marketPriceMax: data.marketPriceMax,
+        marketPriceAvg: data.marketPriceAvg,
+        currency: data.currency || "IDR",
+        sources: data.sources || [],
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : expiresAt,
+      }
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function updateMedicalItem(id: string, data: any) {
+  try {
+    await prisma.medicalItemPriceMaster.update({
+      where: { id },
+      data: {
+        itemName: data.itemName,
+        itemGenericName: data.itemGenericName,
+        itemTypeCode: data.itemTypeCode,
+        itemTypeName: data.itemTypeName,
+        itemGroup: data.itemGroup,
+        marketPriceMax: data.marketPriceMax,
+        marketPriceAvg: data.marketPriceAvg,
+        currency: data.currency,
+        expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
+      }
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deleteMedicalItem(id: string) {
+  try {
+    await prisma.medicalItemPriceMaster.delete({
+      where: { id }
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function importMedicalItems(items: any[]) {
+  try {
+    const expiresAt = new Date();
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+
+    let importedCount = 0;
+    
+    for (const item of items) {
+      if (!item.itemName || !item.marketPriceMax) continue;
+      
+      await prisma.medicalItemPriceMaster.upsert({
+        where: { itemName: item.itemName },
+        update: {
+          itemGenericName: item.itemGenericName,
+          itemTypeCode: item.itemTypeCode,
+          itemGroup: item.itemGroup,
+          marketPriceMax: Number(item.marketPriceMax),
+          marketPriceAvg: item.marketPriceAvg ? Number(item.marketPriceAvg) : null,
+          currency: item.currency || "IDR",
+        },
+        create: {
+          itemName: item.itemName,
+          itemGenericName: item.itemGenericName,
+          itemTypeCode: item.itemTypeCode,
+          itemGroup: item.itemGroup,
+          marketPriceMax: Number(item.marketPriceMax),
+          marketPriceAvg: item.marketPriceAvg ? Number(item.marketPriceAvg) : null,
+          currency: item.currency || "IDR",
+          sources: ["MANUAL_IMPORT"],
+          expiresAt: expiresAt,
+        }
+      });
+      importedCount++;
+    }
+    
+    return { success: true, importedCount };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+

@@ -34,12 +34,7 @@ export default async function BukuTarifPage(props: {
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center mt-2">
-          <Link
-            href="/dashboard/master-data/obat"
-            className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted focus:outline-none"
-          >
-            Master Farmalkes →
-          </Link>
+
           <TariffBulkImport providers={providers} />
           <Link
             href="/dashboard/master-data/buku-tarif/tambah"

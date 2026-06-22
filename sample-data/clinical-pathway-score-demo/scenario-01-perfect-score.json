@@ -1,0 +1,97 @@
+{
+  "providerId": "MITRA_KELUARGA_BEKASI_TIMUR",
+  "claimId": "CLM-MK-2026-SC01-PERFECT",
+  "patient": {
+    "name": "Bapak Budi Santoso",
+    "identifier": [
+      {
+        "value": "PAT-MK-99120"
+      }
+    ],
+    "birthDate": "1985-08-15",
+    "gender": "male"
+  },
+  "encounter": {
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-06-01T08:00:00Z",
+      "end": "2026-06-04T12:00:00Z"
+    },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "A01.0",
+      "name": "Typhoid fever",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "LABA100300",
+      "name": "Darah Lengkap",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 250000,
+      "totalPrice": 250000
+    },
+    {
+      "code": "LABA110100",
+      "name": "Hemoglobin",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 85000,
+      "totalPrice": 85000
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "category": "KAMAR",
+      "quantity": 3,
+      "unitPrice": 635000,
+      "totalPrice": 1905000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Ekstrak Psidium guajava Folium 240 mg / Ekstrak Curcuma domestica Rhizoma 204 mg / Ekstrak Terminalia chebula Fructus 84 mg / Ekstrak Punica granatum Pericarpium 72 mg Kapsul (DIAPET)",
+      "genericName": "Herbal Antidiare",
+      "dosage": "Kapsul",
+      "quantity": 10,
+      "unitPrice": 60000,
+      "totalPrice": 600000
+    }
+  ],
+  "documents": [
+    {
+      "type": "LMA",
+      "date": "2026-06-01T08:30:00.000Z",
+      "conclusion": "Laporan Medis Awal: demam 5 hari terutama sore/malam hari, lidah kotor, tes widal salmonella typhi O positif 1/320. Indikasi rawat inap jelas untuk pemberian antibiotik dan rehidrasi."
+    },
+    {
+      "type": "KTP",
+      "date": "2026-06-01T08:15:00.000Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-06-01T08:15:00.000Z",
+      "conclusion": "Kartu Asuransi aktif."
+    }
+  ],
+  "extra": {
+    "nik": "3175021234560001",
+    "phone": "081298760001",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "AS-2026-TYP-01",
+    "los": "3",
+    "losJustification": "Rawat inap 3 hari sesuai indikasi demam tifoid. Pemantauan klinis dan antibiotik intravena memadai.",
+    "outcomeNotes": "Pasien bebas demam, asupan makanan oral baik, dipulangkan dengan edukasi tirah baring."
+  }
+}

@@ -165,6 +165,18 @@
           },
           "notes": {
             "type": "string"
+          },
+          "policyProductCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "Kode produk/plan polis untuk memilih rule benefit client."
+          },
+          "policyRules": {
+            "type": "array",
+            "description": "Optional POC/integration rule list. Production rules can also be stored as client master data.",
+            "items": {
+              "$ref": "#/components/schemas/PolicyRuleInput"
+            }
           }
         }
       },
@@ -668,6 +680,9 @@
             "items": {
               "type": "object"
             }
+          },
+          "policyValidation": {
+            "$ref": "#/components/schemas/PolicyValidationOutput"
           }
         }
       },
@@ -841,6 +856,241 @@
           "name": {
             "type": "string",
             "example": "Primary Payer"
+          }
+        }
+      },
+      "PolicyRuleInput": {
+        "type": "object",
+        "required": [
+          "ruleCode",
+          "ruleName",
+          "ruleType"
+        ],
+        "properties": {
+          "ruleCode": {
+            "type": "string",
+            "example": "EXCL-VITAMIN-001"
+          },
+          "ruleName": {
+            "type": "string",
+            "example": "Pengecualian vitamin dan suplemen"
+          },
+          "ruleType": {
+            "type": "string",
+            "enum": [
+              "EXCLUSION",
+              "LIMIT",
+              "DEDUCTIBLE",
+              "COPAY",
+              "WAITING_PERIOD",
+              "PRE_AUTH",
+              "ROOM_ENTITLEMENT"
+            ],
+            "example": "EXCLUSION"
+          },
+          "targetType": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "DIAGNOSIS",
+              "MEDICATION_NAME",
+              "MEDICATION_TYPE",
+              "PROCEDURE",
+              "TOTAL_CLAIM",
+              "ROOM_CLASS"
+            ],
+            "example": "MEDICATION_TYPE"
+          },
+          "targetCode": {
+            "type": "string",
+            "nullable": true,
+            "example": "E11.9"
+          },
+          "targetPattern": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pipe-separated deterministic text matcher, e.g. vitamin|suplemen|supplement.",
+            "example": "vitamin|suplemen|supplement"
+          },
+          "conditionJson": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "example": {
+              "thresholdAmount": 5000000
+            }
+          },
+          "actionJson": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true,
+            "example": {
+              "limitAmount": 7500000
+            }
+          },
+          "severity": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "INFO",
+              "WARNING",
+              "REVIEW_NEEDED",
+              "REJECT_RECOMMENDED"
+            ],
+            "default": "WARNING"
+          },
+          "recommendation": {
+            "type": "string",
+            "nullable": true,
+            "example": "Keluarkan item vitamin dari benefit reimbursable atau minta persetujuan medical reviewer."
+          },
+          "effectiveFrom": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "effectiveTo": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "ARCHIVED"
+            ],
+            "default": "ACTIVE"
+          }
+        }
+      },
+      "PolicyValidationOutput": {
+        "type": "object",
+        "properties": {
+          "isValid": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "WARNING",
+              "REVIEW_NEEDED",
+              "REJECT_RECOMMENDED"
+            ]
+          },
+          "score": {
+            "type": "integer",
+            "description": "Policy-only score for triage. Current overall claim score treats policy as a non-deductive HITL gate."
+          },
+          "summary": {
+            "type": "string"
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyFinding"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/PolicyTotals"
+          },
+          "evaluatedRuleCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "PolicyFinding": {
+        "type": "object",
+        "properties": {
+          "ruleCode": {
+            "type": "string"
+          },
+          "ruleName": {
+            "type": "string"
+          },
+          "ruleType": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "INFO",
+              "WARNING",
+              "REVIEW_NEEDED",
+              "REJECT_RECOMMENDED"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "calculation": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "claimAmount": {
+                "type": "number"
+              },
+              "coveredAmount": {
+                "type": "number"
+              },
+              "excessAmount": {
+                "type": "number"
+              },
+              "deductibleAmount": {
+                "type": "number"
+              },
+              "copayAmount": {
+                "type": "number"
+              },
+              "limitAmount": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "PolicyTotals": {
+        "type": "object",
+        "properties": {
+          "claimAmount": {
+            "type": "number"
+          },
+          "coveredAmount": {
+            "type": "number"
+          },
+          "excessAmount": {
+            "type": "number"
           }
         }
       }

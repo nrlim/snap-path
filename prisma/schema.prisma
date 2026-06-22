@@ -31,6 +31,8 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  claimReviewDecisions ClaimReviewDecision[]
+
   @@index([clientId])
   @@index([role])
   @@map("snp_user")
@@ -114,6 +116,8 @@ model Client {
   claimJobs         ClaimJob[]
   creditLedgers     CreditLedger[]
   requestLedgers    RequestLedger[]
+  policyRules       PolicyRule[]
+  claimReviewDecisions ClaimReviewDecision[]
 
   @@map("snp_client")
 }
@@ -169,6 +173,37 @@ model Provider {
   @@index([clientId])
   @@unique([clientId, code])
   @@map("snp_provider")
+}
+
+// === POLICY & BENEFIT RULES ===
+
+model PolicyRule {
+  id                String   @id @default(uuid())
+  clientId          String?
+  client            Client?  @relation(fields: [clientId], references: [id])
+  policyProductCode String?
+  ruleCode          String
+  ruleName          String
+  ruleType          String   // "EXCLUSION" | "LIMIT" | "DEDUCTIBLE" | "COPAY" | "WAITING_PERIOD" | "PRE_AUTH" | "ROOM_ENTITLEMENT"
+  targetType        String?  // "DIAGNOSIS" | "MEDICATION_NAME" | "MEDICATION_TYPE" | "PROCEDURE" | "TOTAL_CLAIM" | "ROOM_CLASS"
+  targetCode        String?
+  targetPattern     String?
+  conditionJson     Json?
+  actionJson        Json?
+  severity          String   @default("WARNING") // "INFO" | "WARNING" | "REVIEW_NEEDED" | "REJECT_RECOMMENDED"
+  recommendation    String?
+  effectiveFrom     DateTime @default(now())
+  effectiveTo       DateTime?
+  status            String   @default("ACTIVE") // "DRAFT" | "ACTIVE" | "ARCHIVED"
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([clientId, status])
+  @@index([policyProductCode])
+  @@index([ruleType, targetType])
+  @@index([targetCode])
+  @@unique([clientId, ruleCode])
+  @@map("snp_policy_rule")
 }
 
 // === MASTER DATA: TARIFF BOOK ===
@@ -241,6 +276,7 @@ model ClaimJob {
   client        Client?   @relation(fields: [clientId], references: [id])
   providerId    String?
   provider      Provider? @relation(fields: [providerId], references: [id])
+  reviewDecisions ClaimReviewDecision[]
   jobType       String    // "CLAIM_VALIDATION" | "TARIFF_CHECK" | "DRUG_PRICE" | "PATHWAY_GEN"
   status        String    @default("QUEUED") // "QUEUED" | "PRE_PROCESSING" | "PROCESSING" | "POST_PROCESSING" | "COMPLETED" | "FAILED"
   inputPayload  Json      // Raw input JSON
@@ -258,6 +294,32 @@ model ClaimJob {
   @@index([jobType])
   @@index([workflowRunId])
   @@map("snp_claim_job")
+}
+
+model ClaimReviewDecision {
+  id                   String   @id @default(uuid())
+  jobId                String
+  job                  ClaimJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  clientId             String?
+  client               Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  reviewerId           String?
+  reviewer             User?    @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+  decision             String   // "APPROVE" | "APPROVE_WITH_ADJUSTMENT" | "REJECT" | "REQUEST_DOCUMENTS" | "ESCALATE_MEDICAL_ADVISOR"
+  reviewStatus         String   @default("DECIDED") // "IN_REVIEW" | "DECIDED" | "WAITING_DOCUMENTS" | "ESCALATED"
+  payableAmount        Float?
+  excessAmount         Float?
+  reasonCode           String?
+  note                 String?
+  previousReviewStatus String?
+  nextReviewStatus     String
+  hitlPacket           Json?
+  createdAt            DateTime @default(now())
+
+  @@index([jobId, createdAt])
+  @@index([clientId, createdAt])
+  @@index([reviewerId, createdAt])
+  @@index([decision])
+  @@map("snp_claim_review_decision")
 }
 
 // === MEDICAL ITEM PRICE MASTER DATA ===

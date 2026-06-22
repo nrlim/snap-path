@@ -1,0 +1,79 @@
+{
+  "providerId": "MITRA_KELUARGA_BEKASI_TIMUR",
+  "claimId": "CLM-MK-2026-SC03-VIOLATION",
+  "patient": {
+    "name": "Bapak Anton Wijaya",
+    "identifier": [
+      {
+        "value": "PAT-MK-11002"
+      }
+    ],
+    "birthDate": "1978-11-20",
+    "gender": "male"
+  },
+  "encounter": {
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-05-01T08:00:00Z",
+      "end": "2026-05-08T12:00:00Z"
+    },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "A09",
+      "name": "Infectious gastroenteritis and colitis, unspecified",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "LABA100200",
+      "name": "Darah Rutin",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 150000,
+      "totalPrice": 150000
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "category": "KAMAR",
+      "quantity": 8,
+      "unitPrice": 635000,
+      "totalPrice": 5080000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Ekstrak Psidium guajava Folium 240 mg / Ekstrak Curcuma domestica Rhizoma 204 mg / Ekstrak Terminalia chebula Fructus 84 mg / Ekstrak Punica granatum Pericarpium 72 mg Kapsul (DIAPET)",
+      "genericName": "Herbal Antidiare",
+      "dosage": "Kapsul",
+      "quantity": 20,
+      "unitPrice": 60000,
+      "totalPrice": 1200000
+    }
+  ],
+  "documents": [
+    {
+      "type": "KTP",
+      "date": "2026-05-01T08:15:00.000Z",
+      "conclusion": "Identitas sesuai KTP."
+    }
+  ],
+  "extra": {
+    "nik": "3175021234560002",
+    "phone": "081298760002",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "AS-2026-AGE-03",
+    "los": "7",
+    "losJustification": "Pasien merasa belum nyaman untuk pulang, minta tambahan observasi.",
+    "outcomeNotes": "Diare berhenti pada hari ke-3, rawat jalan hari ke 4-8."
+  }
+}

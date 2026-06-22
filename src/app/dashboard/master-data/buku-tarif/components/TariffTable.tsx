@@ -10,6 +10,7 @@ import {
 } from "../actions";
 import { defaultPageSizes, SortButton, TablePagination, TableSearch } from "@/components/ui/DataTableControls";
 import { formatTariffCategory, type TariffCategoryOption } from "../categories";
+import { PencilLine, Trash2 } from "lucide-react";
 
 type TariffRow = {
   id: string;
@@ -52,6 +53,7 @@ export default function TariffTable({ data, providers, categories, total = data.
   const [page, setPage] = useState(currentPage);
   const [pageSize, setPageSize] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [deactivateConfirmId, setDeactivateConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,13 +105,7 @@ export default function TariffTable({ data, providers, categories, total = data.
     }
   }
 
-  const handleDeactivate = async (id: string) => {
-    if (!confirm("Nonaktifkan data tarif ini?")) return;
-    const result = await deactivateTariffEntry(id);
-    if (result.success) {
-      setRows((currentRows) => currentRows.map((item) => (item.id === id ? { ...item, isActive: false } : item)));
-    }
-  };
+  // handleDeactivate is now handled by the confirmation modal
 
   return (
     <div>
@@ -149,13 +145,68 @@ export default function TariffTable({ data, providers, categories, total = data.
                 <td className="px-5 py-4 text-right font-mono tabular-nums font-light text-foreground">{new Intl.NumberFormat("id-ID", { style: "currency", currency: item.currency, maximumFractionDigits: 0 }).format(item.basePrice)}</td>
                 <td className="px-5 py-4 text-right font-mono tabular-nums font-light text-foreground">{new Intl.NumberFormat("id-ID", { style: "currency", currency: item.currency, maximumFractionDigits: 0 }).format(item.maxPrice)}</td>
                 <td className="px-5 py-4 text-center">{item.isActive ? <span className="rounded-sm bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-emerald-600/20 uppercase tracking-widest">Aktif</span> : <span className="rounded-sm bg-background px-2 py-0.5 text-[10px] font-light text-muted-foreground ring-1 ring-border uppercase tracking-widest">Nonaktif</span>}</td>
-                <td className="px-5 py-4 text-right"><div className="flex items-center justify-end gap-2"><Link href={`/dashboard/master-data/buku-tarif/${item.id}`} className="rounded-md border border-border px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Edit</Link>{item.isActive && <button onClick={() => handleDeactivate(item.id)} className="rounded-md border border-red-200 px-3 py-1.5 text-[11px] font-mono uppercase tracking-[0.2em] text-red-600 hover:bg-red-50 transition-colors">Nonaktif</button>}</div></td>
+                <td className="px-5 py-4 text-right">
+                  <div className="flex items-center justify-end gap-1.5 transition-opacity">
+                    <Link 
+                      href={`/dashboard/master-data/buku-tarif/${item.id}`} 
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-blue-50 hover:text-blue-600 transition-colors focus:outline-none"
+                      title="Edit Tarif"
+                    >
+                      <PencilLine className="h-4 w-4" />
+                    </Link>
+                    {item.isActive && (
+                      <button 
+                        onClick={() => setDeactivateConfirmId(item.id)} 
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors focus:outline-none"
+                        title="Nonaktifkan Tarif"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       <TablePagination total={totalCount} visible={rows.length} currentPage={page} totalPages={serverTotalPages} onPrev={() => setPage((value) => Math.max(1, value - 1))} onNext={() => setPage((value) => Math.min(serverTotalPages, value + 1))} />
+      
+      {deactivateConfirmId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-card p-6 shadow-xl border border-border animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-semibold text-foreground">Nonaktifkan Tarif</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Apakah Anda yakin ingin menonaktifkan data tarif ini? Tarif yang dinonaktifkan tidak akan dapat digunakan lagi untuk validasi klaim baru.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setDeactivateConfirmId(null)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-foreground hover:bg-muted border border-transparent hover:border-border transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const result = await deactivateTariffEntry(deactivateConfirmId);
+                    if (result.success) {
+                      setRows((currentRows) => currentRows.map((item) => (item.id === deactivateConfirmId ? { ...item, isActive: false } : item)));
+                    }
+                  } catch (error) {
+                    alert("Gagal menonaktifkan tarif.");
+                  } finally {
+                    setDeactivateConfirmId(null);
+                  }
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 transition-colors"
+              >
+                Ya, Nonaktifkan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

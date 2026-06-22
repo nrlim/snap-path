@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { defaultPageSizes, SortButton, TablePagination, TableSearch, type SortDirection } from "@/components/ui/DataTableControls";
-import { getMedicalItemMasterEntries } from "../actions";
+import { getMedicalItemMasterEntries, deleteMedicalItem } from "../actions";
+import Link from "next/link";
+import { PencilLine, Trash2 } from "lucide-react";
 
 type MedicalItemMasterEntry = {
   id: string;
@@ -58,6 +60,7 @@ export default function MedicalItemMasterTable({ data, total = data.length, tota
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,11 +126,12 @@ export default function MedicalItemMasterTable({ data, total = data.length, tota
               <th className="px-5 py-4"><SortButton field="fetchedAt" label="Diambil" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
               <th className="px-5 py-4"><SortButton field="expiresAt" label="Kedaluwarsa" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
               <th className="px-5 py-4 text-center"><SortButton field="status" label="Status" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
+              <th className="px-5 py-4 text-right">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {paginatedData.length === 0 ? (
-              <tr><td colSpan={7} className="px-5 py-12 text-center text-sm font-light text-muted-foreground">Belum ada referensi harga farmalkes yang cocok.</td></tr>
+              <tr><td colSpan={8} className="px-5 py-12 text-center text-sm font-light text-muted-foreground">Belum ada referensi harga farmalkes yang cocok.</td></tr>
             ) : paginatedData.map((item) => {
               const expired = isExpired(item);
               const sources = normalizeSources(item.sources);
@@ -157,6 +161,24 @@ export default function MedicalItemMasterTable({ data, total = data.length, tota
                   <td className="px-5 py-4 text-center">
                     {expired ? <span className="rounded-sm bg-background px-2 py-0.5 text-[10px] font-light text-muted-foreground ring-1 ring-border uppercase tracking-widest">Kedaluwarsa</span> : <span className="rounded-sm bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 ring-1 ring-emerald-600/20 uppercase tracking-widest">Aktif</span>}
                   </td>
+                  <td className="px-5 py-4 text-right">
+                    <div className="flex items-center justify-end gap-1.5 transition-opacity">
+                      <Link 
+                        href={`/dashboard/master-data/obat/${item.id}/edit`} 
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-blue-50 hover:text-blue-600 transition-colors focus:outline-none"
+                        title="Edit Item"
+                      >
+                        <PencilLine className="h-4 w-4" />
+                      </Link>
+                      <button 
+                        onClick={() => setDeleteConfirmId(item.id)} 
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors focus:outline-none"
+                        title="Hapus Item"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -165,6 +187,42 @@ export default function MedicalItemMasterTable({ data, total = data.length, tota
       </div>
 
       <TablePagination total={totalCount} visible={paginatedData.length} currentPage={currentPage} totalPages={serverTotalPages} onPrev={() => setPage((value) => Math.max(1, value - 1))} onNext={() => setPage((value) => Math.min(serverTotalPages, value + 1))} />
+      
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-card p-6 shadow-xl border border-border animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-semibold text-foreground">Hapus Item Farmalkes</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Apakah Anda yakin ingin menghapus data farmalkes ini secara permanen? Data yang telah dihapus tidak dapat dikembalikan.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-foreground hover:bg-muted border border-transparent hover:border-border transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    const result = await deleteMedicalItem(deleteConfirmId);
+                    if (result.success) {
+                      setRows((currentRows) => currentRows.filter((item) => item.id !== deleteConfirmId));
+                    }
+                  } catch (e) {
+                    alert("Gagal menghapus item.");
+                  } finally {
+                    setDeleteConfirmId(null);
+                  }
+                }}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 transition-colors"
+              >
+                Ya, Hapus Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

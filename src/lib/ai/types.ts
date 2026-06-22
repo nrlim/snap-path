@@ -142,6 +142,7 @@ export interface ClaimValidationOutput {
       sources: string[];
     }>;
   };
+  policyValidation?: PolicyValidationOutput;
   documentValidation: {
     isValid: boolean;
     score: number;
@@ -260,6 +261,46 @@ export interface DrugPriceCheckOutput {
   thresholdConfig: {
     thresholdPct: number;
   };
+}
+
+// ==========================================
+//  POLICY & BENEFIT VALIDATION
+// ==========================================
+
+export interface PolicyValidationOutput {
+  isValid: boolean;
+  status: "PASS" | "WARNING" | "REVIEW_NEEDED" | "REJECT_RECOMMENDED";
+  score: number;
+  summary: string;
+  findings: Array<{
+    ruleCode: string;
+    ruleName: string;
+    ruleType: string;
+    targetType?: string | null;
+    targetCode?: string | null;
+    severity: "INFO" | "WARNING" | "REVIEW_NEEDED" | "REJECT_RECOMMENDED";
+    message: string;
+    recommendation: string;
+    evidence: Array<{
+      type: "DIAGNOSIS" | "MEDICATION" | "PROCEDURE" | "CLAIM" | "POLICY";
+      label: string;
+      value: string;
+    }>;
+    calculation?: {
+      claimAmount: number;
+      coveredAmount: number;
+      excessAmount: number;
+      deductibleAmount?: number;
+      copayAmount?: number;
+      limitAmount?: number;
+    };
+  }>;
+  totals: {
+    claimAmount: number;
+    coveredAmount: number;
+    excessAmount: number;
+  };
+  evaluatedRuleCount: number;
 }
 
 // ==========================================

@@ -4,6 +4,8 @@ import { validateTariffPrice } from '@/lib/ai/validators/tariff';
 import { checkDrugPrices } from '@/lib/ai/validators/drug-price';
 import { generateClinicalPathway } from '@/lib/ai/generators/pathway';
 import { validateLos } from '@/lib/ai/validators/los';
+import { validatePolicyBenefits } from '@/lib/policy/validator';
+import type { PolicyValidationOutput } from '@/lib/ai/types';
 import { FatalError } from 'workflow';
 import prisma from '@/lib/db';
 
@@ -228,7 +230,22 @@ export async function validateLosStep(input: ClaimValidationPayload) {
 validateLosStep.maxRetries = 1;
 
 /**
- * Step 6: Aggregate all results and persist final output to DB.
+ * Step 6: Validate policy and benefit rules.
+ */
+export async function validatePolicyBenefitsStep(input: ClaimValidationPayload): Promise<PolicyValidationOutput> {
+  'use step';
+
+  await updateJobStatus(input.jobId, 'POLICY_VAL');
+
+  return await validatePolicyBenefits({
+    ...input.payload,
+    clientId: input.payload.clientId,
+  });
+}
+validatePolicyBenefitsStep.maxRetries = 2;
+
+/**
+ * Step 7: Aggregate all results and persist final output to DB.
  */
 export async function aggregateAndSaveStep(
   input: ClaimValidationPayload,
@@ -238,6 +255,7 @@ export async function aggregateAndSaveStep(
   drugRes: any,
   pathRes: any,
   losRes: any,
+  policyRes: PolicyValidationOutput,
 ) {
   'use step';
 
@@ -281,7 +299,7 @@ export async function aggregateAndSaveStep(
   const scoreBreakdown = {
     baseScore: 100,
     scoringModel: 'positive_points_v1',
-    description: 'Setiap aspek menampilkan poin yang diperoleh dari bobot maksimum. Temuan validasi mengurangi poin aspek tersebut.',
+    description: 'Setiap aspek menampilkan poin yang diperoleh dari bobot maksimum. Temuan validasi mengurangi poin aspek tersebut. Policy & benefit saat ini menjadi gate HITL non-deduktif agar tidak mengubah skor klinis/finansial existing.',
     items: [
       { code: 'DIAGNOSIS_TREATMENT', label: 'Diagnosis, tindakan & obat klinis', maxDeduction: 25, maxScore: 25, score: 25, deducted: 0, status: 'PASS', reason: 'Diagnosis, tindakan, dan obat sesuai kebutuhan klinis utama.' },
       { code: 'TARIFF', label: 'Tarif tindakan terdaftar', maxDeduction: 20, maxScore: 20, score: 20, deducted: 0, status: 'PASS', reason: 'Item tindakan yang terdaftar berada dalam threshold master fee schedule.' },
@@ -289,6 +307,7 @@ export async function aggregateAndSaveStep(
       { code: 'DOCUMENT', label: 'Kelengkapan dokumen', maxDeduction: 10, maxScore: 10, score: 10, deducted: 0, status: 'PASS', reason: 'Enam dokumen wajib klaim rawat inap sudah lengkap.' },
       { code: 'LOS', label: 'LOS compliance', maxDeduction: 10, maxScore: 10, score: 10, deducted: 0, status: 'PASS', reason: 'LOS aktual sesuai standar pathway.' },
       { code: 'UNREGISTERED_MASTER_DATA', label: 'Kesiapan master data', maxDeduction: 15, maxScore: 15, score: 15, deducted: 0, status: 'PASS', reason: 'Semua tindakan dan obat tersedia pada master data/referensi.' },
+      { code: 'POLICY_BENEFIT', label: 'Polis & benefit', maxDeduction: 0, maxScore: 0, score: 0, deducted: 0, status: 'PASS', reason: 'Tidak ada pelanggaran polis atau benefit yang terdeteksi.' },
     ],
   };
 
@@ -386,8 +405,19 @@ export async function aggregateAndSaveStep(
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
   }
 
+  if (policyRes.status !== 'PASS') {
+    scoreBreakdown.items[6].status = policyRes.status;
+    scoreBreakdown.items[6].reason = `${policyRes.summary} Estimasi excess polis: Rp ${policyRes.totals.excessAmount.toLocaleString('id-ID')}.`;
+    if (policyRes.status === 'REJECT_RECOMMENDED' || policyRes.status === 'REVIEW_NEEDED') {
+      status = 'REVIEW_NEEDED';
+    } else if (status !== 'REVIEW_NEEDED') {
+      status = 'WARNING';
+    }
+  }
+
   for (const item of scoreBreakdown.items) {
     item.score = Math.max(0, item.maxScore - item.deducted);
+    if (item.maxScore === 0 && item.status !== 'PASS') continue;
     item.status = item.deducted === 0 ? 'PASS' : item.score > 0 ? 'PARTIAL' : 'NEEDS_REVIEW';
   }
 
@@ -406,11 +436,14 @@ export async function aggregateAndSaveStep(
     status,
     overallScore,
     scoreBreakdown,
-    summary: `Klaim berhasil divalidasi. Skor akhir: ${overallScore}/100.`,
+    summary: policyRes.status === 'PASS'
+      ? `Klaim berhasil divalidasi. Skor akhir: ${overallScore}/100.`
+      : `Klaim berhasil divalidasi. Skor akhir: ${overallScore}/100. ${policyRes.summary}`,
     documentValidation: docRes,
     diagnosisValidation: diagRes,
     tariffValidation: tariffRes,
     drugPriceValidation: drugRes || { isValid: true, score: 100, items: [] },
+    policyValidation: policyRes,
     losValidation: losRes,
     clinicalPathway: pathRes
       ? {

@@ -226,6 +226,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   }
 
   const result = job.outputResult || {};
+  const policyValidation = result.policyValidation || null;
+  const policyFindings = policyValidation?.findings || [];
   const persistedValidationScore = result.overallScore || result.validationScore || 0;
   const persistedLatencyMs = result.processingTime?.totalMs ?? result.processingTime?.total;
   const startedTime = job.startedAt ? new Date(job.startedAt).getTime() : null;
@@ -639,6 +641,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const tabs = [
     { id: "pathway", label: "Pathway Klinis", icon: <Stethoscope className="h-4 w-4" /> },
     { id: "tariff", label: "Biaya & Obat", icon: <Pill className="h-4 w-4" /> },
+    { id: "policy", label: "Polis & Benefit", icon: <ClipboardCheck className="h-4 w-4" /> },
     { id: "diagnosis", label: "Diagnosis & Dokumen", icon: <FileText className="h-4 w-4" /> },
   ];
 
@@ -1118,6 +1121,104 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── TAB: POLICY & BENEFIT ─────────────────────────────────── */}
+          {activeTab === "policy" && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="rounded-lg border border-border bg-card p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Policy & Benefit Engine</p>
+                    <h3 className="mt-2 text-xl font-light text-foreground">Validasi TC Polis dan benefit</h3>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                      {policyValidation?.summary || 'Belum ada hasil validasi polis untuk klaim ini. Rule dapat dikirim dari sistem integrasi atau dikelola sebagai master data client.'}
+                    </p>
+                  </div>
+                  <span className={`inline-flex w-fit items-center rounded px-2.5 py-1 text-xs font-mono uppercase tracking-[0.12em] ${
+                    !policyValidation || policyValidation.status === 'PASS'
+                      ? 'bg-green-500/10 text-green-700 ring-1 ring-inset ring-green-500/20'
+                      : policyValidation.status === 'WARNING'
+                        ? 'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/20'
+                        : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'
+                  }`}>
+                    {policyValidation?.status || 'BELUM ADA'}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <div className="rounded-lg border border-border bg-muted/20 p-4">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Rule Dievaluasi</p>
+                    <p className="mt-2 font-mono text-2xl font-light text-foreground">{policyValidation?.evaluatedRuleCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-4">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Temuan</p>
+                    <p className="mt-2 font-mono text-2xl font-light text-foreground">{policyFindings.length}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-4">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Covered</p>
+                    <p className="mt-2 font-mono text-lg font-light text-foreground">Rp {formatIdrAmount(policyValidation?.totals.coveredAmount ?? 0)}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-4">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Excess Estimasi</p>
+                    <p className="mt-2 font-mono text-lg font-light text-red-600">Rp {formatIdrAmount(policyValidation?.totals.excessAmount ?? 0)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border bg-card">
+                <div className="border-b border-border px-4 py-3">
+                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Temuan Rule Polis</p>
+                </div>
+                {policyFindings.length > 0 ? (
+                  <div className="divide-y divide-border/60">
+                    {policyFindings.map((finding: any) => (
+                      <div key={`${finding.ruleCode}-${finding.message}`} className="p-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium text-foreground">{finding.ruleName}</p>
+                              <span className="rounded bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{finding.ruleType}</span>
+                              <span className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] ${
+                                finding.severity === 'INFO'
+                                  ? 'bg-slate-500/10 text-slate-600'
+                                  : finding.severity === 'WARNING'
+                                    ? 'bg-amber-500/10 text-amber-700'
+                                    : 'bg-red-500/10 text-red-700'
+                              }`}>
+                                {finding.severity}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-muted-foreground">{finding.message}</p>
+                            <p className="mt-1 text-sm leading-6 text-foreground">Rekomendasi: {finding.recommendation}</p>
+                          </div>
+                          {finding.calculation && (
+                            <div className="min-w-52 rounded-lg border border-border bg-muted/20 p-3 text-xs">
+                              <div className="flex justify-between gap-4 py-1"><span className="text-muted-foreground">Claim</span><span className="font-mono text-foreground">Rp {formatIdrAmount(finding.calculation.claimAmount)}</span></div>
+                              <div className="flex justify-between gap-4 py-1"><span className="text-muted-foreground">Covered</span><span className="font-mono text-foreground">Rp {formatIdrAmount(finding.calculation.coveredAmount)}</span></div>
+                              <div className="flex justify-between gap-4 py-1"><span className="text-muted-foreground">Excess</span><span className="font-mono text-red-600">Rp {formatIdrAmount(finding.calculation.excessAmount)}</span></div>
+                            </div>
+                          )}
+                        </div>
+                        {finding.evidence && finding.evidence.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {finding.evidence.map((evidence: any) => (
+                              <span key={`${finding.ruleCode}-${evidence.type}-${evidence.label}-${evidence.value}`} className="inline-flex rounded border border-border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
+                                {evidence.label}: <span className="ml-1 font-mono text-foreground">{evidence.value}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 text-sm text-muted-foreground">
+                    Tidak ada temuan rule polis. Tambahkan rule dari sistem integrasi atau aktifkan master rule client untuk menguji pengecualian, limit, deductible, co-pay, pre-authorisation, dan entitlement kamar.
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

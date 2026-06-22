@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getAuthenticatedUser } from "@/lib/rbac";
 import { getPathwayResult } from "../actions";
+import { getReviewDecisionsForJob } from "../review/actions";
 import PathwayResultViewer from "../components/PathwayResultViewer";
 
 export default async function ClinicalPathwayResultPage(props: {
   params: Promise<{ jobId: string }>;
 }) {
   const params = await props.params;
-  const job = await getPathwayResult(params.jobId);
+  const [job, user] = await Promise.all([
+    getPathwayResult(params.jobId),
+    getAuthenticatedUser(),
+  ]);
 
   if (!job) {
     notFound();
@@ -24,6 +29,7 @@ export default async function ClinicalPathwayResultPage(props: {
           </p>
         </div>
       </div>
+
 
       <PathwayResultViewer job={job} />
     </div>

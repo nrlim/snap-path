@@ -1,0 +1,79 @@
+{
+  "providerId": "MITRA_KELUARGA_BEKASI_TIMUR",
+  "claimId": "CLM-MK-2026-SC02-OVERCHARGE",
+  "patient": {
+    "name": "Ibu Sari Wulandari",
+    "identifier": [
+      {
+        "value": "PAT-MK-10041"
+      }
+    ],
+    "birthDate": "1992-04-12",
+    "gender": "female"
+  },
+  "encounter": {
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-04-10T09:00:00Z",
+      "end": "2026-04-13T13:00:00Z"
+    },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "A90",
+      "name": "Dengue fever without warning signs",
+      "type": "primary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "LABA100300",
+      "name": "Darah Lengkap",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 1500000,
+      "totalPrice": 1500000
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "category": "KAMAR",
+      "quantity": 3,
+      "unitPrice": 635000,
+      "totalPrice": 1905000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Ekstrak Apium graveolens Herba 92 mg / Ekstrak Orthosiphon stamineus Folium 28 mg Kapsul (TENSIGARD)",
+      "genericName": "Herbal Hipertensi",
+      "dosage": "Kapsul",
+      "quantity": 10,
+      "unitPrice": 50000,
+      "totalPrice": 500000
+    }
+  ],
+  "documents": [
+    {
+      "type": "LMA",
+      "date": "2026-04-10T09:30:00.000Z",
+      "conclusion": "Laporan Medis Awal: demam 3 hari, nyeri kepala dan mialgia, NS1 dengue positif. Pasien mengeluh sedikit tensi naik."
+    }
+  ],
+  "extra": {
+    "nik": "3175021234567890",
+    "phone": "081298761234",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "AS-2026-DHF-02",
+    "los": "3",
+    "losJustification": "Rawat inap 3 hari untuk dengue.",
+    "outcomeNotes": "Trombosit stabil, pasien pulang."
+  }
+}
