@@ -29,7 +29,7 @@ export interface AIGatewayDriver {
   validateDiagnosisTreatment(payload: any): Promise<{ data: any; usage?: Usage }>;
   resolveMedicalItemMatch?(input: { medication: any; diagnoses: any[]; candidates: any[] }): Promise<{ data: any; usage?: Usage }>;
   resolveMedicalItemMatches?(input: { requests: Array<{ requestId: string; medication: any; candidates: any[] }>; diagnoses: any[] }): Promise<{ data: any; usage?: Usage }>;
-  generateClinicalPathway(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }>;
+  generateClinicalPathway(diagnosisCode: string, diagnosisName: string, diagnosisContext?: Array<{ code: string; name?: string; type?: string; sequence?: number }>): Promise<{ data: any; usage?: Usage }>;
   validateDocumentCompleteness(payload: any): Promise<{ data: any; usage?: Usage }>;
   mapArbitraryJsonToClaim(rawJson: any): Promise<{ data: any; usage?: Usage }>;
   estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string, thresholds?: { overstayDays?: number; understayDays?: number }): Promise<{ data: any; usage?: Usage }>;
@@ -137,8 +137,8 @@ export class AIGateway {
     return { data: { matches } };
   }
 
-  async generateClinicalPathway(diagnosisCode: string, diagnosisName: string) {
-    return this.track('generateClinicalPathway', () => this.driver.generateClinicalPathway(diagnosisCode, diagnosisName));
+  async generateClinicalPathway(diagnosisCode: string, diagnosisName: string, diagnosisContext?: Array<{ code: string; name?: string; type?: string; sequence?: number }>) {
+    return this.track('generateClinicalPathway', () => this.driver.generateClinicalPathway(diagnosisCode, diagnosisName, diagnosisContext));
   }
 
   async validateDocumentCompleteness(payload: any) {

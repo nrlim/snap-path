@@ -269,6 +269,12 @@ export interface DrugPriceCheckOutput {
 export interface ClinicalPathwayInput {
   diagnosisCode: string;    // ICD-10
   diagnosisName?: string;
+  diagnosisContext?: Array<{
+    code: string;
+    name?: string;
+    type?: "PRIMARY" | "SECONDARY" | "COMPLICATION" | string;
+    sequence?: number;
+  }>;
   encounterType: "RAWAT_INAP" | "RAWAT_JALAN" | "IGD";
   providerType?: string;    // "BPJS" | "PRIVATE"
   patientProfile?: {

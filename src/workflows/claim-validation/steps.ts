@@ -31,6 +31,33 @@ function resolveEncounterType(payload: any): 'RAWAT_INAP' | 'RAWAT_JALAN' | 'IGD
   return 'RAWAT_INAP';
 }
 
+function normalizeProcedureKey(value: unknown): string {
+  return String(value || '').trim().toUpperCase();
+}
+
+function collectEpisodeAppropriateProcedureKeys(diagnosisDetails: any[]): Set<string> {
+  const keys = new Set<string>();
+  for (const detail of diagnosisDetails) {
+    for (const finding of detail.procedureFindings || []) {
+      if (finding.status === 'APPROPRIATE') keys.add(normalizeProcedureKey(finding.procedureCode || finding.procedureName));
+    }
+    for (const procedure of detail.matchedProcedures || []) {
+      keys.add(normalizeProcedureKey(String(procedure).split('—')[0] || procedure));
+    }
+  }
+  return keys;
+}
+
+function collectEpisodeAppropriateMedicationKeys(diagnosisDetails: any[]): Set<string> {
+  const keys = new Set<string>();
+  for (const detail of diagnosisDetails) {
+    for (const finding of detail.medicationFindings || []) {
+      if (finding.status === 'APPROPRIATE') keys.add(String(finding.medicationName || finding.genericName || '').trim().toLowerCase());
+    }
+  }
+  return keys;
+}
+
 /**
  * Step 1: Initialize job and validate documents.
  * Updates job status to DOC_VAL.
@@ -150,6 +177,12 @@ export async function generatePathwayStep(input: ClaimValidationPayload) {
       {
         diagnosisCode: primaryDiag.code,
         diagnosisName: primaryDiag.description || primaryDiag.name,
+        diagnosisContext: input.payload.diagnoses.map((diagnosis: any, index: number) => ({
+          code: diagnosis.code,
+          name: diagnosis.name || diagnosis.description || diagnosis.diagnosisName,
+          type: diagnosis.type,
+          sequence: diagnosis.sequence ?? index + 1,
+        })),
         encounterType: resolveEncounterType(input.payload),
         providerId: input.payload.providerId,
         clientId: input.payload.clientId,
@@ -267,13 +300,21 @@ export async function aggregateAndSaveStep(
   const uniqueReviewMedications = new Set<string>();
   const uniqueInappropriateMedications = new Set<string>();
 
+  const episodeAppropriateProcedureKeys = collectEpisodeAppropriateProcedureKeys(diagnosisDetails);
+  const episodeAppropriateMedicationKeys = collectEpisodeAppropriateMedicationKeys(diagnosisDetails);
   for (const detail of diagnosisDetails) {
     for (const item of detail.missingRequiredProcedures || []) uniqueMissingRequired.add(String(item));
-    for (const item of detail.irrelevantProcedures || []) uniqueIrrelevantProcedures.add(String(item.procedureCode || item.procedureName || item));
-    for (const item of detail.unmatchedProcedures || []) uniqueIrrelevantProcedures.add(String(item));
+    for (const item of detail.irrelevantProcedures || []) {
+      const key = normalizeProcedureKey(item.procedureCode || item.procedureName || item);
+      if (!episodeAppropriateProcedureKeys.has(key)) uniqueIrrelevantProcedures.add(key);
+    }
+    for (const item of detail.unmatchedProcedures || []) {
+      const key = normalizeProcedureKey(String(item).split('—')[0] || item);
+      if (!episodeAppropriateProcedureKeys.has(key)) uniqueIrrelevantProcedures.add(key);
+    }
     for (const item of detail.medicationFindings || []) {
       const key = String(item.medicationName || item.name || item.genericName || '').trim().toLowerCase();
-      if (!key) continue;
+      if (!key || episodeAppropriateMedicationKeys.has(key)) continue;
       if (item.status === 'INAPPROPRIATE') uniqueInappropriateMedications.add(key);
       else if (item.status === 'REVIEW_NEEDED') uniqueReviewMedications.add(key);
     }

@@ -1,0 +1,217 @@
+{
+  "providerId": "7ddf42dc-8a43-4470-b637-78945a6e0419",
+  "claimId": "CLM-MK-2026-MULTI-DX-PNEUMONIA-DM",
+  "patient": {
+    "name": "Bapak Ahmad Prasetyo",
+    "identifier": [
+      {
+        "value": "PAT-MK-10088"
+      }
+    ],
+    "birthDate": "1964-08-21",
+    "gender": "male"
+  },
+  "encounter": {
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2026-05-06T03:15:00Z",
+      "end": "2026-05-10T10:30:00Z"
+    },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "J18.9",
+      "name": "Pneumonia, unspecified organism",
+      "type": "PRIMARY",
+      "sequence": 1
+    },
+    {
+      "code": "E11.9",
+      "name": "Type 2 diabetes mellitus without complications",
+      "type": "SECONDARY",
+      "sequence": 2
+    },
+    {
+      "code": "E86",
+      "name": "Volume depletion",
+      "type": "COMPLICATION",
+      "sequence": 3
+    }
+  ],
+  "procedures": [
+    {
+      "code": "KONA000002",
+      "name": "Konsultasi Umum IGD",
+      "category": "RAWAT_JALAN",
+      "quantity": 1,
+      "unitPrice": 225000,
+      "totalPrice": 225000
+    },
+    {
+      "code": "KOND000001",
+      "name": "Konsultasi Spesialis Rawat Inap",
+      "category": "RAWAT_INAP",
+      "quantity": 4,
+      "unitPrice": 450000,
+      "totalPrice": 1800000
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "category": "KAMAR",
+      "quantity": 4,
+      "unitPrice": 635000,
+      "totalPrice": 2540000
+    },
+    {
+      "code": "LABA100300",
+      "name": "Darah Lengkap",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 513000,
+      "totalPrice": 513000
+    },
+    {
+      "code": "RADA030001",
+      "name": "Thorax AP/PA",
+      "category": "RADIOLOGI",
+      "quantity": 1,
+      "unitPrice": 822000,
+      "totalPrice": 822000
+    },
+    {
+      "code": "LABA220300",
+      "name": "Glukosa Darah Sewaktu",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 190000,
+      "totalPrice": 190000
+    },
+    {
+      "code": "LABA260100",
+      "name": "Elektrolit (Na, K, Cl)",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 926000,
+      "totalPrice": 926000
+    },
+    {
+      "code": "PRWT000072",
+      "name": "Pasang IV Line Acces",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 173000,
+      "totalPrice": 173000
+    },
+    {
+      "code": "PRWT000065",
+      "name": "Tindakan Nebulizer",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 260000,
+      "totalPrice": 260000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Ceftriaxone 1 g Inj",
+      "genericName": "Ceftriaxone",
+      "dosage": "1 g vial",
+      "quantity": 2,
+      "unitPrice": 85000,
+      "totalPrice": 170000,
+      "frequency": "1x sehari",
+      "duration": "2 hari"
+    },
+    {
+      "name": "Salbutamol Nebule",
+      "genericName": "Salbutamol",
+      "dosage": "2.5 mg nebule",
+      "quantity": 8,
+      "unitPrice": 18000,
+      "totalPrice": 144000,
+      "frequency": "4x sehari bila sesak",
+      "duration": "2 hari"
+    },
+    {
+      "name": "Paracetamol 500 mg Tablet",
+      "genericName": "Paracetamol",
+      "dosage": "500 mg tablet",
+      "quantity": 10,
+      "unitPrice": 2500,
+      "totalPrice": 25000,
+      "frequency": "3x sehari bila demam",
+      "duration": "3 hari"
+    },
+    {
+      "name": "Insulin Aspart Penfill",
+      "genericName": "Insulin Aspart",
+      "dosage": "100 IU/ml penfill",
+      "quantity": 1,
+      "unitPrice": 180000,
+      "totalPrice": 180000,
+      "frequency": "Sesuai sliding scale",
+      "duration": "Selama rawat inap"
+    },
+    {
+      "name": "Ringer Laktat 500ml Botol",
+      "genericName": "Ringer Laktat",
+      "dosage": "500ml botol infus",
+      "quantity": 4,
+      "unitPrice": 16000,
+      "totalPrice": 64000,
+      "frequency": "Sesuai kebutuhan cairan",
+      "duration": "2 hari"
+    }
+  ],
+  "totalClaimAmount": 8032000,
+  "currency": "IDR",
+  "documents": [
+    {
+      "type": "LMA",
+      "date": "2026-05-06T04:10:00Z",
+      "conclusion": "Laporan Medis Awal: pasien datang dengan demam, batuk produktif, sesak ringan, ronki basal kanan, leukositosis ringan, foto thorax mengarah pneumonia. Riwayat diabetes melitus tipe 2 dengan hiperglikemia sewaktu. Terdapat tanda dehidrasi ringan sehingga diberikan cairan IV dan monitoring elektrolit."
+    },
+    {
+      "type": "KTP",
+      "date": "2026-05-06T04:20:00Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-06T04:25:00Z",
+      "conclusion": "Kartu asuransi aktif untuk rawat inap."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-06T06:00:00Z",
+      "conclusion": "Pasien ditempatkan di ruang rawat kelas II sesuai hak kamar."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-06T06:15:00Z",
+      "conclusion": "Kasus bukan kecelakaan; keluhan terkait infeksi saluran napas dan kondisi metabolik."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-06T06:30:00Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani pasien/keluarga."
+    }
+  ],
+  "extra": {
+    "nik": "3175052108640001",
+    "phone": "081298760088",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "AS-2026-MULTIDX-088",
+    "los": "4",
+    "losJustification": "Rawat inap 4 hari untuk pneumonia dengan komorbid diabetes melitus tipe 2 dan dehidrasi ringan. Perawatan mencakup antibiotik, nebulisasi bila sesak, koreksi cairan, monitoring elektrolit, kontrol gula darah, dan evaluasi klinis sebelum pulang.",
+    "outcomeNotes": "Demam turun, sesak membaik, saturasi stabil tanpa oksigen tambahan, intake oral membaik, gula darah terkendali dengan sliding scale, dan pasien pulang dengan edukasi tanda bahaya pneumonia serta kontrol diabetes."
+  }
+}

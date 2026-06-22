@@ -288,16 +288,19 @@ ${JSON.stringify(payload, null, 2)}
 CORE PRINCIPLES:
 1. Do NOT use hardcoded diagnosis-procedure mappings. Base your review on clinical reasoning, standard pathway logic, and the actual claim context only.
 2. Local lookup/mapping data, if present in the payload, is supporting evidence only. If it is absent/empty/incomplete, perform direct AI clinical review; absence from mapping is NEVER evidence of non-compliance.
-3. Assess every CLAIMED procedure against every relevant diagnosis using the procedure name, code, encounter type, admission context, medications, documents, LOS/outcome notes, and common inpatient workflow.
-4. Consider broad legitimate relationships: diagnostic workup, therapeutic treatment, monitoring, nursing/supportive care, admission/administrative care, labs, imaging, surgery/anesthesia, rehabilitation, discharge planning, and complication/comorbidity management.
-5. Mark a procedure APPROPRIATE when there is a plausible clinical or operational relationship to the diagnosis/admission.
-6. Mark REVIEW_NEEDED when the procedure could be appropriate but depends on missing clinical context such as symptoms, severity, lab/imaging results, procedure notes, comorbidity, complication, route, or timing.
-7. Mark INAPPROPRIATE only when the procedure is clearly unrelated to the diagnosis/admission and you can explain why. Use HIGH confidence only for clearly unrelated cases.
-8. Do not penalize local hospital procedure codes, uncommon names, bundled services, or non-standard code systems. Use the description/name as the main semantic signal when code systems are local.
-9. Missing required procedures must be conservative. Use REQUIRED only when a standard pathway strongly requires the item for safe care in this encounter. Common/optional items should go to suggestedProcedures, not missingRequiredProcedures.
-10. Medication findings should include supportive therapy, symptom control, antibiotics, fluids, chronic medication continuation, prophylaxis, and comorbidity context. Use REVIEW_NEEDED if indication depends on undocumented context.
+3. Support multiple diagnoses. Return one detail object for EVERY diagnosis in the claim, preserving diagnosis code, name, type, and sequence context where available.
+4. Assess every CLAIMED procedure against the full episode first, then explain its relationship to each relevant diagnosis. A procedure that is appropriate for one diagnosis/comorbidity/complication should not be treated as an episode-level inconsistency merely because it is not tied to another diagnosis.
+5. Assess every CLAIMED procedure against every relevant diagnosis using the procedure name, code, encounter type, admission context, medications, documents, LOS/outcome notes, and common inpatient workflow.
+6. Consider broad legitimate relationships: diagnostic workup, therapeutic treatment, monitoring, nursing/supportive care, admission/administrative care, labs, imaging, surgery/anesthesia, rehabilitation, discharge planning, and complication/comorbidity management.
+7. Mark a procedure APPROPRIATE when there is a plausible clinical or operational relationship to the diagnosis/admission.
+8. Mark REVIEW_NEEDED when the procedure could be appropriate but depends on missing clinical context such as symptoms, severity, lab/imaging results, procedure notes, comorbidity, complication, route, or timing.
+9. Mark INAPPROPRIATE only when the procedure is clearly unrelated to the whole episode and cannot be justified by the primary diagnosis, secondary diagnoses, complications, admission workflow, or documented medication/document context. Use HIGH confidence only for clearly unrelated cases.
+10. Do not penalize local hospital procedure codes, uncommon names, bundled services, or non-standard code systems. Use the description/name as the main semantic signal when code systems are local.
+11. Missing required procedures must be conservative. Use REQUIRED only when a standard pathway strongly requires the item for safe care in this encounter. Common/optional items should go to suggestedProcedures, not missingRequiredProcedures.
+12. Medication findings should include supportive therapy, symptom control, antibiotics, fluids, chronic medication continuation, prophylaxis, and comorbidity context. Use REVIEW_NEEDED if indication depends on undocumented context.
 
 OUTPUT REQUIREMENTS PER DIAGNOSIS:
+- details length must equal the number of claim diagnoses.
 - procedureFindings: include one finding for each claimed procedure.
 - matchedProcedures: include procedures assessed as APPROPRIATE.
 - unmatchedProcedures and irrelevantProcedures: include only procedures assessed as INAPPROPRIATE with MEDIUM/HIGH confidence.
@@ -413,7 +416,7 @@ Rules:
     return { data: object, usage: usage as any };
   }
 
-  async generateClinicalPathway(diagnosisCode: string, diagnosisName: string): Promise<{ data: any; usage?: Usage }> {
+  async generateClinicalPathway(diagnosisCode: string, diagnosisName: string, diagnosisContext?: Array<{ code: string; name?: string; type?: string; sequence?: number }>): Promise<{ data: any; usage?: Usage }> {
     const schema = z.object({
       estimatedLos: z.number(),
       phases: z.array(z.object({
@@ -446,6 +449,9 @@ Rules:
       experimental_repairText: async ({ text }) => repairClinicalPathwayJsonText(text),
       prompt: `Generate a realistic clinical pathway for ${diagnosisCode} - ${diagnosisName} suitable for Indonesian healthcare context.
 
+Diagnosis context for this claim episode:
+${JSON.stringify(diagnosisContext && diagnosisContext.length > 0 ? diagnosisContext : [{ code: diagnosisCode, name: diagnosisName, type: 'PRIMARY', sequence: 1 }], null, 2)}
+
 OUTPUT FORMAT RULES:
 - Return ONLY raw JSON. Do not use markdown. Do not wrap the answer in \`\`\`json fences.
 - Every phase must include phaseId, phaseName, dayRange, objectives, assessments, treatments, medications, nursing, nutrition, education, and dischargeGate.
@@ -460,15 +466,17 @@ OUTPUT FORMAT RULES:
 Clinical context:
 
 Requirements:
-1. Estimate the standard Length of Stay (LOS) for this diagnosis using general clinical knowledge and publicly known practice patterns when no internal master LOS is available.
-2. Return estimatedLos as the expected inpatient duration in days. For outpatient/IGD-only cases, use 1 unless the diagnosis usually requires observation/admission.
-3. Break phases according to the estimatedLos. Do NOT always force a static 3-day pathway.
-4. The phases array may group clinically similar adjacent days, but the grouped dayRange MUST clearly cover the entire estimatedLos from Day 1 through Day N. Example for estimatedLos 7: "Day 1", "Day 2-3", "Day 4-6", "Day 7".
-5. Do not stop before the estimatedLos. The final phase dayRange must include the last LOS day.
-6. Use phaseName as the clinical activity title only, e.g. "Admission", "Treatment", "Monitoring", "Discharge". Avoid putting day labels inside phaseName.
-7. Include discharge criteria in the final phase.
-8. Return every user-facing text field in Bahasa Indonesia, including phaseName, objectives, assessments, treatments, medication instructions, nursing, nutrition, education, and discharge criteria. Keep JSON keys exactly as defined by the schema. Use English only for stable medical abbreviations when clinically standard.
-9. Use a recovery-oriented, hopeful, and operational tone: emphasize patient stabilization, readiness for discharge, and clear actions that help the claim reach compliant/approved status. Do not inflate scores or hide risks; explain review items as actionable improvements.
+1. Use ${diagnosisCode} - ${diagnosisName} as the PRIMARY pathway driver.
+2. If diagnosisContext contains secondary diagnoses or complications, integrate them as comorbidity/complication considerations inside assessments, treatments, monitoring, discharge criteria, education, and risk review. Do not generate separate unrelated pathways for each diagnosis.
+3. Estimate the standard Length of Stay (LOS) for the full episode using the primary diagnosis plus clinically meaningful secondary/complication context.
+4. Return estimatedLos as the expected inpatient duration in days. For outpatient/IGD-only cases, use 1 unless the diagnosis combination usually requires observation/admission.
+5. Break phases according to the estimatedLos. Do NOT always force a static 3-day pathway.
+6. The phases array may group clinically similar adjacent days, but the grouped dayRange MUST clearly cover the entire estimatedLos from Day 1 through Day N. Example for estimatedLos 7: "Day 1", "Day 2-3", "Day 4-6", "Day 7".
+7. Do not stop before the estimatedLos. The final phase dayRange must include the last LOS day.
+8. Use phaseName as the clinical activity title only, e.g. "Admission", "Treatment", "Monitoring", "Discharge". Avoid putting day labels inside phaseName.
+9. Include discharge criteria in the final phase, including stability requirements for relevant secondary diagnoses/complications when applicable.
+10. Return every user-facing text field in Bahasa Indonesia, including phaseName, objectives, assessments, treatments, medication instructions, nursing, nutrition, education, and discharge criteria. Keep JSON keys exactly as defined by the schema. Use English only for stable medical abbreviations when clinically standard.
+11. Use a recovery-oriented, hopeful, and operational tone: emphasize patient stabilization, readiness for discharge, and clear actions that help the claim reach compliant/approved status. Do not inflate scores or hide risks; explain review items as actionable improvements.
 
 Generate a clinically realistic and auditable pathway for Indonesian healthcare review context.`,
       temperature: this.temperature,

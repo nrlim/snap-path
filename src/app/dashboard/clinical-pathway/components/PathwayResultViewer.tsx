@@ -310,17 +310,37 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const losIsUnderstay = losValidation?.status === "UNDERSTAY";
   const losHasDeduction = (losValidation?.deduction ?? 0) > 0 || (!losValidation && (losIsOverstay || losIsMissingActual));
   const varianceText = inputPayload?.extra?.outcomeNotes || "Tidak ada catatan varians";
+  const normalizeProcedureKey = (value: unknown) => String(value || '').trim().toUpperCase();
+  const episodeAppropriateProcedureKeys = new Set<string>();
+  const episodeAppropriateMedicationKeys = new Set<string>();
+  for (const detail of diagDetails as any[]) {
+    for (const finding of detail.procedureFindings || []) {
+      if (finding.status === 'APPROPRIATE') episodeAppropriateProcedureKeys.add(normalizeProcedureKey(finding.procedureCode || finding.procedureName));
+    }
+    for (const procedure of detail.matchedProcedures || []) {
+      episodeAppropriateProcedureKeys.add(normalizeProcedureKey(String(procedure).split('—')[0] || procedure));
+    }
+    for (const finding of detail.medicationFindings || []) {
+      if (finding.status === 'APPROPRIATE') episodeAppropriateMedicationKeys.add(String(finding.medicationName || finding.genericName || '').trim().toLowerCase());
+    }
+  }
   const uniqueMissingRequired = new Set<string>();
   const uniqueReviewProcedures = new Set<string>();
   const uniqueReviewMedications = new Set<string>();
   const uniqueInappropriateMedications = new Set<string>();
   for (const detail of diagDetails as any[]) {
     for (const item of detail.missingRequiredProcedures || []) uniqueMissingRequired.add(String(item));
-    for (const item of detail.irrelevantProcedures || []) uniqueReviewProcedures.add(String(item.procedureCode || item.procedureName || item));
-    for (const item of detail.unmatchedProcedures || []) uniqueReviewProcedures.add(String(item));
+    for (const item of detail.irrelevantProcedures || []) {
+      const key = normalizeProcedureKey(item.procedureCode || item.procedureName || item);
+      if (!episodeAppropriateProcedureKeys.has(key)) uniqueReviewProcedures.add(key);
+    }
+    for (const item of detail.unmatchedProcedures || []) {
+      const key = normalizeProcedureKey(String(item).split('—')[0] || item);
+      if (!episodeAppropriateProcedureKeys.has(key)) uniqueReviewProcedures.add(key);
+    }
     for (const item of detail.medicationFindings || []) {
       const key = String(item.medicationName || item.name || item.genericName || '').trim().toLowerCase();
-      if (!key) continue;
+      if (!key || episodeAppropriateMedicationKeys.has(key)) continue;
       if (item.status === 'INAPPROPRIATE') uniqueInappropriateMedications.add(key);
       else if (item.status === 'REVIEW_NEEDED') uniqueReviewMedications.add(key);
     }
@@ -429,6 +449,29 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const validationScore = scoreBreakdown.length > 0
     ? scoreBreakdown.reduce((total, item) => total + (item.score ?? Math.max(0, (item.maxScore ?? item.maxDeduction) - item.deducted)), 0)
     : persistedValidationScore;
+  const idrFormatter = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
+
+  const toFiniteNumber = (value: unknown): number | null => {
+    const numericValue = Number(value);
+    return Number.isFinite(numericValue) ? numericValue : null;
+  };
+
+  const formatIdrAmount = (value: number) => idrFormatter.format(Math.round(Math.abs(value)));
+
+  const formatVarianceAmount = (value: number) => {
+    const prefix = value > 0 ? '+Rp ' : value < 0 ? '−Rp ' : 'Rp ';
+    return `${prefix}${formatIdrAmount(value)}`;
+  };
+
+  const getItemQuantity = (item: { quantity?: unknown }) => {
+    const quantity = toFiniteNumber(item.quantity);
+    return quantity !== null && quantity > 0 ? quantity : 1;
+  };
+
+  const getPriceVariance = (claimedTotal: number | null, masterTotal: number | null) => {
+    if (claimedTotal === null || masterTotal === null) return null;
+    return claimedTotal - masterTotal;
+  };
 
   const findClaimedProcedure = (item: any) => {
     const code = item.code || item.procedureCode;
@@ -443,6 +486,14 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const getProcedureClaimedTotal = (item: any) => {
     const claimed = findClaimedProcedure(item);
     return item.claimedTotal ?? item.claimedPrice ?? item.totalPrice ?? claimed?.totalPrice ?? claimed?.claimedTotal ?? ((item.claimedUnitPrice ?? item.unitPrice ?? claimed?.unitPrice ?? claimed?.price ?? 0) * (item.quantity ?? claimed?.quantity ?? 1));
+  };
+
+  const getProcedureMasterTotal = (item: Record<string, unknown>) => {
+    const expectedTotal = toFiniteNumber(item.expectedTotal);
+    if (expectedTotal !== null && expectedTotal > 0) return expectedTotal;
+
+    const masterUnitPrice = toFiniteNumber(item.masterMaxPrice ?? item.expectedMaxPrice);
+    return masterUnitPrice !== null && masterUnitPrice > 0 ? masterUnitPrice * getItemQuantity(item) : null;
   };
 
   const getProcedureClaimedUnit = (item: any) => {
@@ -475,6 +526,93 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     const claimed = findClaimedMedication(item);
     return item.claimedUnitPrice ?? item.unitPrice ?? claimed?.unitPrice ?? claimed?.price ?? null;
   };
+
+  const getDrugMasterTotal = (item: Record<string, unknown>) => {
+    const masterUnitPrice = toFiniteNumber(item.marketPriceMax ?? item.maxReferencePrice ?? item.marketMaxPrice);
+    if (masterUnitPrice !== null && masterUnitPrice > 0) return masterUnitPrice * getItemQuantity(item);
+
+    const expectedTotal = toFiniteNumber(item.expectedTotal);
+    return expectedTotal !== null && expectedTotal > 0 ? expectedTotal : null;
+  };
+
+  interface PriceSummary {
+    totalClaimed: number;
+    totalExpected: number;
+    variance: number;
+    variancePct: number;
+  }
+
+  const buildPriceSummary = (
+    section: Record<string, unknown> | null | undefined,
+    items: Array<Record<string, unknown>>,
+    getClaimedTotal: (item: Record<string, unknown>) => unknown,
+    getMasterTotal: (item: Record<string, unknown>) => number | null,
+  ): PriceSummary | null => {
+    const persistedClaimed = toFiniteNumber(section?.totalClaimed);
+    const persistedExpected = toFiniteNumber(section?.totalExpected);
+    if (persistedClaimed !== null && persistedExpected !== null) {
+      const persistedVariance = toFiniteNumber(section?.variance) ?? persistedClaimed - persistedExpected;
+      const persistedVariancePct = toFiniteNumber(section?.variancePct) ?? (persistedExpected > 0 ? (persistedVariance / persistedExpected) * 100 : 0);
+      return {
+        totalClaimed: persistedClaimed,
+        totalExpected: persistedExpected,
+        variance: persistedVariance,
+        variancePct: persistedVariancePct,
+      };
+    }
+
+    if (items.length === 0) return null;
+
+    const totals = items.reduce<{ totalClaimed: number; totalExpected: number }>(
+      (currentTotals, item) => {
+        const claimedTotal = toFiniteNumber(getClaimedTotal(item)) ?? 0;
+        const masterTotal = getMasterTotal(item) ?? 0;
+        return {
+          totalClaimed: currentTotals.totalClaimed + claimedTotal,
+          totalExpected: currentTotals.totalExpected + masterTotal,
+        };
+      },
+      { totalClaimed: 0, totalExpected: 0 },
+    );
+    const variance = totals.totalClaimed - totals.totalExpected;
+    const variancePct = totals.totalExpected > 0 ? (variance / totals.totalExpected) * 100 : 0;
+
+    return { ...totals, variance, variancePct };
+  };
+
+  const renderPriceSummary = (summary: PriceSummary) => {
+    const varianceClass = summary.variance > 0 ? 'text-red-600' : summary.variance < 0 ? 'text-yellow-600' : 'text-green-600';
+    return (
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Total Klaim</p>
+          <p className="mt-1 font-mono text-sm font-light text-foreground">Rp {idrFormatter.format(summary.totalClaimed)}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Total Master Data</p>
+          <p className="mt-1 font-mono text-sm font-light text-foreground">Rp {idrFormatter.format(summary.totalExpected)}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Selisih Agregat</p>
+          <p className={`mt-1 font-mono text-sm font-light ${varianceClass}`}>{formatVarianceAmount(summary.variance)}</p>
+          <p className={`mt-0.5 font-mono text-[10px] ${varianceClass}`}>{summary.variancePct > 0 ? '+' : ''}{summary.variancePct.toFixed(1)}%</p>
+        </div>
+      </div>
+    );
+  };
+
+  const tariffPriceSummary = buildPriceSummary(
+    result.tariffValidation,
+    tariffItems as Array<Record<string, unknown>>,
+    getProcedureClaimedTotal,
+    getProcedureMasterTotal,
+  );
+  const drugPriceSummary = buildPriceSummary(
+    result.drugPriceValidation,
+    drugItems as Array<Record<string, unknown>>,
+    getDrugClaimedTotal,
+    getDrugMasterTotal,
+  );
 
   const handleCopyJSON = () => {
     navigator.clipboard.writeText(JSON.stringify(result, null, 2));
@@ -737,10 +875,15 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                             </span>
                           ))}
                         </div>
-                        {result.diagnosisValidation?.details?.[0]?.clinicalSummary && (
-                          <div className="p-3 bg-primary/5 border border-primary/10 rounded-md">
-                            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-primary mb-1.5">Konteks Klinis AI</p>
-                            <p className="text-sm text-muted-foreground font-light italic">{result.diagnosisValidation.details[0].clinicalSummary}</p>
+                        {diagDetails.some((detail: any) => detail.clinicalSummary) && (
+                          <div className="space-y-2 rounded-md border border-primary/10 bg-primary/5 p-3">
+                            <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-primary">Konteks Klinis AI per Diagnosis</p>
+                            {diagDetails.filter((detail: any) => detail.clinicalSummary).map((detail: any, detailIndex: number) => (
+                              <div key={`${detail.diagnosisCode || 'diagnosis'}-${detailIndex}`} className="border-t border-primary/10 pt-2 first:border-0 first:pt-0">
+                                <p className="text-xs font-mono text-primary/80">{detail.diagnosisCode} — {detail.diagnosisName || 'Diagnosis'}</p>
+                                <p className="mt-0.5 text-sm text-muted-foreground font-light italic">{detail.clinicalSummary}</p>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
@@ -775,14 +918,24 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
               {/* Pathway Timeline */}
               <div>
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex flex-wrap items-center gap-3 mb-4">
                   <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Rekomendasi Pathway Terapi (AI)</p>
+                  {inputPayload.diagnoses?.length > 1 && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-light bg-muted text-muted-foreground border border-border">
+                      Pathway utama + {inputPayload.diagnoses.length - 1} diagnosis konteks
+                    </span>
+                  )}
                   {expectedLOSVal > 0 && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-light bg-primary/10 text-primary border border-primary/20">
                       Hari 1{expectedLOSVal > 1 ? ` - ${expectedLOSVal}` : ''}
                     </span>
                   )}
                 </div>
+                {inputPayload.diagnoses?.length > 1 && (
+                  <div className="mb-4 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
+                    Pathway ini tetap memakai diagnosis primer sebagai driver utama, tetapi AI generator menerima diagnosis sekunder/komplikasi sebagai konteks untuk monitoring, terapi pendukung, risiko, dan kriteria pulang.
+                  </div>
+                )}
                 <PathwayTimeline phases={job.clinicalPathway?.phases || result.clinicalPathway?.recommendedPathway || result.clinicalPathway?.phases || []} />
               </div>
             </div>
@@ -794,6 +947,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               {/* Fee Schedule Validation */}
               <div>
                 <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Master Fee Schedule Validation</p>
+                {tariffPriceSummary ? renderPriceSummary(tariffPriceSummary) : null}
                 <div className="overflow-x-auto rounded-lg border border-border">
                   <table className="w-full text-left text-sm">
                     <thead className="bg-muted/40 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground border-b border-border">
@@ -802,7 +956,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         <th className="px-4 py-3 text-right">Qty</th>
                         <th className="px-4 py-3 text-right">Total Claim (Rp)</th>
                         <th className="px-4 py-3 text-right">Total Master Max (Rp)</th>
-                        <th className="px-4 py-3 text-right">Variance</th>
+                        <th className="px-4 py-3 text-right">Selisih</th>
                         <th className="px-4 py-3 text-center">Status</th>
                       </tr>
                     </thead>
@@ -814,6 +968,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         const variancePct = item.variancePct ?? 0;
                         const claimedTotal = getProcedureClaimedTotal(item);
                         const claimedUnit = getProcedureClaimedUnit(item);
+                        const masterTotal = getProcedureMasterTotal(item);
+                        const varianceAmount = getPriceVariance(toFiniteNumber(claimedTotal), masterTotal);
                         return (
                           <tr key={i} className={`transition-colors ${isOver ? "bg-red-500/5" : isNotFound || isUnder ? "bg-yellow-500/5" : "hover:bg-muted/30"}`}>
                             <td className="px-4 py-3">
@@ -830,16 +986,19 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                               ) : null}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <div className="font-mono text-sm font-light text-muted-foreground">{item.expectedTotal > 0 ? new Intl.NumberFormat('id-ID').format(item.expectedTotal) : (item.masterMaxPrice || item.expectedMaxPrice ? new Intl.NumberFormat('id-ID').format((item.quantity || 1) * (item.masterMaxPrice || item.expectedMaxPrice)) : '—')}</div>
+                              <div className="font-mono text-sm font-light text-muted-foreground">{masterTotal !== null ? idrFormatter.format(masterTotal) : '—'}</div>
                               {item.masterMaxPrice || item.expectedMaxPrice ? (
                                 <div className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">@ {new Intl.NumberFormat('id-ID').format(item.masterMaxPrice || item.expectedMaxPrice)}</div>
                               ) : null}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-xs">
                               {isNotFound ? '—' : (
-                                <span className={variancePct > 0 ? 'text-red-500' : variancePct < -15 ? 'text-yellow-500' : 'text-green-600'}>
-                                  {variancePct > 0 ? '+' : ''}{variancePct.toFixed(1)}%
-                                </span>
+                                <div className={variancePct > 0 ? 'text-red-500' : variancePct < -15 ? 'text-yellow-500' : 'text-green-600'}>
+                                  <span>{variancePct > 0 ? '+' : ''}{variancePct.toFixed(1)}%</span>
+                                  {varianceAmount !== null && (
+                                    <div className="mt-0.5 text-[10px] font-light">{formatVarianceAmount(varianceAmount)}</div>
+                                  )}
+                                </div>
                               )}
                             </td>
                             <td className="px-4 py-3 text-center">
@@ -870,6 +1029,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               {drugItems && drugItems.length > 0 && (
                 <div>
                   <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Drug Price Validation</p>
+                  {drugPriceSummary ? renderPriceSummary(drugPriceSummary) : null}
                   <div className="overflow-x-auto rounded-lg border border-border">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-muted/40 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground border-b border-border">
@@ -877,8 +1037,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           <th className="px-4 py-3">Drug Name</th>
                           <th className="px-4 py-3 text-right">Qty</th>
                           <th className="px-4 py-3 text-right">Total Claim (Rp)</th>
-                          <th className="px-4 py-3 text-right">Total Market Max (Rp)</th>
-                          <th className="px-4 py-3 text-right">Variance</th>
+                          <th className="px-4 py-3 text-right">Total Master Data (Rp)</th>
+                          <th className="px-4 py-3 text-right">Selisih</th>
                           <th className="px-4 py-3 text-center">Status</th>
                         </tr>
                       </thead>
@@ -891,6 +1051,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           const drugVariancePct = item.variancePct ?? 0;
                           const drugClaimedTotal = getDrugClaimedTotal(item);
                           const drugClaimedUnit = getDrugClaimedUnit(item);
+                          const drugMasterTotal = getDrugMasterTotal(item);
+                          const drugVarianceAmount = getPriceVariance(toFiniteNumber(drugClaimedTotal), drugMasterTotal);
                           return (
                             <tr key={i} className={`transition-colors ${isDrugOver ? "bg-red-500/5" : isDrugNotFound || isDrugUnder ? "bg-yellow-500/5" : "hover:bg-muted/30"}`}>
                               <td className="px-4 py-3">
@@ -915,9 +1077,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 ) : null}
                               </td>
                               <td className="px-4 py-3 text-right">
-                                <div className="font-mono text-sm font-light text-muted-foreground">{item.expectedTotal > 0 ? new Intl.NumberFormat('id-ID').format(item.expectedTotal) : (item.marketPriceMaxWithThreshold || item.marketMaxPrice ? new Intl.NumberFormat('id-ID').format((item.quantity || 1) * (item.marketPriceMaxWithThreshold || item.marketMaxPrice)) : '—')}</div>
-                                {item.marketPriceMaxWithThreshold || item.marketMaxPrice ? (
-                                  <div className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">@ {new Intl.NumberFormat('id-ID').format(item.marketPriceMaxWithThreshold || item.marketMaxPrice)}</div>
+                                <div className="font-mono text-sm font-light text-muted-foreground">{drugMasterTotal !== null ? idrFormatter.format(drugMasterTotal) : '—'}</div>
+                                {item.marketPriceMax || item.maxReferencePrice || item.marketMaxPrice ? (
+                                  <div className="text-[10px] text-muted-foreground/70 font-mono mt-0.5">@ {idrFormatter.format(item.marketPriceMax || item.maxReferencePrice || item.marketMaxPrice)}</div>
                                 ) : null}
                                 {(item.fixPrice || item.hetPrice || item.maxReferencePrice) ? (
                                   <div className="mt-1 text-[10px] text-muted-foreground/70 font-mono">
@@ -927,9 +1089,12 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                               </td>
                               <td className="px-4 py-3 text-right font-mono text-xs">
                                 {isDrugNotFound || isDrugNonMed ? '—' : (
-                                  <span className={drugVariancePct > 0 ? 'text-red-500' : drugVariancePct < -15 ? 'text-yellow-500' : 'text-green-600'}>
-                                    {drugVariancePct > 0 ? '+' : ''}{drugVariancePct.toFixed(1)}%
-                                  </span>
+                                  <div className={drugVariancePct > 0 ? 'text-red-500' : drugVariancePct < -15 ? 'text-yellow-500' : 'text-green-600'}>
+                                    <span>{drugVariancePct > 0 ? '+' : ''}{drugVariancePct.toFixed(1)}%</span>
+                                    {drugVarianceAmount !== null && (
+                                      <div className="mt-0.5 text-[10px] font-light">{formatVarianceAmount(drugVarianceAmount)}</div>
+                                    )}
+                                  </div>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-center">
@@ -965,6 +1130,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                 <div className="space-y-3">
                   {diagDetails.map((diag: any, i: number) => {
                     const diagnosisKey = `${diag.diagnosisCode || 'diagnosis'}-${i}`;
+                    const inputDiagnosis = inputPayload?.diagnoses?.find((diagnosis: any) => diagnosis.code === diag.diagnosisCode);
+                    const diagnosisType = String(inputDiagnosis?.type || '').toUpperCase();
                     const isExpanded = isDiagnosisDetailExpanded(diagnosisKey);
 
                     return (
@@ -974,6 +1141,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-mono text-xs font-light text-primary bg-primary/10 px-2 py-0.5 rounded">{diag.diagnosisCode}</span>
+                              {diagnosisType && (
+                                <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground">{diagnosisType}</span>
+                              )}
                               <h4 className="font-light text-foreground text-sm">{diag.diagnosisName || diag.diagnosisCode}</h4>
                             </div>
                             {diag.clinicalSummary && isExpanded && (

@@ -99,7 +99,15 @@ Reference price selection uses the best meaningful local value:
 
 A meaningful price is `>= 100`.
 
-## 5. Scoring
+## 5. Diagnosis validation behavior
+
+Diagnosis-treatment validation must support multiple diagnoses in one claim episode:
+- output includes one validation detail per claimed diagnosis
+- procedure and medication review uses the full episode context, including primary, secondary, and complication diagnoses
+- a procedure/medication should not be counted as an episode-level clinical mismatch if it is appropriate for at least one diagnosis in the episode
+- clinical pathway generation uses the primary diagnosis as the pathway driver while secondary/complication diagnoses inform monitoring, supportive care, risk review, and discharge criteria
+
+## 6. Scoring
 
 Scoring starts at 100 and deducts proportionally by validation aspect.
 
@@ -112,15 +120,15 @@ Do not deduct the full master-data readiness weight for a single missing item un
 
 Items without master references are not mixed into price-compliance deductions. They are counted under master-data readiness.
 
-## 6. LOS behavior
+## 7. LOS behavior
 
 LOS validation compares actual LOS from encounter dates with expected LOS from the pathway/LOS estimator. LOS is a separate scoring dimension and only deducts when actual LOS exceeds the expected standard beyond configured tolerance.
 
-## 7. Timeline behavior
+## 8. Timeline behavior
 
 Result UI should group pathway phases by canonical phase/day fields from pathway output. Do not infer grouping from provider-specific labels.
 
-## 8. Safe-change checklist
+## 9. Safe-change checklist
 
 Before changing this contract:
 1. Update all producers/consumers listed above.
