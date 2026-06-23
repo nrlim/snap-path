@@ -194,14 +194,58 @@ export default function OcrUploadWizard(): ReactElement {
       startedAtMs: null,
     });
 
-    const formData = new FormData();
-    formData.append("pdfFile", pdfFile);
-    formData.append("txtFile", txtFile);
-
     try {
+      // 1. Dapatkan Signed URL dari server
+      const urlRes = await fetch("/api/v1/ocr/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pdfName: pdfFile.name,
+          pdfSize: pdfFile.size,
+          txtName: txtFile.name,
+          txtSize: txtFile.size,
+        }),
+      });
+
+      if (!urlRes.ok) {
+        const errData = await urlRes.json().catch(() => ({}));
+        throw new Error(errData.error || "Gagal mendapatkan URL unggahan dari server.");
+      }
+
+      const urlData = await urlRes.json() as {
+        pdf: { path: string; uploadUrl: string };
+        txt: { path: string; uploadUrl: string };
+      };
+
+      // 2. Unggah langsung ke Supabase Storage
+      const uploadHeaders = { "x-upsert": "true" };
+      const [pdfUpload, txtUpload] = await Promise.all([
+        fetch(urlData.pdf.uploadUrl, {
+          method: "PUT",
+          headers: { ...uploadHeaders, "Content-Type": pdfFile.type || "application/pdf" },
+          body: pdfFile,
+        }),
+        fetch(urlData.txt.uploadUrl, {
+          method: "PUT",
+          headers: { ...uploadHeaders, "Content-Type": txtFile.type || "text/plain" },
+          body: txtFile,
+        }),
+      ]);
+
+      if (!pdfUpload.ok || !txtUpload.ok) {
+        throw new Error("Gagal mengunggah file langsung ke penyimpanan (Supabase Storage).");
+      }
+
+      // 3. Proses OCR di server
       const res = await fetch("/api/v1/ocr/upload", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pdfPath: urlData.pdf.path,
+          pdfName: pdfFile.name,
+          pdfSize: pdfFile.size,
+          txtPath: urlData.txt.path,
+        }),
       });
       
       if (res.status === 413) {
@@ -218,7 +262,7 @@ export default function OcrUploadWizard(): ReactElement {
       const data = isRecord(rawData) ? rawData : {};
       const responseError = readString(data, "error");
 
-      if (!res.ok) throw new Error(responseError || "Gagal mengunggah file.");
+      if (!res.ok) throw new Error(responseError || "Gagal memulai proses OCR.");
 
       const nextOcrJobId = readString(data, "ocrJobId");
       if (!nextOcrJobId) throw new Error("Server tidak mengembalikan ID job OCR.");

@@ -125,7 +125,7 @@ export async function uploadClaimDocumentToSupabaseStorage(
   };
 }
 
-async function createSignedUrl(bucket: string, path: string, expiresIn: number): Promise<string | null> {
+export async function createSignedUrl(bucket: string, path: string, expiresIn: number): Promise<string | null> {
   const config = getSupabaseStorageConfig();
   const signUrl = `${config.supabaseUrl}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${encodeStoragePath(path)}`;
   const response = await fetchSupabaseStorage(signUrl, {
@@ -157,4 +157,46 @@ export async function deleteClaimDocumentFromSupabaseStorage(path: string): Prom
     return false;
   }
   return true;
+}
+
+export async function createSignedUploadUrl(path: string): Promise<{ signedUrl: string; path: string }> {
+  const config = await ensureBucket();
+  const signUrl = `${config.supabaseUrl}/storage/v1/object/upload/sign/${encodeURIComponent(config.bucket)}/${encodeStoragePath(path)}`;
+  const response = await fetchSupabaseStorage(signUrl, {
+    method: 'POST',
+    headers: storageHeaders(config.serviceRoleKey),
+  }, 'membuat signed upload URL');
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gagal membuat upload URL: ${errorText}`);
+  }
+
+  const data = await response.json() as { url?: string };
+  if (!data.url) {
+    throw new Error('Supabase Storage tidak mengembalikan URL upload yang valid.');
+  }
+
+  const uploadUrl = data.url.startsWith('http') ? data.url : `${config.supabaseUrl}/storage/v1${data.url}`;
+
+  return {
+    signedUrl: uploadUrl,
+    path,
+  };
+}
+
+export async function downloadClaimDocument(path: string): Promise<ArrayBuffer> {
+  const config = getSupabaseStorageConfig();
+  const downloadUrl = `${config.supabaseUrl}/storage/v1/object/authenticated/${encodeURIComponent(config.bucket)}/${encodeStoragePath(path)}`;
+  const response = await fetchSupabaseStorage(downloadUrl, {
+    method: 'GET',
+    headers: storageHeaders(config.serviceRoleKey),
+  }, 'mengunduh dokumen');
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gagal mengunduh dokumen dari Supabase: ${errorText}`);
+  }
+
+  return response.arrayBuffer();
 }

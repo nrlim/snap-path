@@ -8,11 +8,15 @@ import { getSession } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { getAuthenticatedUser } from "@/lib/rbac";
 import { createSnaptextJob } from "@/lib/snaptext";
-import { uploadClaimDocumentToSupabaseStorage } from "@/lib/supabase-storage";
+import { downloadClaimDocument, createSignedUrl } from "@/lib/supabase-storage";
 import { ocrProcessingWorkflow } from "@/workflows/ocr-processing";
 
-const MAX_PDF_SIZE = 20 * 1024 * 1024;
-const MAX_TXT_SIZE = 2 * 1024 * 1024;
+interface OcrProcessRequest {
+  pdfPath: string;
+  pdfName: string;
+  pdfSize: number;
+  txtPath: string;
+}
 
 interface OcrUploadResponse {
   success?: boolean;
@@ -23,10 +27,6 @@ interface OcrUploadResponse {
   ocrWorkflowRunId?: string;
   backgroundPollingStarted?: boolean;
   error?: string;
-}
-
-function sanitizeFilename(filename: string): string {
-  return filename.replace(/[^a-zA-Z0-9.-]/g, "_");
 }
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
@@ -45,55 +45,38 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrUploadResp
       return NextResponse.json({ error: "Sesi tidak valid. Silakan masuk kembali." }, { status: 401 });
     }
 
-    const formData = await req.formData();
-    const pdfFile = formData.get("pdfFile");
-    const txtFile = formData.get("txtFile");
+    const body = await req.json() as Partial<OcrProcessRequest>;
+    const { pdfPath, pdfName, pdfSize, txtPath } = body;
 
-    if (!(pdfFile instanceof File) || pdfFile.type !== "application/pdf") {
-      return NextResponse.json({ error: "File PDF invoice yang valid wajib diunggah." }, { status: 400 });
+    if (!pdfPath || !pdfName || typeof pdfSize !== "number" || !txtPath) {
+      return NextResponse.json({ error: "Parameter pdfPath, pdfName, pdfSize, dan txtPath wajib diisi." }, { status: 400 });
     }
 
-    if (!(txtFile instanceof File)) {
-      return NextResponse.json({ error: "File TXT ground truth wajib diunggah." }, { status: 400 });
-    }
-
-    if (pdfFile.size > MAX_PDF_SIZE) {
-      return NextResponse.json({ error: "Ukuran PDF melebihi batas 20MB." }, { status: 400 });
-    }
-
-    if (txtFile.size > MAX_TXT_SIZE) {
-      return NextResponse.json({ error: "Ukuran TXT melebihi batas 2MB." }, { status: 400 });
-    }
-
-    const clientId = user.clientId;
-    const timestamp = Date.now();
-    const clientSegment = clientId ?? "global";
-    const pdfPath = `ocr/${clientSegment}/${timestamp}_${sanitizeFilename(pdfFile.name)}`;
-    const txtPath = `ocr/${clientSegment}/${timestamp}_${sanitizeFilename(txtFile.name)}`;
-
-    const [supabasePdf, supabaseTxt, txtContent, pdfArrayBuffer] = await Promise.all([
-      uploadClaimDocumentToSupabaseStorage(pdfFile, pdfPath),
-      uploadClaimDocumentToSupabaseStorage(txtFile, txtPath),
-      txtFile.text(),
-      pdfFile.arrayBuffer(),
+    const [pdfArrayBuffer, txtArrayBuffer] = await Promise.all([
+      downloadClaimDocument(pdfPath),
+      downloadClaimDocument(txtPath),
     ]);
 
-    const supabasePdfUrl = supabasePdf.signedUrl;
+    const txtContent = new TextDecoder().decode(txtArrayBuffer);
+    
+    const bucket = process.env.SUPABASE_DOCUMENT_BUCKET || "claim-documents";
+    const supabasePdfUrl = await createSignedUrl(bucket, pdfPath, 60 * 60 * 24 * 7);
+
     if (!supabasePdfUrl) {
       return NextResponse.json({ error: "Gagal mendapatkan URL file PDF dari storage." }, { status: 500 });
     }
 
     const pdfBuffer = Buffer.from(pdfArrayBuffer);
     const fileHash = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
-    const snaptextJob = await createSnaptextJob(supabasePdfUrl, pdfFile.name, pdfFile.size, fileHash);
+    const snaptextJob = await createSnaptextJob(supabasePdfUrl, pdfName, pdfSize, fileHash);
 
     const ocrJob = await prisma.ocrJob.create({
       data: {
-        clientId,
+        clientId: user.clientId,
         providerId: null,
-        pdfStoragePath: supabasePdf.path,
+        pdfStoragePath: pdfPath,
         pdfUrl: supabasePdfUrl,
-        txtStoragePath: supabaseTxt.path,
+        txtStoragePath: txtPath,
         txtContent,
         snaptextJobId: snaptextJob.jobId,
         snaptextStatus: snaptextJob.status || "PENDING",
@@ -125,7 +108,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrUploadResp
   } catch (error: unknown) {
     console.error("[ocr/upload]", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Gagal memproses upload OCR." },
+      { error: error instanceof Error ? error.message : "Gagal memproses unggahan OCR." },
       { status: 500 },
     );
   }
