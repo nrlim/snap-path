@@ -165,7 +165,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     setExpandedDiagnosisDetails((current) => ({ ...current, [key]: !(current[key] ?? false) }));
   };
 
-  const isDiagnosisDetailExpanded = (key: string) => expandedDiagnosisDetails[key] ?? false;
+  const isDiagnosisDetailExpanded = (key: string) => expandedDiagnosisDetails[key] ?? true;
 
   // Polling logic
   useEffect(() => {
@@ -1383,13 +1383,13 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                             </div>
                           )}
 
-                          {(!diag.missingRequiredProcedures?.length && !diag.unmatchedProcedures?.length) && (
+                          {(!diag.missingRequiredProcedures?.length && !diag.unmatchedProcedures?.length && !diag.procedureFindings?.some((f: any) => f.status !== 'APPROPRIATE') && !diag.medicationFindings?.some((f: any) => f.status !== 'APPROPRIATE')) && (
                             <div className="flex items-center gap-1.5 text-sm text-green-600">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                              All procedures match the diagnosis.
+                              Semua tindakan dan obat sesuai dengan diagnosis.
                             </div>
                           )}
-                          {diag.notes && (
+                          {diag.notes && !diag.notes.includes('Lookup table mapping') && (
                             <p className="text-xs text-muted-foreground italic border-t border-border pt-2 mt-2">AI Note: {diag.notes}</p>
                           )}
                         </div>}

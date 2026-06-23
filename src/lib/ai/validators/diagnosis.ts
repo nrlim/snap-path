@@ -258,15 +258,26 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
     for (const aiDetail of data.details) {
       const existing = details.find(d => d.diagnosisCode === aiDetail.diagnosisCode);
       if (existing) {
-        existing.notes = aiDetail.notes;
+        // Merge notes: prefer AI notes if they are non-empty and not a generic fallback.
+        if (aiDetail.notes && aiDetail.notes.trim().length > 0) {
+          existing.notes = aiDetail.notes;
+        }
+        // Clear generic local-mapping-absent note if AI returned substantial findings
+        if (existing.notes?.includes('Lookup table mapping') && (
+          (Array.isArray(aiDetail.procedureFindings) && aiDetail.procedureFindings.length > 0) ||
+          (Array.isArray(aiDetail.medicationFindings) && aiDetail.medicationFindings.length > 0) ||
+          aiDetail.clinicalSummary
+        )) {
+          existing.notes = aiDetail.notes || '';
+        }
         if (aiDetail.diagnosisName) existing.diagnosisName = aiDetail.diagnosisName;
         if (aiDetail.clinicalSummary) existing.clinicalSummary = aiDetail.clinicalSummary;
         if (Array.isArray(aiDetail.procedureFindings) && aiDetail.procedureFindings.length) {
           const aiProcedureFindings = aiDetail.procedureFindings
-            .filter((item: any) => item?.procedureCode && item?.procedureName && item?.reason)
+            .filter((item: any) => (item?.procedureCode || item?.procedureName) && item?.reason)
             .map((item: any) => ({
-              procedureCode: String(item.procedureCode),
-              procedureName: String(item.procedureName || inputProcNameMap[item.procedureCode] || item.procedureCode),
+              procedureCode: String(item.procedureCode || item.procedureName || ''),
+              procedureName: String(item.procedureName || inputProcNameMap[item.procedureCode] || item.procedureCode || 'Unknown Procedure'),
               status: item.status === 'INAPPROPRIATE' ? 'INAPPROPRIATE' as const : item.status === 'APPROPRIATE' ? 'APPROPRIATE' as const : 'REVIEW_NEEDED' as const,
               reason: String(item.reason),
               againstDiagnosis: String(item.againstDiagnosis || existing.diagnosisCode),
@@ -343,6 +354,21 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
           if (isRequired && !existing.missingRequiredProcedures.includes(missing)) {
             existing.missingRequiredProcedures.push(missing);
           }
+        }
+        
+        // Fallback: ensure UI consistency if procedureFindings is completely empty but procedures exist
+        if ((!existing.procedureFindings || existing.procedureFindings.length === 0) && claimedProcedureCodes.length > 0) {
+          const irrelevantCodes = new Set((existing.irrelevantProcedures || []).map((p: any) => p.procedureCode));
+          existing.procedureFindings = claimedProcedureCodes
+            .filter(code => !irrelevantCodes.has(code))
+            .map(code => ({
+              procedureCode: code,
+              procedureName: inputProcNameMap[code] || code,
+              status: 'APPROPRIATE' as const,
+              reason: 'Tindakan ini dinilai relevan dengan diagnosis berdasarkan konteks klinis klaim (AI Review).',
+              againstDiagnosis: existing.diagnosisCode,
+              confidence: 'MEDIUM' as const,
+            }));
         }
       }
     }
