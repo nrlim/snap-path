@@ -26,9 +26,9 @@ function getSupabaseStorageConfig() {
   }
 
   return {
-    supabaseUrl: supabaseUrl.replace(/\/$/, ''),
-    serviceRoleKey,
-    bucket,
+    supabaseUrl: supabaseUrl.trim().replace(/\/$/, ''),
+    serviceRoleKey: serviceRoleKey.trim(),
+    bucket: bucket.trim(),
   };
 }
 
