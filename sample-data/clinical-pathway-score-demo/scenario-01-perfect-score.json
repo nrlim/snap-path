@@ -1,24 +1,37 @@
 {
+  "scenario": {
+    "id": "SC01_PERFECT_SCORE",
+    "title": "Perfect score — klaim bersih 100/100",
+    "purpose": "Seluruh dokumen wajib lengkap, tindakan sesuai diagnosis, tarif berada dalam master fee schedule lokal, harga obat/farmalkes sesuai master lokal, LOS wajar, dan tidak ada rule polis yang dilanggar.",
+    "expectedValidation": {
+      "status": "VALID",
+      "overallScore": 100,
+      "scoreBreakdown": {
+        "diagnosisTreatmentDeduction": 0,
+        "tariffDeduction": 0,
+        "drugPriceDeduction": 0,
+        "documentDeduction": 0,
+        "losDeduction": 0,
+        "masterDataReadinessDeduction": 0,
+        "policyBenefitDeduction": 0
+      },
+      "policyStatus": "PASS",
+      "fwaRiskLevel": "LOW",
+      "reviewExpectation": "Tidak perlu HITL kecuali sampling audit manual."
+    }
+  },
   "providerId": "MITRA_KELUARGA_BEKASI_TIMUR",
   "claimId": "CLM-MK-2026-SC01-PERFECT",
   "patient": {
+    "id": "PAT-MK-99120",
     "name": "Bapak Budi Santoso",
-    "identifier": [
-      {
-        "value": "PAT-MK-99120"
-      }
-    ],
-    "birthDate": "1985-08-15",
-    "gender": "male"
+    "dateOfBirth": "1985-08-15",
+    "gender": "M"
   },
   "encounter": {
-    "class": {
-      "code": "IMP"
-    },
-    "period": {
-      "start": "2026-06-01T08:00:00Z",
-      "end": "2026-06-04T12:00:00Z"
-    },
+    "type": "RAWAT_INAP",
+    "admissionDate": "2026-06-01T08:00:00Z",
+    "dischargeDate": "2026-06-04T08:00:00Z",
     "facility": {
       "id": "MITRA_KELUARGA_BEKASI_TIMUR",
       "name": "Mitra Keluarga Bekasi Timur",
@@ -27,27 +40,20 @@
   },
   "diagnoses": [
     {
-      "code": "A01.0",
-      "name": "Typhoid fever",
-      "type": "primary"
+      "code": "A09",
+      "name": "Infectious gastroenteritis and colitis, unspecified",
+      "type": "PRIMARY",
+      "sequence": 1
     }
   ],
   "procedures": [
     {
-      "code": "LABA100300",
-      "name": "Darah Lengkap",
+      "code": "LABA100200",
+      "name": "Darah Rutin",
       "category": "LAB",
       "quantity": 1,
-      "unitPrice": 250000,
-      "totalPrice": 250000
-    },
-    {
-      "code": "LABA110100",
-      "name": "Hemoglobin",
-      "category": "LAB",
-      "quantity": 1,
-      "unitPrice": 85000,
-      "totalPrice": 85000
+      "unitPrice": 150000,
+      "totalPrice": 150000
     },
     {
       "code": "RUAA010007",
@@ -62,36 +68,49 @@
     {
       "name": "Ekstrak Psidium guajava Folium 240 mg / Ekstrak Curcuma domestica Rhizoma 204 mg / Ekstrak Terminalia chebula Fructus 84 mg / Ekstrak Punica granatum Pericarpium 72 mg Kapsul (DIAPET)",
       "genericName": "Herbal Antidiare",
-      "dosage": "Kapsul",
+      "dosage": "Kapsul oral",
       "quantity": 10,
       "unitPrice": 60000,
-      "totalPrice": 600000
+      "totalPrice": 600000,
+      "frequency": "3 kali sehari bila diare",
+      "duration": "3 hari"
     }
   ],
+  "totalClaimAmount": 2655000,
+  "currency": "IDR",
+  "notes": "Skenario klaim bersih. Gastroenteritis akut membaik setelah rehidrasi, terapi simptomatik, dan observasi 3 hari. Tidak ada kecelakaan; formulir kronologis dilampirkan sebagai pernyataan nihil kecelakaan sesuai checklist administrasi payer.",
   "documents": [
     {
       "type": "LMA",
-      "date": "2026-06-01T08:30:00.000Z",
-      "conclusion": "Laporan Medis Awal: demam 5 hari terutama sore/malam hari, lidah kotor, tes widal salmonella typhi O positif 1/320. Indikasi rawat inap jelas untuk pemberian antibiotik dan rehidrasi."
+      "description": "Laporan Medis Awal: diare cair akut, tanda dehidrasi ringan-sedang, perlu rehidrasi dan observasi rawat inap."
     },
     {
       "type": "KTP",
-      "date": "2026-06-01T08:15:00.000Z",
-      "conclusion": "Identitas sesuai KTP."
+      "description": "Identitas pasien sesuai dokumen kependudukan."
     },
     {
       "type": "KARTU ASURANSI",
-      "date": "2026-06-01T08:15:00.000Z",
-      "conclusion": "Kartu Asuransi aktif."
+      "description": "Kartu asuransi aktif pada tanggal pelayanan."
+    },
+    {
+      "type": "SK KAMAR",
+      "description": "Surat keterangan kamar kelas II selama 3 hari."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "description": "Form nihil kecelakaan; klaim bukan akibat kecelakaan."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "description": "Surat pernyataan rawat inap ditandatangani pasien/keluarga."
     }
   ],
   "extra": {
-    "nik": "3175021234560001",
+    "nik": "3175021508850001",
     "phone": "081298760001",
     "insuranceType": "ASURANSI_SWASTA",
-    "insuranceNumber": "AS-2026-TYP-01",
-    "los": "3",
-    "losJustification": "Rawat inap 3 hari sesuai indikasi demam tifoid. Pemantauan klinis dan antibiotik intravena memadai.",
-    "outcomeNotes": "Pasien bebas demam, asupan makanan oral baik, dipulangkan dengan edukasi tirah baring."
+    "insuranceNumber": "AS-2026-GE-0001",
+    "claimId": "CLM-MK-2026-SC01-PERFECT",
+    "providerId": "MITRA_KELUARGA_BEKASI_TIMUR"
   }
 }

@@ -1,3 +1,5 @@
+import type { MedicalEvidencePacket, MedicalSourceReference } from '@/lib/evidence/types';
+
 // ==========================================
 //  CLAIM VALIDATION (Diagnosis-Treatment)
 // ==========================================
@@ -79,6 +81,7 @@ export interface ClaimValidationOutput {
         reason: string;
         againstDiagnosis: string;
         confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+        evidenceReferences?: MedicalSourceReference[];
       }>;
       irrelevantProcedures?: Array<{
         procedureCode: string;
@@ -94,6 +97,7 @@ export interface ClaimValidationOutput {
         reason: string;
         againstDiagnosis: string;
         confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+        evidenceReferences?: MedicalSourceReference[];
       }>;
       missingRequiredProcedures: string[];
       missingRequiredProcedureDetails?: Array<{
@@ -108,6 +112,9 @@ export interface ClaimValidationOutput {
         rationale: string;
         evidenceLevel?: 'COMMON' | 'OPTIONAL';
       }>;
+      clinicalEvidenceSummary?: string;
+      evidenceReferences?: MedicalSourceReference[];
+      evidenceRetrievalStatus?: 'LIVE_SEARCH_USED' | 'MODEL_KNOWLEDGE_WITH_REFERENCES' | 'NO_EXTERNAL_REFERENCE_AVAILABLE';
       notes: string;
     }>;
   };
@@ -143,6 +150,8 @@ export interface ClaimValidationOutput {
     }>;
   };
   policyValidation?: PolicyValidationOutput;
+  fwaRisk?: FwaRiskOutput;
+  evidencePacket?: MedicalEvidencePacket;
   documentValidation: {
     isValid: boolean;
     score: number;
@@ -301,6 +310,33 @@ export interface PolicyValidationOutput {
     excessAmount: number;
   };
   evaluatedRuleCount: number;
+}
+
+// ==========================================
+//  FWA RISK TRIAGE
+// ==========================================
+
+export interface FwaRiskOutput {
+  level: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  score: number;
+  summary: string;
+  signals: Array<{
+    code: string;
+    label: string;
+    category: "DUPLICATE" | "UTILIZATION" | "FINANCIAL" | "CLINICAL" | "DOCUMENT" | "POLICY" | "PROVIDER_PATTERN";
+    severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    scoreImpact: number;
+    evidence: string;
+    recommendation: string;
+  }>;
+  evidenceSummary: {
+    similarClaimCount: number;
+    patientRecentClaimCount: number;
+    providerAverageClaimAmount: number | null;
+    providerMedianClaimAmount: number | null;
+    providerHighRiskClaimCount: number;
+  };
+  isReviewRecommended: boolean;
 }
 
 // ==========================================

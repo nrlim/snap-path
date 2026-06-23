@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, FileWarning, ShieldAlert } from "lucide-react";
+import { AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, FileWarning, ShieldAlert } from "lucide-react";
 
 import {
   buildHitlPacket,
@@ -59,6 +59,7 @@ function findingTone(finding: HitlFinding): string {
 
 function categoryLabel(category: HitlFinding["category"]): string {
   switch (category) {
+    case "FWA": return "FWA";
     case "POLICY": return "Polis";
     case "TARIFF": return "Tarif";
     case "DRUG_PRICE": return "Obat";
@@ -80,10 +81,36 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const packet = useMemo(() => buildHitlPacket(inputPayload, outputResult), [inputPayload, outputResult]);
+  const packet = useMemo(() => {
+    const p = buildHitlPacket(inputPayload, outputResult);
+    
+    // Urutkan findings berdasarkan urgency/severity
+    const severityWeight: Record<string, number> = {
+      "REJECT_RECOMMENDED": 4,
+      "REVIEW_NEEDED": 3,
+      "WARNING": 2,
+      "INFO": 1
+    };
+    
+    p.findings.sort((a, b) => {
+      const weightA = severityWeight[a.severity] || 0;
+      const weightB = severityWeight[b.severity] || 0;
+      if (weightA !== weightB) {
+        return weightB - weightA;
+      }
+      const amountA = typeof a.amount === 'number' ? a.amount : 0;
+      const amountB = typeof b.amount === 'number' ? b.amount : 0;
+      return amountB - amountA;
+    });
+    
+    return p;
+  }, [inputPayload, outputResult]);
   const latestDecision = reviewDecisions[0] || null;
   const recommendedExcess = Math.max(0, packet.financialImpact.claimAmount - packet.financialImpact.recommendedPayableAmount);
   const hasFindings = packet.findings.length > 0;
+  const evidencePacket = packet.evidencePacket;
+  const topEvidenceItems = evidencePacket.items.slice(0, 8);
+  const evidencePolicyLabel = evidencePacket.sourcePolicy === "LOCAL_WITH_DIAGNOSIS_EXTERNAL_EVIDENCE" ? "LOCAL + MEDICAL REFERENCES" : "LOCAL ONLY";
 
   function onSubmit(formData: FormData): void {
     setError(null);
@@ -99,8 +126,8 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      <div className="border-b border-border bg-slate-50/70 px-4 py-4 sm:px-5">
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50 shadow-sm">
+      <div className="border-b border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Meja review klaim</p>
@@ -111,7 +138,7 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {statusBadge(latestDecision?.nextReviewStatus || "OPEN")}
-            <span className="rounded border border-border bg-card px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            <span className="rounded border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
               Rekomendasi: {REVIEW_DECISION_LABELS[packet.recommendedAction]}
             </span>
           </div>
@@ -119,11 +146,11 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
       </div>
 
       <div className="grid grid-cols-1 gap-0 xl:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="space-y-5 p-4 sm:p-5 xl:border-r xl:border-border">
+        <div className="space-y-5 bg-white p-4 sm:p-5 xl:border-r xl:border-slate-200">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 ring-1 ring-inset ring-white/70">
               <div className="flex items-start gap-3">
-                <div className="rounded-md bg-slate-900 p-2 text-white">
+                <div className="rounded-md bg-primary p-2 text-white">
                   <ClipboardCheck className="h-4 w-4" />
                 </div>
                 <div>
@@ -136,8 +163,8 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
               </div>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <p className="text-xs font-mono uppercase tracking-[0.18em] text-muted-foreground">Rekonsiliasi finansial</p>
+            <div className="rounded-lg border border-amber-200 bg-amber-50/35 p-4 ring-1 ring-inset ring-white/70">
+              <p className="text-xs font-mono uppercase tracking-[0.18em] text-amber-800/80">Rekonsiliasi finansial</p>
               <div className="mt-3 space-y-2 text-sm">
                 <div className="flex items-center justify-between gap-4"><span className="text-muted-foreground">Total klaim</span><span className="font-mono text-foreground">{formatRupiah(packet.financialImpact.claimAmount)}</span></div>
                 <div className="flex items-center justify-between gap-4"><span className="text-muted-foreground">Excess policy</span><span className="font-mono text-red-600">{formatRupiah(packet.financialImpact.policyExcessAmount)}</span></div>
@@ -147,17 +174,74 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-            <div className="rounded-lg border border-border bg-muted/20 p-3"><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">Polis</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.policy}</p></div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3"><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">Tarif</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.tariff}</p></div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3"><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">Obat</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.drugPrice}</p></div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3"><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">Dokumen</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.document}</p></div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3"><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">LOS</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.los}</p></div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3"><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground">Klinis</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.diagnosis}</p></div>
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
+            <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>FWA</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.fwa}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-violet-500"></span>Polis</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.policy}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Tarif</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.tariff}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Obat</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.drugPrice}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>Dokumen</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.document}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>LOS</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.los}</p></div>
+            <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.14em] text-muted-foreground"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>Klinis</p><p className="mt-1 font-mono text-xl font-light text-foreground">{packet.counts.diagnosis}</p></div>
           </div>
 
-          <div className="rounded-lg border border-border bg-white">
-            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-medium text-foreground"><BookOpen className="h-4 w-4" /> Evidence pendukung</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Snapshot bukti dari master lokal CONSUL. Khusus reasoning klinis diagnosis-tindakan dapat memuat referensi medis eksternal yang dicatat sebagai audit evidence.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded bg-muted px-2 py-1 font-mono text-xs text-muted-foreground">{evidencePacket.summary.totalEvidence} bukti</span>
+                <span className="rounded border border-border bg-card px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{evidencePolicyLabel}</span>
+              </div>
+            </div>
+
+            {topEvidenceItems.length > 0 ? (
+              <div className="divide-y divide-border/70">
+                {topEvidenceItems.map((item) => (
+                  <article key={item.id} className="px-4 py-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-600">{item.category}</span>
+                          <span className="rounded bg-white px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground ring-1 ring-inset ring-border">{item.source}</span>
+                          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{item.confidence}</span>
+                        </div>
+                        <p className="mt-2 text-sm font-medium text-foreground">{item.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.summary}</p>
+                        <p className="mt-2 rounded-md bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">{item.evidenceText}</p>
+                        {item.references && item.references.length > 0 && (
+                          <div className="mt-2 space-y-1 rounded-md border border-slate-200 bg-white px-3 py-2">
+                            <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Referensi medis</p>
+                            {item.references.slice(0, 3).map((reference, refIndex) => (
+                              <p key={`${item.id}-ref-${refIndex}`} className="text-xs leading-5 text-slate-600">
+                                <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-slate-500">{reference.sourceType}</span> · {reference.title}{reference.identifier ? ` · ${reference.identifier}` : ""}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">Rekomendasi: {item.recommendation}</p>
+                      </div>
+                      <div className="shrink-0 text-left lg:text-right">
+                        {item.amount !== null && item.amount !== undefined && item.amount > 0 && <p className="font-mono text-sm text-amber-700">{formatRupiah(item.amount)}</p>}
+                        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{new Date(item.accessedAt).toLocaleString("id-ID")}</p>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+                {evidencePacket.summary.totalEvidence > topEvidenceItems.length && (
+                  <p className="px-4 py-3 text-xs text-muted-foreground">Menampilkan {topEvidenceItems.length} dari {evidencePacket.summary.totalEvidence} bukti. Bukti lengkap tersimpan dalam snapshot audit keputusan reviewer.</p>
+                )}
+              </div>
+            ) : (
+              <div className="p-4">
+                <p className="rounded-lg border border-border bg-background p-3 text-sm text-muted-foreground">Belum ada bukti pendukung yang perlu ditampilkan untuk klaim ini.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-amber-200 bg-amber-50/20">
+            <div className="flex items-center justify-between gap-3 border-b border-amber-100 bg-amber-50/60 px-4 py-3">
               <div>
                 <p className="text-sm font-medium text-foreground">Checklist review</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">Urut dari temuan paling penting untuk keputusan adjudikasi.</p>
@@ -201,61 +285,52 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
                           ) : (
                             <div className="space-y-2">
                               {finding.details.map((detail, dIdx) => {
-                                if (detail.type === 'TARIFF' || detail.type === 'DRUG') {
-                                  const isOver = detail.status === 'OVER_THRESHOLD' || detail.status === 'OVER_PRICED';
-                                  const isUnder = detail.status === 'UNDER_PRICED';
-                                  const isNotFound = detail.status === 'NOT_FOUND';
-                                  const badgeClass = isOver ? 'bg-amber-100/50 text-amber-700 ring-amber-500/30' :
-                                                     isUnder ? 'bg-amber-100/50 text-amber-700 ring-amber-500/30' :
-                                                     isNotFound ? 'bg-orange-100/50 text-orange-700 ring-orange-500/30' :
-                                                     'bg-slate-100 text-slate-600 ring-slate-200';
-                                  const varianceColor = detail.variancePct > 0 ? 'text-amber-600' : 'text-amber-500';
-                                  
+                                const detailRecord = detail && typeof detail === 'object' && !Array.isArray(detail) ? detail as Record<string, unknown> : {};
+                                const detailType = String(detailRecord.type || '');
+                                const detailStatus = String(detailRecord.status || '');
+                                const detailName = String(detailRecord.name || '-');
+                                const detailCode = String(detailRecord.code || '-');
+                                const detailQty = Number(detailRecord.qty || 1);
+                                const claimedTotal = Number(detailRecord.claimedTotal || 0);
+                                const claimedUnit = Number(detailRecord.claimedUnit || 0);
+                                const expectedTotal = Number(detailRecord.expectedTotal || 0);
+                                const expectedUnit = Number(detailRecord.expectedUnit || 0);
+                                const variancePct = Number(detailRecord.variancePct || 0);
+                                const varianceAmount = Number(detailRecord.varianceAmount || 0);
+
+                                if (detailType === 'TARIFF' || detailType === 'DRUG') {
+                                  const isOver = detailStatus === 'OVER_THRESHOLD' || detailStatus === 'OVER_PRICED';
+                                  const isUnder = detailStatus === 'UNDER_PRICED';
+                                  const isNotFound = detailStatus === 'NOT_FOUND';
+                                  const badgeClass = isOver || isUnder
+                                    ? 'bg-amber-100/50 text-amber-700 ring-amber-500/30'
+                                    : isNotFound
+                                      ? 'bg-orange-100/50 text-orange-700 ring-orange-500/30'
+                                      : 'bg-slate-100 text-slate-600 ring-slate-200';
+                                  const varianceColor = variancePct > 0 ? 'text-amber-600' : 'text-amber-500';
+
                                   return (
-                                    <div key={dIdx} className="flex flex-col sm:flex-row sm:items-center justify-between rounded-md border border-amber-100 bg-amber-50/30 px-4 py-3 hover:bg-amber-50/60 transition-colors gap-4">
-                                      <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-4 items-center">
-                                        {/* Col 1: Name & Code */}
-                                        <div className="col-span-2 md:col-span-1 min-w-0">
-                                          <p className="text-sm font-medium text-slate-700 truncate" title={detail.name}>{detail.name}</p>
-                                          <p className="text-[10px] font-mono text-slate-500 mt-0.5 uppercase tracking-wider">{detail.code || '-'}</p>
+                                    <div key={dIdx} className="flex flex-col justify-between gap-4 rounded-md border border-amber-100 bg-amber-50/30 px-4 py-3 transition-colors hover:bg-amber-50/60 sm:flex-row sm:items-center">
+                                      <div className="grid flex-1 grid-cols-2 items-center gap-4 md:grid-cols-5">
+                                        <div className="col-span-2 min-w-0 md:col-span-1">
+                                          <p className="truncate text-sm font-medium text-slate-700" title={detailName}>{detailName}</p>
+                                          <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-slate-500">{detailCode}</p>
                                         </div>
-                                        {/* Col 2: Qty */}
-                                        <div className="text-left md:text-center">
-                                          <p className="text-xs font-mono text-slate-500">{detail.qty}</p>
-                                        </div>
-                                        {/* Col 3: Claimed */}
-                                        <div className="text-left md:text-right">
-                                          <p className="text-sm font-mono text-slate-700">{new Intl.NumberFormat('id-ID').format(detail.claimedTotal)}</p>
-                                          <p className="text-[10px] font-mono text-slate-500 mt-0.5">@ {new Intl.NumberFormat('id-ID').format(detail.claimedUnit)}</p>
-                                        </div>
-                                        {/* Col 4: Expected */}
-                                        <div className="text-left md:text-right">
-                                          <p className="text-sm font-mono text-slate-700">{new Intl.NumberFormat('id-ID').format(detail.expectedTotal)}</p>
-                                          <p className="text-[10px] font-mono text-slate-500 mt-0.5">@ {new Intl.NumberFormat('id-ID').format(detail.expectedUnit)}</p>
-                                        </div>
-                                        {/* Col 5: Variance */}
-                                        <div className="text-left md:text-right">
-                                          <p className={`text-xs font-mono ${varianceColor}`}>
-                                            {detail.variancePct > 0 ? '+' : ''}{detail.variancePct.toFixed(1)}%
-                                          </p>
-                                          <p className={`text-[10px] font-mono mt-0.5 ${varianceColor}`}>
-                                            {detail.varianceAmount > 0 ? '+' : '-'}Rp {new Intl.NumberFormat('id-ID').format(Math.abs(detail.varianceAmount))}
-                                          </p>
-                                        </div>
+                                        <div className="text-left md:text-center"><p className="font-mono text-xs text-slate-500">{detailQty}</p></div>
+                                        <div className="text-left md:text-right"><p className="font-mono text-sm text-slate-700">{new Intl.NumberFormat('id-ID').format(claimedTotal)}</p><p className="mt-0.5 font-mono text-[10px] text-slate-500">@ {new Intl.NumberFormat('id-ID').format(claimedUnit)}</p></div>
+                                        <div className="text-left md:text-right"><p className="font-mono text-sm text-slate-700">{new Intl.NumberFormat('id-ID').format(expectedTotal)}</p><p className="mt-0.5 font-mono text-[10px] text-slate-500">@ {new Intl.NumberFormat('id-ID').format(expectedUnit)}</p></div>
+                                        <div className="text-left md:text-right"><p className={`font-mono text-xs ${varianceColor}`}>{variancePct > 0 ? '+' : ''}{variancePct.toFixed(1)}%</p><p className={`mt-0.5 font-mono text-[10px] ${varianceColor}`}>{varianceAmount > 0 ? '+' : '-'}Rp {new Intl.NumberFormat('id-ID').format(Math.abs(varianceAmount))}</p></div>
                                       </div>
-                                      {/* Col 6: Badge */}
-                                      <div className="shrink-0 flex items-center justify-end sm:justify-center min-w-[100px]">
-                                        <span className={`inline-flex items-center rounded px-2 py-1 text-[10px] font-mono uppercase tracking-[0.1em] ring-1 ring-inset ${badgeClass}`}>
-                                          {isOver ? 'OVERCHARGE' : isUnder ? 'UNDERCHARGE' : isNotFound ? 'UNREGISTERED' : detail.status}
+                                      <div className="flex min-w-[100px] shrink-0 items-center justify-end sm:justify-center">
+                                        <span className={`inline-flex items-center rounded px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] ring-1 ring-inset ${badgeClass}`}>
+                                          {isOver ? 'OVERCHARGE' : isUnder ? 'UNDERCHARGE' : isNotFound ? 'UNREGISTERED' : detailStatus}
                                         </span>
                                       </div>
                                     </div>
                                   );
                                 }
-                                if (detail.type === 'POLICY') return <div key={dIdx} className="text-xs text-muted-foreground mt-1"><span className="font-medium text-foreground">{detail.label}:</span> {detail.value}</div>;
-                                if (detail.type === 'DOCUMENT') return <div key={dIdx} className="text-xs text-muted-foreground mt-1">• {detail.name}</div>;
-                                if (detail.type === 'LOS') return <div key={dIdx} className="text-xs text-muted-foreground mt-1">• Status LOS: {detail.status} (Variance: {detail.variance} hari)</div>;
-                                return <div key={dIdx} className="text-xs text-muted-foreground mt-1">• {JSON.stringify(detail)}</div>;
+
+                                return <div key={dIdx} className="mt-1 text-xs text-muted-foreground">• {typeof detail === 'string' ? detail : JSON.stringify(detail)}</div>;
                               })}
                             </div>
                           )}
@@ -275,9 +350,9 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
           </div>
         </div>
 
-        <aside className="bg-slate-50/60 p-4 sm:p-5 xl:min-h-full">
+        <aside className="bg-slate-100/70 p-4 sm:p-5 xl:min-h-full">
           <div className="space-y-4 xl:sticky xl:top-20">
-            <form action={onSubmit} className="rounded-lg border border-border bg-white p-4 shadow-sm">
+            <form action={onSubmit} className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-inset ring-sky-50">
               <input type="hidden" name="jobId" value={jobId} />
               <div className="flex items-start justify-between gap-3 border-b border-border pb-3">
                 <div>
@@ -326,7 +401,7 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
               </div>
             </form>
 
-            <div className="rounded-lg border border-border bg-white p-4 shadow-sm">
+            <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-inset ring-slate-50">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-mono uppercase tracking-[0.18em] text-muted-foreground">Audit trail</p>

@@ -71,6 +71,8 @@ export interface ReviewQueueItem {
   score: number | null;
   totalClaimAmount: number;
   policyExcessAmount: number;
+  fwaRiskLevel: string;
+  fwaRiskScore: number;
   findingCount: number;
   topFlags: string[];
   recommendedAction: ReviewDecisionValue;
@@ -83,6 +85,8 @@ export interface ReviewQueueSummary {
   escalated: number;
   decided: number;
   totalPolicyExcess: number;
+  highRisk: number;
+  criticalRisk: number;
 }
 
 export interface ReviewQueueData {
@@ -157,12 +161,14 @@ function isReviewCandidate(job: ReviewQueueJobDbRecord, packet: HitlPacket): boo
   const output = asRecord(job.outputResult);
   const validationStatus = stringValue(output.status);
   const policyStatus = stringValue(asRecord(output.policyValidation).status);
+  const fwaLevel = stringValue(asRecord(output.fwaRisk).level);
   const reviewStatus = getReviewStatus(job.reviewDecisions);
 
   return reviewStatus !== "DECIDED"
     || validationStatus === "WARNING"
     || validationStatus === "REVIEW_NEEDED"
     || (policyStatus !== "" && policyStatus !== "PASS")
+    || (fwaLevel !== "" && fwaLevel !== "LOW")
     || packet.findings.length > 0;
 }
 
@@ -172,6 +178,7 @@ function toQueueItem(job: ReviewQueueJobDbRecord): ReviewQueueItem {
   const outputResult = displayJob.outputResult;
   const packet = buildHitlPacket(inputPayload, outputResult);
   const latestDecision = job.reviewDecisions[0] || null;
+  const fwaRisk = asRecord(asRecord(outputResult).fwaRisk);
   const completedAt = job.completedAt || job.createdAt;
   const slaAgeHours = Math.max(0, Math.floor((Date.now() - completedAt.getTime()) / 3_600_000));
 
@@ -188,6 +195,8 @@ function toQueueItem(job: ReviewQueueJobDbRecord): ReviewQueueItem {
     score: getScore(outputResult),
     totalClaimAmount: packet.financialImpact.claimAmount,
     policyExcessAmount: packet.financialImpact.policyExcessAmount,
+    fwaRiskLevel: stringValue(fwaRisk.level) || "LOW",
+    fwaRiskScore: numberOrNull(fwaRisk.score) || 0,
     findingCount: packet.findings.length,
     topFlags: packet.findings.slice(0, 3).map((finding) => finding.message),
     recommendedAction: packet.recommendedAction,
@@ -225,7 +234,7 @@ export async function getReviewQueueData(): Promise<ReviewQueueData> {
   if (!user || !canReview(user.role)) {
     return {
       items: [],
-      summary: { open: 0, waitingDocuments: 0, escalated: 0, decided: 0, totalPolicyExcess: 0 },
+      summary: { open: 0, waitingDocuments: 0, escalated: 0, decided: 0, totalPolicyExcess: 0, highRisk: 0, criticalRisk: 0 },
     };
   }
 
@@ -234,7 +243,7 @@ export async function getReviewQueueData(): Promise<ReviewQueueData> {
     if (!user.clientId) {
       return {
         items: [],
-        summary: { open: 0, waitingDocuments: 0, escalated: 0, decided: 0, totalPolicyExcess: 0 },
+        summary: { open: 0, waitingDocuments: 0, escalated: 0, decided: 0, totalPolicyExcess: 0, highRisk: 0, criticalRisk: 0 },
       };
     }
     where.clientId = user.clientId;
@@ -263,9 +272,11 @@ export async function getReviewQueueData(): Promise<ReviewQueueData> {
     else if (item.reviewStatus === "ESCALATED") total.escalated += 1;
     else if (item.reviewStatus === "DECIDED") total.decided += 1;
     else total.open += 1;
+    if (item.fwaRiskLevel === "HIGH") total.highRisk += 1;
+    if (item.fwaRiskLevel === "CRITICAL") total.criticalRisk += 1;
     total.totalPolicyExcess += item.policyExcessAmount;
     return total;
-  }, { open: 0, waitingDocuments: 0, escalated: 0, decided: 0, totalPolicyExcess: 0 });
+  }, { open: 0, waitingDocuments: 0, escalated: 0, decided: 0, totalPolicyExcess: 0, highRisk: 0, criticalRisk: 0 });
 
   return { items, summary };
 }

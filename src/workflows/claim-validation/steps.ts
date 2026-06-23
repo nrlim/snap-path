@@ -5,6 +5,8 @@ import { checkDrugPrices } from '@/lib/ai/validators/drug-price';
 import { generateClinicalPathway } from '@/lib/ai/generators/pathway';
 import { validateLos } from '@/lib/ai/validators/los';
 import { validatePolicyBenefits } from '@/lib/policy/validator';
+import { buildFwaHistoryContext, evaluateFwaRisk } from '@/lib/fwa/triage';
+import { buildMedicalEvidencePacket } from '@/lib/evidence/gateway';
 import type { PolicyValidationOutput } from '@/lib/ai/types';
 import { FatalError } from 'workflow';
 import prisma from '@/lib/db';
@@ -431,7 +433,7 @@ export async function aggregateAndSaveStep(
   const workflowStartedAt = jobTiming?.startedAt || jobTiming?.createdAt || completedAt;
   const totalDurationMs = Math.max(0, completedAt.getTime() - workflowStartedAt.getTime());
 
-  const outputData = {
+  const baseOutputData = {
     jobId: input.jobId,
     status,
     overallScore,
@@ -467,6 +469,40 @@ export async function aggregateAndSaveStep(
       postProcessing: 0,
     },
     auditTrail: [{ step: 'WORKFLOW_SDK', timestamp: completedAt.toISOString(), status: 'SUCCESS' }],
+  };
+
+  const historicalClaims = await prisma.claimJob.findMany({
+    where: {
+      id: { not: input.jobId },
+      jobType: 'CLAIM_VALIDATION',
+      status: 'COMPLETED',
+      ...(input.payload.clientId ? { clientId: input.payload.clientId } : {}),
+      ...(input.payload.providerId ? { providerId: input.payload.providerId } : {}),
+    },
+    select: { inputPayload: true, outputResult: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+  const fwaRisk = evaluateFwaRisk({
+    payload: input.payload,
+    outputResult: baseOutputData,
+    history: buildFwaHistoryContext(input.payload, historicalClaims),
+  });
+  const riskAdjustedStatus = fwaRisk.level === 'CRITICAL' || fwaRisk.level === 'HIGH'
+    ? 'REVIEW_NEEDED'
+    : fwaRisk.level === 'MEDIUM' && status === 'VALID'
+      ? 'WARNING'
+      : status;
+  const outputDataWithoutEvidence = {
+    ...baseOutputData,
+    status: riskAdjustedStatus,
+    fwaRisk,
+    summary: `${baseOutputData.summary} ${fwaRisk.summary}`,
+  };
+  const evidencePacket = buildMedicalEvidencePacket(input.payload, outputDataWithoutEvidence);
+  const outputData = {
+    ...outputDataWithoutEvidence,
+    evidencePacket,
   };
 
   await prisma.claimJob.update({

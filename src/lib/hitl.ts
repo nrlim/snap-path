@@ -1,14 +1,17 @@
+import { buildMedicalEvidencePacket } from '@/lib/evidence/gateway';
+import type { MedicalEvidencePacket } from '@/lib/evidence/types';
+
 export type ReviewDecisionValue = 'APPROVE' | 'APPROVE_WITH_ADJUSTMENT' | 'REJECT' | 'REQUEST_DOCUMENTS' | 'ESCALATE_MEDICAL_ADVISOR';
 export type ReviewStatusValue = 'OPEN' | 'IN_REVIEW' | 'DECIDED' | 'WAITING_DOCUMENTS' | 'ESCALATED';
 export type HitlSeverity = 'INFO' | 'WARNING' | 'REVIEW_NEEDED' | 'REJECT_RECOMMENDED';
 
 export interface HitlFinding {
-  category: 'POLICY' | 'TARIFF' | 'DRUG_PRICE' | 'DOCUMENT' | 'LOS' | 'DIAGNOSIS';
+  category: 'FWA' | 'POLICY' | 'TARIFF' | 'DRUG_PRICE' | 'DOCUMENT' | 'LOS' | 'DIAGNOSIS';
   severity: HitlSeverity;
   message: string;
   recommendation: string;
   amount?: number;
-  details?: any[];
+  details?: unknown[];
 }
 
 export interface HitlPacket {
@@ -16,6 +19,7 @@ export interface HitlPacket {
   summary: string;
   findings: HitlFinding[];
   counts: {
+    fwa: number;
     policy: number;
     tariff: number;
     drugPrice: number;
@@ -30,6 +34,7 @@ export interface HitlPacket {
     drugVarianceAmount: number;
     recommendedPayableAmount: number;
   };
+  evidencePacket: MedicalEvidencePacket;
 }
 
 export interface ReviewDecisionRecord {
@@ -165,9 +170,11 @@ export function maskPatientName(name: unknown): string {
 
 export function buildHitlPacket(inputPayload: unknown, outputResult: unknown): HitlPacket {
   const output = asRecord(outputResult);
+  const fwaRisk = asRecord(output.fwaRisk);
   const policyValidation = asRecord(output.policyValidation);
   const policyTotals = asRecord(policyValidation.totals);
   const policyFindings = asArray(policyValidation.findings);
+  const fwaSignals = asArray(fwaRisk.signals);
   const tariffItems = asArray(asRecord(output.tariffValidation).items);
   const drugItems = asArray(asRecord(output.drugPriceValidation).items);
   const documentValidation = asRecord(output.documentValidation);
@@ -186,6 +193,18 @@ export function buildHitlPacket(inputPayload: unknown, outputResult: unknown): H
   const tariffIssueCount = problemTariffs.length;
   const drugIssueCount = problemDrugs.length;
   const findings: HitlFinding[] = [];
+
+  for (const signal of fwaSignals) {
+    const record = asRecord(signal);
+    const severity = stringValue(record.severity);
+    findings.push({
+      category: 'FWA',
+      severity: severity === 'CRITICAL' ? 'REJECT_RECOMMENDED' : severity === 'HIGH' ? 'REVIEW_NEEDED' : severity === 'MEDIUM' ? 'WARNING' : 'INFO',
+      message: stringValue(record.label) || 'Sinyal FWA terdeteksi.',
+      recommendation: stringValue(record.recommendation) || 'Prioritaskan investigasi risiko sebelum adjudikasi final.',
+      details: [stringValue(record.evidence)].filter(Boolean),
+    });
+  }
 
   for (const finding of policyFindings) {
     const record = asRecord(finding);
@@ -323,10 +342,13 @@ export function buildHitlPacket(inputPayload: unknown, outputResult: unknown): H
   }
 
   const totalExcess = Math.min(claimAmount, policyExcessAmount + tariffVarianceAmount + drugVarianceAmount);
+  const fwaLevel = stringValue(fwaRisk.level);
   const hasRejectPolicy = policyFindings.some((finding) => stringValue(asRecord(finding).severity) === 'REJECT_RECOMMENDED');
   const recommendedAction: ReviewDecisionValue = hasRejectPolicy
     ? 'REJECT'
-    : documentMissingCount > 0
+    : fwaLevel === 'CRITICAL' || fwaLevel === 'HIGH'
+      ? 'ESCALATE_MEDICAL_ADVISOR'
+      : documentMissingCount > 0
       ? 'REQUEST_DOCUMENTS'
       : diagnosisCount > 0 || losCount > 0
         ? 'ESCALATE_MEDICAL_ADVISOR'
@@ -341,6 +363,7 @@ export function buildHitlPacket(inputPayload: unknown, outputResult: unknown): H
       : 'Tidak ada temuan mayor. Klaim dapat dipertimbangkan untuk disetujui.',
     findings,
     counts: {
+      fwa: fwaSignals.length,
       policy: policyFindings.length,
       tariff: tariffIssueCount,
       drugPrice: drugIssueCount,
@@ -355,5 +378,6 @@ export function buildHitlPacket(inputPayload: unknown, outputResult: unknown): H
       drugVarianceAmount,
       recommendedPayableAmount: Math.max(0, claimAmount - totalExcess),
     },
+    evidencePacket: buildMedicalEvidencePacket(inputPayload, outputResult),
   };
 }

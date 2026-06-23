@@ -683,6 +683,12 @@
           },
           "policyValidation": {
             "$ref": "#/components/schemas/PolicyValidationOutput"
+          },
+          "fwaRisk": {
+            "$ref": "#/components/schemas/FwaRiskOutput"
+          },
+          "evidencePacket": {
+            "$ref": "#/components/schemas/MedicalEvidencePacket"
           }
         }
       },
@@ -1091,6 +1097,281 @@
           },
           "excessAmount": {
             "type": "number"
+          }
+        }
+      },
+      "FwaRiskOutput": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "summary": {
+            "type": "string"
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FwaRiskSignal"
+            }
+          },
+          "evidenceSummary": {
+            "type": "object",
+            "properties": {
+              "similarClaimCount": {
+                "type": "integer"
+              },
+              "patientRecentClaimCount": {
+                "type": "integer"
+              },
+              "providerAverageClaimAmount": {
+                "type": "number",
+                "nullable": true
+              },
+              "providerMedianClaimAmount": {
+                "type": "number",
+                "nullable": true
+              },
+              "providerHighRiskClaimCount": {
+                "type": "integer"
+              }
+            }
+          },
+          "isReviewRecommended": {
+            "type": "boolean"
+          }
+        }
+      },
+      "FwaRiskSignal": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "DUPLICATE_SIMILAR_CLAIM"
+          },
+          "label": {
+            "type": "string",
+            "example": "Klaim mirip berulang"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "DUPLICATE",
+              "UTILIZATION",
+              "FINANCIAL",
+              "CLINICAL",
+              "DOCUMENT",
+              "POLICY",
+              "PROVIDER_PATTERN"
+            ]
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          },
+          "scoreImpact": {
+            "type": "integer"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          }
+        }
+      },
+      "MedicalEvidencePacket": {
+        "type": "object",
+        "description": "Medical evidence snapshot derived from CONSUL validation outputs. Default is local-only; diagnosis-procedure clinical reasoning may include external medical references when local diagnosis mapping is insufficient. CONSUL may pre-fetch PubMed context with diagnosis/procedure/medication terms only, never patient identifiers. No MCP server connection or Google Scholar scraping dependency is used.",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sourcePolicy": {
+            "type": "string",
+            "enum": [
+              "LOCAL_ONLY",
+              "LOCAL_WITH_DIAGNOSIS_EXTERNAL_EVIDENCE"
+            ]
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "totalEvidence": {
+                "type": "integer"
+              },
+              "highConfidenceCount": {
+                "type": "integer"
+              },
+              "categories": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "FWA",
+                    "POLICY",
+                    "TARIFF",
+                    "DRUG_PRICE",
+                    "DOCUMENT",
+                    "LOS",
+                    "DIAGNOSIS",
+                    "PATHWAY"
+                  ]
+                }
+              }
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedicalEvidenceItem"
+            }
+          }
+        }
+      },
+      "MedicalEvidenceItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "FWA",
+              "POLICY",
+              "TARIFF",
+              "DRUG_PRICE",
+              "DOCUMENT",
+              "LOS",
+              "DIAGNOSIS",
+              "PATHWAY"
+            ]
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "FWA_ENGINE",
+              "POLICY_RULE",
+              "LOCAL_TARIFF_MASTER",
+              "LOCAL_DRUG_MASTER",
+              "CLAIM_DOCUMENT",
+              "LOS_VALIDATOR",
+              "DIAGNOSIS_VALIDATOR",
+              "AI_MEDICAL_REASONING",
+              "INTERNAL_PATHWAY"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "evidenceText": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
+          },
+          "accessedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "relatedCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "nullable": true
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MedicalSourceReference"
+            }
+          }
+        }
+      },
+      "MedicalSourceReference": {
+        "type": "object",
+        "properties": {
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "INDONESIA_GUIDELINE",
+              "WHO_GUIDELINE",
+              "SPECIALTY_SOCIETY_GUIDELINE",
+              "PUBMED",
+              "COCHRANE",
+              "CLINICAL_TRIALS",
+              "FDA",
+              "RXNORM",
+              "AAP",
+              "TOP_MEDICAL_JOURNAL",
+              "GOOGLE_SCHOLAR",
+              "OTHER"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "organization": {
+            "type": "string",
+            "nullable": true
+          },
+          "year": {
+            "type": "string",
+            "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "identifier": {
+            "type": "string",
+            "nullable": true,
+            "description": "PMID, DOI, NCT id, guideline id, NDC/RxCUI, or null."
+          },
+          "relevance": {
+            "type": "string"
+          },
+          "strength": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ]
           }
         }
       }

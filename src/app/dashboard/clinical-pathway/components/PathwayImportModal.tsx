@@ -7,6 +7,8 @@ type Stage = "upload" | "processing" | "preview" | "error";
 type ImportMode = "ai" | "direct";
 
 interface MappedClaim {
+  providerId?: string;
+  claimId?: string;
   patient: any;
   encounter: any;
   diagnoses: any[];
@@ -14,6 +16,12 @@ interface MappedClaim {
   medications: any[];
   documents: any[];
   extra: any;
+  totalClaimAmount?: number;
+  currency?: string;
+  notes?: string;
+  policy?: unknown;
+  policyRules?: unknown[];
+  scenario?: unknown;
   _mappingNotes?: string;
 }
 
@@ -67,17 +75,43 @@ export default function PathwayImportModal({
     const procedures = Array.isArray(source?.procedures) ? source.procedures : [];
     const medications = Array.isArray(source?.medications) ? source.medications : [];
 
-    const start = source?.encounter?.period?.start;
-    const end = source?.encounter?.period?.end;
+    const start = source?.encounter?.admissionDate || source?.encounter?.period?.start;
+    const end = source?.encounter?.dischargeDate || source?.encounter?.period?.end;
     let computedLos = source?.extra?.los;
     if (start && end) {
       const calc = calculateLosDays(start, end);
       if (calc > 0) computedLos = String(calc);
     }
 
+    const patient = source?.patient || {};
+    const patientId = patient.id || patient.identifier?.[0]?.value || "";
+    const encounter = source?.encounter || {};
+
     return {
-      patient: source?.patient || {},
-      encounter: source?.encounter || {},
+      providerId: source?.providerId,
+      claimId: source?.claimId,
+      patient: {
+        ...patient,
+        birthDate: patient.birthDate || patient.dateOfBirth || "",
+        dateOfBirth: patient.dateOfBirth || patient.birthDate || "",
+        identifier: Array.isArray(patient.identifier) && patient.identifier.length > 0
+          ? patient.identifier
+          : patientId ? [{ value: patientId }] : [],
+      },
+      encounter: {
+        ...encounter,
+        period: {
+          ...(encounter.period || {}),
+          start: start || "",
+          end: end || "",
+        },
+        admissionDate: start || "",
+        dischargeDate: end || "",
+        class: {
+          ...(encounter.class || {}),
+          code: encounter.type || encounter.class?.code || "",
+        },
+      },
       diagnoses: Array.isArray(source?.diagnoses) ? source.diagnoses : [],
       procedures: procedures.map((proc: any) => ({
         ...proc,
@@ -96,8 +130,19 @@ export default function PathwayImportModal({
         totalPrice: med.totalPrice ?? med.claimedTotal ?? ((med.unitPrice ?? med.price ?? med.claimedUnitPrice ?? 0) * (med.quantity || 1)),
       })),
       documents: Array.isArray(source?.documents) ? source.documents : [],
-      extra: { ...(source?.extra || {}), los: computedLos },
-      _mappingNotes: "Struktur SnapPath terdeteksi. AI mapping dilewati dan data dibaca langsung dari key standar: patient, encounter, diagnoses, procedures, medications, documents, dan extra.",
+      extra: {
+        ...(source?.extra || {}),
+        claimId: source?.claimId || source?.extra?.claimId,
+        providerId: source?.providerId || source?.extra?.providerId,
+        los: computedLos,
+      },
+      totalClaimAmount: source?.totalClaimAmount,
+      currency: source?.currency,
+      notes: source?.notes,
+      policy: source?.policy,
+      policyRules: Array.isArray(source?.policyRules) ? source.policyRules : undefined,
+      scenario: source?.scenario,
+      _mappingNotes: "Struktur SnapPath terdeteksi. AI mapping dilewati dan data dibaca langsung dari key standar: patient, encounter, diagnoses, procedures, medications, documents, totalClaimAmount, policyRules, dan metadata scenario bila tersedia.",
     };
   };
 
@@ -320,10 +365,12 @@ export default function PathwayImportModal({
                 </div>
                 <div className="px-4 py-3 grid grid-cols-[120px_1fr] gap-x-3 gap-y-1.5 text-sm">
                   <span className="text-text-subtle">Nama</span><span className="font-medium text-text">{mapped.patient?.name || "—"}</span>
-                  <span className="text-text-subtle">Tgl Lahir</span><span className="text-text">{mapped.patient?.birthDate || "—"}</span>
+                  <span className="text-text-subtle">Tgl Lahir</span><span className="text-text">{mapped.patient?.birthDate || mapped.patient?.dateOfBirth || "—"}</span>
                   <span className="text-text-subtle">Gender</span><span className="text-text">{mapped.patient?.gender || "—"}</span>
-                  <span className="text-text-subtle">MRN</span><span className="text-text font-mono">{mapped.patient?.identifier?.[0]?.value || "—"}</span>
+                  <span className="text-text-subtle">MRN</span><span className="text-text font-mono">{mapped.patient?.identifier?.[0]?.value || mapped.patient?.id || "—"}</span>
+                  <span className="text-text-subtle">No. Klaim</span><span className="text-text font-mono">{mapped.claimId || mapped.extra?.claimId || "—"}</span>
                   <span className="text-text-subtle">No. Asuransi</span><span className="text-text">{mapped.extra?.insuranceNumber || "—"}</span>
+                  <span className="text-text-subtle">Provider</span><span className="text-text font-mono">{mapped.providerId || mapped.extra?.providerId || "—"}</span>
                   <span className="text-text-subtle">LOS</span><span className="text-text">{mapped.extra?.los ? `${mapped.extra.los} hari` : "—"}</span>
                 </div>
               </div>

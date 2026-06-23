@@ -8,8 +8,9 @@ import { REVIEW_DECISION_LABELS, REVIEW_STATUS_LABELS, type ReviewDecisionValue,
 import { defaultPageSizes, SortButton, TablePagination, TableSearch, type SortDirection } from "@/components/ui/DataTableControls";
 import type { ReviewQueueItem, ReviewQueueSummary } from "./actions";
 
-type SortField = "sla" | "claim" | "provider" | "score" | "policyExcess" | "findings" | "reviewStatus";
+type SortField = "sla" | "claim" | "provider" | "score" | "policyExcess" | "risk" | "findings" | "reviewStatus";
 type ReviewStatusFilter = "active" | "all" | ReviewStatusValue;
+type RiskFilter = "all" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 function formatRupiah(value: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
@@ -27,6 +28,13 @@ function reviewStatusBadge(status: string) {
   return <span className="inline-flex rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-amber-700 ring-1 ring-inset ring-amber-500/20">Menunggu</span>;
 }
 
+function riskBadge(level: string, score: number) {
+  if (level === "CRITICAL") return <span className="inline-flex rounded bg-red-600 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-white">Critical · {score}</span>;
+  if (level === "HIGH") return <span className="inline-flex rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-red-700 ring-1 ring-inset ring-red-500/20">High · {score}</span>;
+  if (level === "MEDIUM") return <span className="inline-flex rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-amber-700 ring-1 ring-inset ring-amber-500/20">Medium · {score}</span>;
+  return <span className="inline-flex rounded bg-slate-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-slate-600 ring-1 ring-inset ring-slate-500/20">Low · {score}</span>;
+}
+
 function validationStatusBadge(status: string) {
   if (status === "REVIEW_NEEDED") return <span className="inline-flex rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-red-700 ring-1 ring-inset ring-red-500/20">Review</span>;
   if (status === "WARNING") return <span className="inline-flex rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.12em] text-amber-700 ring-1 ring-inset ring-amber-500/20">Warning</span>;
@@ -39,6 +47,7 @@ function sortValue(item: ReviewQueueItem, field: SortField): string | number {
   if (field === "provider") return item.providerName.toLowerCase();
   if (field === "score") return item.score ?? 0;
   if (field === "policyExcess") return item.policyExcessAmount;
+  if (field === "risk") return item.fwaRiskScore;
   if (field === "findings") return item.findingCount;
   return item.reviewStatus.toLowerCase();
 }
@@ -61,7 +70,8 @@ function SummaryCard({ label, value, helper, icon }: { label: string; value: str
 export default function ReviewQueueTable({ items, summary }: { items: ReviewQueueItem[]; summary: ReviewQueueSummary }) {
   const [search, setSearch] = useState("");
   const [reviewStatus, setReviewStatus] = useState<ReviewStatusFilter>("active");
-  const [sortField, setSortField] = useState<SortField>("sla");
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>("all");
+  const [sortField, setSortField] = useState<SortField>("risk");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -72,7 +82,8 @@ export default function ReviewQueueTable({ items, summary }: { items: ReviewQueu
       .filter((item) => {
         const matchesSearch = !query || [item.claimId, item.patientName, item.providerName, item.validationStatus, item.reviewStatus].some((value) => value.toLowerCase().includes(query));
         const matchesStatus = reviewStatus === "all" || (reviewStatus === "active" ? item.reviewStatus !== "DECIDED" : item.reviewStatus === reviewStatus);
-        return matchesSearch && matchesStatus;
+        const matchesRisk = riskFilter === "all" || item.fwaRiskLevel === riskFilter;
+        return matchesSearch && matchesStatus && matchesRisk;
       })
       .sort((first, second) => {
         const firstValue = sortValue(first, sortField);
@@ -80,7 +91,7 @@ export default function ReviewQueueTable({ items, summary }: { items: ReviewQueu
         const result = firstValue > secondValue ? 1 : firstValue < secondValue ? -1 : 0;
         return sortDirection === "asc" ? result : -result;
       });
-  }, [items, reviewStatus, search, sortDirection, sortField]);
+  }, [items, reviewStatus, riskFilter, search, sortDirection, sortField]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -96,15 +107,16 @@ export default function ReviewQueueTable({ items, summary }: { items: ReviewQueu
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
         <SummaryCard label="Open" value={summary.open} helper="Klaim yang belum memiliki keputusan reviewer." icon={<Clock3 className="h-4 w-4" />} />
+        <SummaryCard label="High Risk" value={summary.highRisk} helper="Klaim dengan sinyal FWA level high." icon={<ShieldAlert className="h-4 w-4" />} />
+        <SummaryCard label="Critical" value={summary.criticalRisk} helper="Klaim FWA critical yang perlu prioritas." icon={<AlertTriangle className="h-4 w-4" />} />
         <SummaryCard label="Dokumen" value={summary.waitingDocuments} helper="Klaim menunggu dokumen tambahan." icon={<FileWarning className="h-4 w-4" />} />
-        <SummaryCard label="Eskalasi" value={summary.escalated} helper="Klaim yang perlu medical advisor." icon={<ShieldAlert className="h-4 w-4" />} />
         <SummaryCard label="Excess Polis" value={formatRupiah(summary.totalPolicyExcess)} helper="Akumulasi estimasi excess dari policy engine." icon={<AlertTriangle className="h-4 w-4" />} />
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-        <div className="grid grid-cols-1 gap-3 border-b border-border bg-background p-4 lg:grid-cols-[1fr_220px_140px]">
+        <div className="grid grid-cols-1 gap-3 border-b border-border bg-background p-4 lg:grid-cols-[1fr_220px_180px_140px]">
           <TableSearch value={search} onChange={(value) => { setSearch(value); setPage(1); }} placeholder="Cari claim ID, pasien, provider, status..." />
           <select value={reviewStatus} onChange={(event) => { setReviewStatus(event.target.value as ReviewStatusFilter); setPage(1); }} className="rounded-md border border-border bg-background px-3 py-2.5 text-base font-light text-foreground outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm">
             <option value="active">Perlu diproses</option>
@@ -114,13 +126,20 @@ export default function ReviewQueueTable({ items, summary }: { items: ReviewQueu
             <option value="ESCALATED">Eskalasi</option>
             <option value="DECIDED">Sudah diputuskan</option>
           </select>
+          <select value={riskFilter} onChange={(event) => { setRiskFilter(event.target.value as RiskFilter); setPage(1); }} className="rounded-md border border-border bg-background px-3 py-2.5 text-base font-light text-foreground outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm">
+            <option value="all">Semua risiko FWA</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
           <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }} className="rounded-md border border-border bg-background px-3 py-2.5 text-base font-light text-foreground outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm">
             {defaultPageSizes.map((size) => <option key={size} value={size}>{size} / page</option>)}
           </select>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-left text-sm">
+          <table className="w-full min-w-[1240px] text-left text-sm">
             <thead className="border-b border-border bg-muted/40 text-xs font-mono uppercase tracking-[0.18em] text-muted-foreground">
               <tr>
                 <th className="px-5 py-4"><SortButton field="sla" label="SLA" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
@@ -128,6 +147,7 @@ export default function ReviewQueueTable({ items, summary }: { items: ReviewQueu
                 <th className="px-5 py-4"><SortButton field="provider" label="Provider" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
                 <th className="px-5 py-4 text-right"><SortButton field="score" label="Score" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
                 <th className="px-5 py-4 text-right"><SortButton field="policyExcess" label="Policy Excess" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
+                <th className="px-5 py-4 text-center"><SortButton field="risk" label="FWA Risk" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
                 <th className="px-5 py-4 text-center"><SortButton field="findings" label="Flags" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
                 <th className="px-5 py-4 text-center">Validasi</th>
                 <th className="px-5 py-4 text-center"><SortButton field="reviewStatus" label="Review" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} /></th>
@@ -137,7 +157,7 @@ export default function ReviewQueueTable({ items, summary }: { items: ReviewQueu
             <tbody className="divide-y divide-border">
               {paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-12 text-center text-sm font-light text-muted-foreground">Tidak ada klaim yang sesuai filter review.</td>
+                  <td colSpan={10} className="px-5 py-12 text-center text-sm font-light text-muted-foreground">Tidak ada klaim yang sesuai filter review.</td>
                 </tr>
               ) : paginatedItems.map((item) => (
                 <tr key={item.id} className="transition-colors hover:bg-muted/40">
@@ -149,6 +169,7 @@ export default function ReviewQueueTable({ items, summary }: { items: ReviewQueu
                   <td className="px-5 py-4 text-sm font-light text-muted-foreground">{item.providerName}</td>
                   <td className="px-5 py-4 text-right font-mono text-sm font-light text-foreground">{typeof item.score === "number" ? item.score : "-"}</td>
                   <td className="px-5 py-4 text-right font-mono text-sm font-light text-foreground">{formatRupiah(item.policyExcessAmount)}</td>
+                  <td className="px-5 py-4 text-center">{riskBadge(item.fwaRiskLevel, item.fwaRiskScore)}</td>
                   <td className="px-5 py-4 text-center">
                     <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
                       {item.findingCount > 0 ? <AlertTriangle className="h-3 w-3 text-amber-600" /> : <CheckCircle2 className="h-3 w-3 text-green-600" />}

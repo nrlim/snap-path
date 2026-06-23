@@ -99,9 +99,9 @@ function ScoreBreakdownPanel({ score, items }: { score: number; items: ScoreBrea
   const calculatedScore = Math.max(0, Math.round(totalEarnedScore));
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="rounded-lg border border-slate-200 bg-white">
       {/* Header with totals */}
-      <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border bg-muted/40">
+      <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3">
         <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-[0.15em] text-muted-foreground">
           <Calculator className="h-3.5 w-3.5 text-primary" />
           Skor per Aspek
@@ -120,7 +120,7 @@ function ScoreBreakdownPanel({ score, items }: { score: number; items: ScoreBrea
           const hasDeduction = item.deducted > 0;
           const isPartial = hasDeduction && earnedScore > 0;
           return (
-            <div key={item.label} className="flex gap-3 px-4 py-3">
+            <div key={item.label} className="flex gap-3 px-4 py-3 transition-colors hover:bg-slate-50/70">
               <div className="mt-0.5 shrink-0">
                 {hasDeduction
                   ? <MinusCircle className={`h-3.5 w-3.5 ${isPartial ? 'text-amber-500' : 'text-red-500'}`} />
@@ -658,11 +658,11 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
       </button>
 
       {/* ── SECTION 1: Score & Summary Banner ─────────────────────────── */}
-      <div className="rounded-t-lg border border-border bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-t-lg border border-slate-200 bg-white shadow-sm">
         {/* Top bar */}
-        <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-border bg-muted/40">
+        <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <BrainCircuit className="w-4 h-4 text-primary" />
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white"><BrainCircuit className="w-4 h-4" /></span>
             <h2 className="text-sm font-light text-foreground">AI Outcome & Validation Summary</h2>
             {workflowLatencyMs > 0 && (
               <span className="text-xs font-mono text-muted-foreground">
@@ -683,15 +683,15 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         </div>
 
         {/* Score row: gauge left, conformance rows right */}
-        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] divide-y lg:divide-y-0 lg:divide-x divide-border">
+        <div className="grid grid-cols-1 divide-y divide-slate-200 lg:grid-cols-[200px_1fr] lg:divide-x lg:divide-y-0">
           {/* Score gauge column */}
-          <div className="flex flex-col items-center justify-center gap-3 p-6 bg-muted/20">
+          <div className="flex flex-col items-center justify-center gap-3 bg-slate-50/60 p-6">
             <ScoreCircularGauge score={validationScore} size={130} />
             <p className="text-xs font-mono uppercase tracking-[0.15em] text-muted-foreground text-center">Skor Validasi</p>
           </div>
 
           {/* Conformance metrics column */}
-          <div className="px-6 py-4">
+          <div className="bg-white px-6 py-4">
             <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Metrik Kepatuhan</p>
             <ConformanceRow
               label="Validasi Obat & Tindakan"
@@ -768,8 +768,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         </div>
 
         {/* Score Breakdown (collapsed by default within summary) */}
-        <div className="border-t border-border">
-          <div className="px-6 py-3 flex items-center justify-between bg-muted/20">
+        <div className="border-t border-slate-200">
+          <div className="flex items-center justify-between bg-slate-50 px-6 py-3">
             <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Perhitungan Skor per Aspek</p>
             <div className="flex items-center gap-2">
               <button
@@ -798,17 +798,17 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
       </div>
 
       {/* ── SECTION 2: Detail Tabs ─────────────────────────────────────── */}
-      <div className="border-x border-b border-border rounded-b-lg bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-b-lg border-x border-b border-slate-200 bg-white shadow-sm">
         {/* Tab strip */}
-        <div className="flex border-b border-border overflow-x-auto bg-muted/40 hide-scrollbar">
+        <div className="flex overflow-x-auto border-b border-slate-200 bg-slate-100/80 hide-scrollbar">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-5 py-3.5 text-xs font-mono uppercase tracking-[0.15em] border-b-2 whitespace-nowrap transition-colors ${
                 activeTab === tab.id
-                  ? "border-primary text-primary bg-card"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  ? "border-primary bg-white text-primary"
+                  : "border-transparent text-muted-foreground hover:bg-white/70 hover:text-foreground"
               }`}
             >
               {tab.icon}
@@ -826,33 +826,33 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               {/* Patient Clinical Summary */}
               {inputPayload && (
                 <div>
-                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Ringkasan Klinis Pasien</p>
-                  <div className="rounded-lg border border-border overflow-hidden">
-                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
+                  <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-primary">Ringkasan Klinis Pasien</p>
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50/30">
+                    <div className="grid grid-cols-1 divide-y divide-slate-200 md:grid-cols-2 md:divide-x md:divide-y-0">
                       {/* Identitas */}
-                      <div className="p-5">
+                      <div className="bg-white/70 p-5">
                         <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Identitas Pasien</p>
                         <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
                           <span className="text-muted-foreground font-light">Nama</span>
                           <span className="text-foreground font-light">{inputPayload.patient?.name || '—'}</span>
                           <span className="text-muted-foreground font-light">Gender / Tgl Lahir</span>
-                          <span className="text-foreground font-light">{inputPayload.patient?.gender || '—'} · {inputPayload.patient?.birthDate ? new Date(inputPayload.patient.birthDate).toLocaleDateString('id-ID') : '—'}</span>
+                          <span className="text-foreground font-light">{inputPayload.patient?.gender || '—'} · {(inputPayload.patient?.birthDate || inputPayload.patient?.dateOfBirth) ? new Date(inputPayload.patient.birthDate || inputPayload.patient.dateOfBirth).toLocaleDateString('id-ID') : '—'}</span>
                           <span className="text-muted-foreground font-light">MRN</span>
-                          <span className="text-foreground font-light font-mono">{inputPayload.patient?.identifier?.[0]?.value || '—'}</span>
+                          <span className="text-foreground font-light font-mono">{inputPayload.patient?.identifier?.[0]?.value || inputPayload.patient?.id || '—'}</span>
                           <span className="text-muted-foreground font-light">Asuransi</span>
                           <span className="text-foreground font-light">{inputPayload.extra?.insuranceNumber || '—'}</span>
                         </div>
                       </div>
                       {/* Episode */}
-                      <div className="p-5">
+                      <div className="bg-slate-50/50 p-5">
                         <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Episode Perawatan</p>
                         <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
                           <span className="text-muted-foreground font-light">Jenis</span>
-                          <span className="text-foreground font-light">{inputPayload.encounter?.class?.code || '—'}</span>
+                          <span className="text-foreground font-light">{inputPayload.encounter?.type || inputPayload.encounter?.class?.code || '—'}</span>
                           <span className="text-muted-foreground font-light">Masuk</span>
-                          <span className="text-foreground font-light">{inputPayload.encounter?.period?.start ? new Date(inputPayload.encounter.period.start).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
+                          <span className="text-foreground font-light">{(inputPayload.encounter?.admissionDate || inputPayload.encounter?.period?.start) ? new Date(inputPayload.encounter.admissionDate || inputPayload.encounter.period.start).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
                           <span className="text-muted-foreground font-light">Pulang</span>
-                          <span className="text-foreground font-light">{inputPayload.encounter?.period?.end ? new Date(inputPayload.encounter.period.end).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
+                          <span className="text-foreground font-light">{(inputPayload.encounter?.dischargeDate || inputPayload.encounter?.period?.end) ? new Date(inputPayload.encounter.dischargeDate || inputPayload.encounter.period.end).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
                           <span className="text-muted-foreground font-light">LOS</span>
                           {actualLOSVal > 0 ? (
                             <span className="text-foreground font-light">{actualLOSVal} Hari <span className="text-muted-foreground">{expectedLOSVal > 0 ? `(Standar AI: ${expectedLOSVal} hari)` : ''}</span></span>
@@ -865,7 +865,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
                     {/* Diagnoses */}
                     {inputPayload.diagnoses?.length > 0 && (
-                      <div className="border-t border-border p-5">
+                      <div className="border-t border-slate-200 bg-white/65 p-5">
                         <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Diagnosis</p>
                         <div className="flex flex-wrap gap-2 mb-3">
                           {inputPayload.diagnoses.map((d: any, i: number) => (
@@ -935,7 +935,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                   )}
                 </div>
                 {inputPayload.diagnoses?.length > 1 && (
-                  <div className="mb-4 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
+                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-muted-foreground">
                     Pathway ini tetap memakai diagnosis primer sebagai driver utama, tetapi AI generator menerima diagnosis sekunder/komplikasi sebagai konteks untuk monitoring, terapi pendukung, risiko, dan kriteria pulang.
                   </div>
                 )}
@@ -949,11 +949,11 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
             <div className="space-y-10 animate-fade-in">
               {/* Fee Schedule Validation */}
               <div>
-                <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Master Fee Schedule Validation</p>
+                <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-foreground">Master Fee Schedule Validation</p>
                 {tariffPriceSummary ? renderPriceSummary(tariffPriceSummary) : null}
-                <div className="overflow-x-auto rounded-lg border border-border">
+                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
                   <table className="w-full text-left text-sm">
-                    <thead className="bg-muted/40 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground border-b border-border">
+                    <thead className="border-b border-slate-200 bg-slate-50 text-xs font-mono uppercase tracking-[0.2em] text-foreground/70">
                       <tr>
                         <th className="px-4 py-3">Procedure</th>
                         <th className="px-4 py-3 text-right">Qty</th>
@@ -1022,8 +1022,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                   </table>
                 </div>
                 {tariffItems.some((t: any) => t.status === 'NOT_FOUND') && (
-                  <div className="mt-3 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                    <p className="text-xs text-orange-700 font-light">Beberapa tindakan berstatus <strong className="font-medium">Unregistered</strong> — belum terdaftar di Master Buku Tarif untuk provider ini. Harap daftarkan sebelum klaim diproses.</p>
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-800 font-light">Beberapa tindakan berstatus <strong className="font-medium">Unregistered</strong> — belum terdaftar di Master Buku Tarif untuk provider ini. Harap daftarkan sebelum klaim diproses.</p>
                   </div>
                 )}
               </div>
@@ -1031,11 +1031,11 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               {/* Drug Price Validation */}
               {drugItems && drugItems.length > 0 && (
                 <div>
-                  <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Drug Price Validation</p>
+                  <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-foreground">Drug Price Validation</p>
                   {drugPriceSummary ? renderPriceSummary(drugPriceSummary) : null}
-                  <div className="overflow-x-auto rounded-lg border border-border">
+                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
                     <table className="w-full text-left text-sm">
-                      <thead className="bg-muted/40 text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground border-b border-border">
+                      <thead className="border-b border-slate-200 bg-slate-50 text-xs font-mono uppercase tracking-[0.2em] text-foreground/70">
                         <tr>
                           <th className="px-4 py-3">Drug Name</th>
                           <th className="px-4 py-3 text-right">Qty</th>
@@ -1127,10 +1127,10 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
           {/* ── TAB: POLICY & BENEFIT ─────────────────────────────────── */}
           {activeTab === "policy" && (
             <div className="space-y-6 animate-fade-in">
-              <div className="rounded-lg border border-border bg-card p-5">
+              <div className="rounded-lg border border-slate-200 bg-slate-50/30 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Policy & Benefit Engine</p>
+                    <p className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Policy & Benefit Engine</p>
                     <h3 className="mt-2 text-xl font-light text-foreground">Validasi TC Polis dan benefit</h3>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                       {policyValidation?.summary || 'Belum ada hasil validasi polis untuk klaim ini. Rule dapat dikirim dari sistem integrasi atau dikelola sebagai master data client.'}
@@ -1148,27 +1148,27 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
-                  <div className="rounded-lg border border-border bg-muted/20 p-4">
-                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Rule Dievaluasi</p>
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-primary/80">Rule Dievaluasi</p>
                     <p className="mt-2 font-mono text-2xl font-light text-foreground">{policyValidation?.evaluatedRuleCount ?? 0}</p>
                   </div>
-                  <div className="rounded-lg border border-border bg-muted/20 p-4">
-                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Temuan</p>
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-primary/80">Temuan</p>
                     <p className="mt-2 font-mono text-2xl font-light text-foreground">{policyFindings.length}</p>
                   </div>
-                  <div className="rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                     <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Covered</p>
                     <p className="mt-2 font-mono text-lg font-light text-foreground">Rp {formatIdrAmount(policyValidation?.totals.coveredAmount ?? 0)}</p>
                   </div>
-                  <div className="rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                     <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Excess Estimasi</p>
                     <p className="mt-2 font-mono text-lg font-light text-red-600">Rp {formatIdrAmount(policyValidation?.totals.excessAmount ?? 0)}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-border bg-card">
-                <div className="border-b border-border px-4 py-3">
+              <div className="rounded-lg border border-slate-200 bg-white">
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
                   <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Temuan Rule Polis</p>
                 </div>
                 {policyFindings.length > 0 ? (
@@ -1227,7 +1227,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
             <div className="space-y-10 animate-fade-in">
               {/* Diagnosis vs Procedure Validation */}
               <div>
-                <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Diagnosis vs Procedure Validation</p>
+                <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-foreground">Diagnosis vs Procedure Validation</p>
                 <div className="space-y-3">
                   {diagDetails.map((diag: any, i: number) => {
                     const diagnosisKey = `${diag.diagnosisCode || 'diagnosis'}-${i}`;
@@ -1236,9 +1236,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                     const isExpanded = isDiagnosisDetailExpanded(diagnosisKey);
 
                     return (
-                      <div key={diagnosisKey} className="rounded-lg border border-border overflow-hidden">
+                      <div key={diagnosisKey} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
                         {/* Diag header */}
-                        <div className="flex flex-col gap-3 px-5 py-3.5 bg-muted/40 border-b border-border sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3.5 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-mono text-xs font-light text-primary bg-primary/10 px-2 py-0.5 rounded">{diag.diagnosisCode}</span>
@@ -1343,9 +1343,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           )}
 
                           {diag.medicationFindings && diag.medicationFindings.length > 0 && (
-                            <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-md">
-                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-blue-700 mb-1.5">Kesesuaian obat terhadap diagnosis ({diag.medicationFindings.length})</p>
-                              <p className="mb-2 text-xs leading-5 text-blue-700/80">Bagian ini menilai apakah obat yang diklaim selaras dengan diagnosis, termasuk terapi utama, suportif, simptomatik, antibiotik, cairan, atau obat komorbid.</p>
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-foreground mb-1.5">Kesesuaian obat terhadap diagnosis ({diag.medicationFindings.length})</p>
+                              <p className="mb-2 text-xs leading-5 text-muted-foreground">Bagian ini menilai apakah obat yang diklaim selaras dengan diagnosis, termasuk terapi utama, suportif, simptomatik, antibiotik, cairan, atau obat komorbid.</p>
                               <ul className="space-y-2">
                                 {diag.medicationFindings.map((m: any, j: number) => {
                                   const isIssue = m.status === 'REVIEW_NEEDED' || m.status === 'INAPPROPRIATE';
@@ -1402,7 +1402,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               {/* Document Completeness */}
               <div>
                 <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Document Completeness Validation</p>
-                <div className="rounded-lg border border-border overflow-hidden">
+                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
                   {docDetails.missingRequiredDocuments?.length > 0 && (
                     <div className="px-5 py-4 border-b border-red-200 bg-red-50">
                       <p className="text-sm font-light text-red-800">Mandatory document tidak terlampir.</p>

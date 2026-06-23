@@ -8,7 +8,7 @@ import { REQUIRED_CLAIM_DOCUMENTS } from "@/lib/claim-documents";
 import { calculateLosDays } from "@/lib/los";
 
 const STEPS = [
-  { num: 1, label: "Identity", subLabel: "Patient Data" },
+  { num: 1, label: "Identitas", subLabel: "Pasien & Polis" },
   { num: 2, label: "Encounter", subLabel: "Care Episode" },
   { num: 3, label: "Documents", subLabel: "Supporting Files" },
   { num: 4, label: "Diagnosis", subLabel: "ICD-10" },
@@ -17,6 +17,76 @@ const STEPS = [
   { num: 7, label: "Inpatient", subLabel: "Justification" },
   { num: 8, label: "Outcome", subLabel: "Clinical Notes" }
 ];
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeGender(value: unknown): "M" | "F" | "" {
+  const normalized = stringValue(value).toUpperCase();
+  if (normalized === "M" || normalized === "MALE" || normalized === "LAKI-LAKI" || normalized === "L") return "M";
+  if (normalized === "F" || normalized === "FEMALE" || normalized === "PEREMPUAN" || normalized === "P") return "F";
+  return "";
+}
+
+function normalizeEncounterType(value: unknown): "RAWAT_INAP" | "RAWAT_JALAN" | "IGD" | "" {
+  const normalized = stringValue(value).toUpperCase();
+  if (["RAWAT_INAP", "INPATIENT", "IMP", "RI"].includes(normalized)) return "RAWAT_INAP";
+  if (["RAWAT_JALAN", "OUTPATIENT", "AMB", "RJ"].includes(normalized)) return "RAWAT_JALAN";
+  if (["IGD", "EMERGENCY", "EMER", "ER"].includes(normalized)) return "IGD";
+  return "";
+}
+
+function normalizeDiagnosisType(value: unknown, index: number): "PRIMARY" | "SECONDARY" | "COMPLICATION" {
+  const normalized = stringValue(value).toUpperCase();
+  if (normalized === "PRIMARY") return "PRIMARY";
+  if (normalized === "COMPLICATION") return "COMPLICATION";
+  if (normalized === "SECONDARY") return "SECONDARY";
+  return index === 0 ? "PRIMARY" : "SECONDARY";
+}
+
+function getPatientIdentifier(patient: Record<string, unknown>): string {
+  const identifiers = Array.isArray(patient.identifier) ? patient.identifier : [];
+  const firstIdentifier = identifiers.find((item) => item && typeof item === "object") as Record<string, unknown> | undefined;
+  return stringValue(firstIdentifier?.value) || stringValue(patient.id);
+}
+
+function normalizePatientForForm(patient: unknown, fallbackPatient: Record<string, unknown>): Record<string, unknown> {
+  const source = patient && typeof patient === "object" && !Array.isArray(patient) ? patient as Record<string, unknown> : {};
+  const fallback = fallbackPatient || {};
+  const patientId = getPatientIdentifier(source) || getPatientIdentifier(fallback);
+  return {
+    ...fallback,
+    ...source,
+    id: stringValue(source.id) || stringValue(fallback.id) || patientId,
+    name: stringValue(source.name) || stringValue(fallback.name),
+    dateOfBirth: stringValue(source.dateOfBirth) || stringValue(source.birthDate) || stringValue(fallback.dateOfBirth) || stringValue(fallback.birthDate),
+    gender: normalizeGender(source.gender) || normalizeGender(fallback.gender),
+    identifier: patientId ? [{ value: patientId }] : [],
+  };
+}
+
+function normalizeEncounterForForm(encounter: unknown, fallbackEncounter: Record<string, unknown>): Record<string, unknown> {
+  const source = encounter && typeof encounter === "object" && !Array.isArray(encounter) ? encounter as Record<string, unknown> : {};
+  const fallback = fallbackEncounter || {};
+  const sourcePeriod = source.period && typeof source.period === "object" && !Array.isArray(source.period) ? source.period as Record<string, unknown> : {};
+  const fallbackPeriod = fallback.period && typeof fallback.period === "object" && !Array.isArray(fallback.period) ? fallback.period as Record<string, unknown> : {};
+  const sourceClass = source.class && typeof source.class === "object" && !Array.isArray(source.class) ? source.class as Record<string, unknown> : {};
+  const fallbackClass = fallback.class && typeof fallback.class === "object" && !Array.isArray(fallback.class) ? fallback.class as Record<string, unknown> : {};
+  const encounterType = normalizeEncounterType(source.type) || normalizeEncounterType(sourceClass.code) || normalizeEncounterType(fallback.type) || normalizeEncounterType(fallbackClass.code) || "RAWAT_INAP";
+  const admissionDate = stringValue(source.admissionDate) || stringValue(sourcePeriod.start) || stringValue(fallback.admissionDate) || stringValue(fallbackPeriod.start);
+  const dischargeDate = stringValue(source.dischargeDate) || stringValue(sourcePeriod.end) || stringValue(fallback.dischargeDate) || stringValue(fallbackPeriod.end);
+
+  return {
+    ...fallback,
+    ...source,
+    type: encounterType,
+    admissionDate,
+    dischargeDate,
+    class: { ...fallbackClass, ...sourceClass, code: encounterType },
+    period: { ...fallbackPeriod, ...sourcePeriod, start: admissionDate, end: dischargeDate },
+  };
+}
 
 function AutocompleteInput({ 
   value, 
@@ -97,8 +167,9 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
 
   // Form State
   const [formData, setFormData] = useState<any>({
-    patient: { name: "", identifier: [], birthDate: "", gender: "" },
-    encounter: { class: { code: "" }, period: { start: "", end: "" } },
+    claimId: "",
+    patient: { id: "", name: "", identifier: [], dateOfBirth: "", gender: "" },
+    encounter: { type: "RAWAT_INAP", class: { code: "RAWAT_INAP" }, period: { start: "", end: "" }, admissionDate: "", dischargeDate: "" },
     diagnoses: [],
     procedures: [],
     medications: [],
@@ -108,6 +179,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
       nik: "",
       phone: "",
       insuranceType: "",
+      claimId: "",
       insuranceNumber: "",
       los: "",
       losJustification: "",
@@ -121,20 +193,36 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
     // Keep the selected dashboard provider unless the imported providerId is one of the known provider IDs.
     setFormData((prev: any) => {
       const importedExtra = parsed.extra || {};
-      const importedProviderId = typeof importedExtra.providerId === "string" ? importedExtra.providerId : "";
-      const safeProviderId = providers.some((provider) => provider.id === importedProviderId)
-        ? importedProviderId
-        : prev.extra.providerId;
+      const importedProviderId = stringValue(parsed.providerId) || stringValue(importedExtra.providerId);
+      const matchedProvider = providers.find((provider) => provider.id === importedProviderId || provider.code === importedProviderId);
+      const safeProviderId = matchedProvider?.id || prev.extra.providerId;
+      const importedPatient = normalizePatientForForm(parsed.patient, prev.patient || {});
+      const importedEncounter = normalizeEncounterForForm(parsed.encounter, prev.encounter || {});
+      const computedLos = calculateLosDays(stringValue(importedEncounter.admissionDate), stringValue(importedEncounter.dischargeDate));
+      const claimId = stringValue(parsed.claimId) || stringValue(importedExtra.claimId) || stringValue(prev.claimId);
+      const insuranceNumber = stringValue(importedExtra.insuranceNumber) || stringValue(prev.extra.insuranceNumber);
 
       return {
         ...prev,
-        patient: parsed.patient || prev.patient,
-        encounter: parsed.encounter || prev.encounter,
-        diagnoses: parsed.diagnoses || [],
+        claimId,
+        currency: parsed.currency || prev.currency,
+        notes: parsed.notes || prev.notes,
+        policy: parsed.policy || prev.policy,
+        policyRules: Array.isArray(parsed.policyRules) ? parsed.policyRules : prev.policyRules,
+        scenario: parsed.scenario || prev.scenario,
+        patient: importedPatient,
+        encounter: importedEncounter,
+        diagnoses: (parsed.diagnoses || []).map((diagnosis: any, index: number) => ({
+          ...diagnosis,
+          name: diagnosis.name || diagnosis.description || diagnosis.diagnosisName || diagnosis.code || "",
+          type: normalizeDiagnosisType(diagnosis.type, index),
+          sequence: diagnosis.sequence ?? index + 1,
+        })),
         procedures: parsed.procedures || [],
         medications: parsed.medications || [],
         documents: parsed.documents || [],
-        extra: { ...prev.extra, ...importedExtra, providerId: safeProviderId }
+        totalClaimAmount: parsed.totalClaimAmount || prev.totalClaimAmount,
+        extra: { ...prev.extra, ...importedExtra, claimId, insuranceNumber, los: computedLos > 0 ? String(computedLos) : importedExtra.los || prev.extra.los, providerId: safeProviderId }
       };
     });
     setStep(8);
@@ -155,7 +243,7 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
   const handleAddDiagnosis = () => {
     setFormData((prev: any) => ({
       ...prev,
-      diagnoses: [...(prev.diagnoses || []), { code: "", name: "", type: "secondary" }]
+      diagnoses: [...(prev.diagnoses || []), { code: "", name: "", type: (prev.diagnoses || []).length === 0 ? "PRIMARY" : "SECONDARY", sequence: (prev.diagnoses || []).length + 1 }]
     }));
   };
 
@@ -278,48 +366,95 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
     setIsSubmitting(true);
     setError(null);
     try {
-      const periodLos = calculateLosDays(formData.encounter?.period?.start, formData.encounter?.period?.end);
+      const patientForSubmit = normalizePatientForForm(formData.patient, {});
+      const encounterForSubmit = normalizeEncounterForForm(formData.encounter, {});
+      const periodLos = calculateLosDays(stringValue(encounterForSubmit.admissionDate), stringValue(encounterForSubmit.dischargeDate));
+      const patientIdentifier = getPatientIdentifier(patientForSubmit);
+      const claimId = stringValue(formData.claimId) || stringValue(formData.extra.claimId);
+      const requiredErrors = [
+        !claimId ? "nomor klaim" : "",
+        !stringValue(formData.extra.providerId) ? "provider" : "",
+        !stringValue(patientForSubmit.name) ? "nama pasien" : "",
+        !stringValue(patientForSubmit.dateOfBirth) ? "tanggal lahir" : "",
+        !normalizeGender(patientForSubmit.gender) ? "jenis kelamin" : "",
+        !stringValue(encounterForSubmit.admissionDate) ? "tanggal masuk" : "",
+        (formData.diagnoses || []).length === 0 ? "minimal satu diagnosis" : "",
+      ].filter(Boolean);
+      if (requiredErrors.length > 0) {
+        setError(`Lengkapi data wajib: ${requiredErrors.join(', ')}.`);
+        setIsSubmitting(false);
+        return;
+      }
       const normalizedExtra = {
         ...formData.extra,
+        claimId,
         los: periodLos > 0 ? String(periodLos) : formData.extra.los,
       };
 
+      const normalizedProcedures = (formData.procedures || []).map((proc: any) => {
+        const quantity = proc.quantity || 1;
+        const unitPrice = proc.price ?? proc.unitPrice ?? proc.claimedUnitPrice ?? 0;
+        return {
+          code: proc.code || null,
+          name: proc.name || proc.description || proc.procedureName || proc.code || '',
+          category: proc.category,
+          quantity,
+          unitPrice,
+          totalPrice: unitPrice * quantity,
+        };
+      });
+      const normalizedMedications = (formData.medications || []).map((med: any) => {
+        const quantity = med.quantity || 1;
+        const unitPrice = med.price ?? med.unitPrice ?? med.claimedUnitPrice ?? 0;
+        return {
+          name: med.name || med.medicationName || med.genericName || '',
+          genericName: med.genericName || undefined,
+          dosage: med.dosage || undefined,
+          quantity,
+          unitPrice,
+          totalPrice: unitPrice * quantity,
+          frequency: med.frequency || undefined,
+          duration: med.duration || undefined,
+        };
+      });
+      const computedTotalClaimAmount = [...normalizedProcedures, ...normalizedMedications].reduce((total, item) => total + Number(item.totalPrice || 0), 0);
+
       // Reconstruct payload from the current form state, not the original imported JSON.
       const payload = {
-        patient: formData.patient,
-        encounter: formData.encounter,
+        claimId,
+        patient: {
+          id: stringValue(patientForSubmit.id) || patientIdentifier || stringValue(formData.extra.nik) || claimId,
+          name: stringValue(patientForSubmit.name),
+          dateOfBirth: stringValue(patientForSubmit.dateOfBirth),
+          gender: normalizeGender(patientForSubmit.gender),
+          identifier: patientIdentifier ? [{ value: patientIdentifier }] : [],
+        },
+        encounter: {
+          type: normalizeEncounterType(encounterForSubmit.type) || "RAWAT_INAP",
+          admissionDate: stringValue(encounterForSubmit.admissionDate),
+          dischargeDate: stringValue(encounterForSubmit.dischargeDate),
+          class: { code: normalizeEncounterType(encounterForSubmit.type) || "RAWAT_INAP" },
+          period: {
+            start: stringValue(encounterForSubmit.admissionDate),
+            end: stringValue(encounterForSubmit.dischargeDate),
+          },
+          facility: encounterForSubmit.facility || undefined,
+        },
         diagnoses: (formData.diagnoses || []).map((diag: any, index: number) => ({
           code: diag.code || null,
           name: diag.name || diag.description || diag.diagnosisName || diag.code || '',
-          type: diag.type || (index === 0 ? 'primary' : 'secondary'),
+          type: normalizeDiagnosisType(diag.type, index),
+          sequence: diag.sequence ?? index + 1,
         })),
-        procedures: (formData.procedures || []).map((proc: any) => {
-          const quantity = proc.quantity || 1;
-          const unitPrice = proc.price ?? proc.unitPrice ?? proc.claimedUnitPrice ?? 0;
-          return {
-            code: proc.code || null,
-            name: proc.name || proc.description || proc.procedureName || proc.code || '',
-            category: proc.category,
-            quantity,
-            unitPrice,
-            totalPrice: unitPrice * quantity,
-          };
-        }),
-        medications: (formData.medications || []).map((med: any) => {
-          const quantity = med.quantity || 1;
-          const unitPrice = med.price ?? med.unitPrice ?? med.claimedUnitPrice ?? 0;
-          return {
-            name: med.name || med.medicationName || med.genericName || '',
-            genericName: med.genericName || undefined,
-            dosage: med.dosage || undefined,
-            quantity,
-            unitPrice,
-            totalPrice: unitPrice * quantity,
-            frequency: med.frequency || undefined,
-            duration: med.duration || undefined,
-          };
-        }),
+        procedures: normalizedProcedures,
+        medications: normalizedMedications,
         documents: formData.documents,
+        totalClaimAmount: computedTotalClaimAmount > 0 ? computedTotalClaimAmount : formData.totalClaimAmount || undefined,
+        currency: formData.currency || "IDR",
+        notes: formData.notes || normalizedExtra.outcomeNotes || undefined,
+        policy: formData.policy || undefined,
+        policyRules: Array.isArray(formData.policyRules) ? formData.policyRules : undefined,
+        scenario: formData.scenario || undefined,
         providerId: normalizedExtra.providerId,
         extra: normalizedExtra,
       };
@@ -336,52 +471,68 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
 
   const renderStep1 = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="rounded-lg border border-border bg-surface-elevated/20 p-4">
+        <p className="text-sm font-medium text-text">Identitas klaim</p>
+        <p className="mt-1 text-xs leading-5 text-text-subtle">Field ini dipakai untuk audit trail, review queue, dan ringkasan pasien. Pastikan tidak kosong sebelum submit.</p>
+      </div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-text mb-1">Full Name <span className="text-red-500">*</span></label>
-          <input type="text" value={formData.patient?.name || ''} onChange={(e) => setFormData({...formData, patient: {...formData.patient, name: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Name as in ID" />
+          <label className="mb-1 block text-sm font-medium text-text">Nomor klaim <span className="text-red-500">*</span></label>
+          <input type="text" value={formData.claimId || formData.extra.claimId || ''} onChange={(e) => setFormData({...formData, claimId: e.target.value, extra: {...formData.extra, claimId: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" placeholder="Contoh: CLM-MK-2026-0001" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-text mb-1">NIK <span className="text-red-500">*</span></label>
-          <input type="text" value={formData.extra.nik} onChange={(e) => setFormData({...formData, extra: {...formData.extra, nik: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="16 digit NIK" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text mb-1">Date of Birth <span className="text-red-500">*</span></label>
-          <input type="date" value={formData.patient?.birthDate || ''} onChange={(e) => setFormData({...formData, patient: {...formData.patient, birthDate: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text mb-1">Gender <span className="text-red-500">*</span></label>
-          <select value={formData.patient?.gender || ''} onChange={(e) => setFormData({...formData, patient: {...formData.patient, gender: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary">
-            <option value="">Select...</option>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text mb-1">Medical Record No. (MRN)</label>
-          <input type="text" value={formData.patient?.identifier?.[0]?.value || ''} onChange={(e) => {
-            const newId = [...(formData.patient?.identifier || [])];
-            if(newId.length === 0) newId.push({ value: '' });
-            newId[0].value = e.target.value;
-            setFormData({...formData, patient: {...formData.patient, identifier: newId}})
-          }} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Medical record number (MRN)" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text mb-1">Phone Number</label>
-          <input type="text" value={formData.extra.phone} onChange={(e) => setFormData({...formData, extra: {...formData.extra, phone: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="08xx-xxxx-xxxx" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-text mb-1">Target Provider <span className="text-red-500">*</span></label>
-          <select value={formData.extra.providerId} onChange={(e) => setFormData({...formData, extra: {...formData.extra, providerId: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary">
-            <option value="">Select provider...</option>
+          <label className="mb-1 block text-sm font-medium text-text">Target provider <span className="text-red-500">*</span></label>
+          <select value={formData.extra.providerId} onChange={(e) => setFormData({...formData, extra: {...formData.extra, providerId: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm">
+            <option value="">Pilih provider...</option>
             {providers.map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-text mb-1">Insurance Policy No.</label>
-          <input type="text" value={formData.extra.insuranceNumber} onChange={(e) => setFormData({...formData, extra: {...formData.extra, insuranceNumber: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="BPJS card or policy number" />
+          <label className="mb-1 block text-sm font-medium text-text">Nama pasien <span className="text-red-500">*</span></label>
+          <input type="text" value={formData.patient?.name || ''} onChange={(e) => setFormData({...formData, patient: {...formData.patient, name: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" placeholder="Nama sesuai identitas" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">Tanggal lahir <span className="text-red-500">*</span></label>
+          <input type="date" value={formData.patient?.dateOfBirth || formData.patient?.birthDate || ''} onChange={(e) => setFormData({...formData, patient: {...formData.patient, dateOfBirth: e.target.value, birthDate: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">Jenis kelamin <span className="text-red-500">*</span></label>
+          <select value={normalizeGender(formData.patient?.gender)} onChange={(e) => setFormData({...formData, patient: {...formData.patient, gender: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm">
+            <option value="">Pilih...</option>
+            <option value="M">Laki-laki</option>
+            <option value="F">Perempuan</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">MRN / nomor rekam medis</label>
+          <input type="text" value={getPatientIdentifier(formData.patient || {})} onChange={(e) => {
+            const value = e.target.value;
+            setFormData({...formData, patient: {...formData.patient, id: value, identifier: value ? [{ value }] : []}})
+          }} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" placeholder="Nomor rekam medis provider" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">NIK</label>
+          <input type="text" value={formData.extra.nik} onChange={(e) => setFormData({...formData, extra: {...formData.extra, nik: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" placeholder="16 digit NIK bila tersedia" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">Nomor telepon</label>
+          <input type="text" value={formData.extra.phone} onChange={(e) => setFormData({...formData, extra: {...formData.extra, phone: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" placeholder="08xx-xxxx-xxxx" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">Nomor polis / asuransi</label>
+          <input type="text" value={formData.extra.insuranceNumber} onChange={(e) => setFormData({...formData, extra: {...formData.extra, insuranceNumber: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" placeholder="Nomor polis, kartu asuransi, atau BPJS" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">Tipe asuransi</label>
+          <select value={formData.extra.insuranceType || ''} onChange={(e) => setFormData({...formData, extra: {...formData.extra, insuranceType: e.target.value}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm">
+            <option value="">Pilih tipe...</option>
+            <option value="ASURANSI_SWASTA">Asuransi swasta</option>
+            <option value="BPJS">BPJS</option>
+            <option value="CORPORATE">Corporate payer</option>
+            <option value="SELF_PAY">Self pay</option>
+          </select>
         </div>
       </div>
     </div>
@@ -389,30 +540,36 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
 
   const renderStep2 = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div>
-          <label className="block text-sm font-medium text-text mb-1">Care Type (Class)</label>
-          <input type="text" value={formData.encounter?.class?.code || ''} onChange={(e) => setFormData({...formData, encounter: {...formData.encounter, class: { code: e.target.value}}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="e.g. IMP (Inpatient)" />
+          <label className="mb-1 block text-sm font-medium text-text">Jenis perawatan <span className="text-red-500">*</span></label>
+          <select value={normalizeEncounterType(formData.encounter?.type || formData.encounter?.class?.code)} onChange={(e) => setFormData({...formData, encounter: {...formData.encounter, type: e.target.value, class: { ...(formData.encounter?.class || {}), code: e.target.value}}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm">
+            <option value="RAWAT_INAP">Rawat inap</option>
+            <option value="RAWAT_JALAN">Rawat jalan</option>
+            <option value="IGD">IGD</option>
+          </select>
         </div>
-        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-text mb-1">Admission Date (Start)</label>
-            <input type="datetime-local" value={(formData.encounter?.period?.start || '').slice(0, 16)} onChange={(e) => {
-              const start = e.target.value ? new Date(e.target.value).toISOString() : "";
-              const end = formData.encounter?.period?.end || "";
-              const los = calculateLosDays(start, end);
-              setFormData({...formData, encounter: {...formData.encounter, period: {...formData.encounter?.period, start}}, extra: {...formData.extra, los: los > 0 ? String(los) : formData.extra.los}})
-            }} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-text mb-1">Discharge Date (End)</label>
-            <input type="datetime-local" value={(formData.encounter?.period?.end || '').slice(0, 16)} onChange={(e) => {
-              const start = formData.encounter?.period?.start || "";
-              const end = e.target.value ? new Date(e.target.value).toISOString() : "";
-              const los = calculateLosDays(start, end);
-              setFormData({...formData, encounter: {...formData.encounter, period: {...formData.encounter?.period, end}}, extra: {...formData.extra, los: los > 0 ? String(los) : formData.extra.los}})
-            }} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" />
-          </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">Fasilitas</label>
+          <input type="text" value={formData.encounter?.facility?.name || ''} onChange={(e) => setFormData({...formData, encounter: {...formData.encounter, facility: {...(formData.encounter?.facility || {}), name: e.target.value}}})} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" placeholder="Nama rumah sakit / klinik" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">Tanggal masuk <span className="text-red-500">*</span></label>
+          <input type="datetime-local" value={(formData.encounter?.admissionDate || formData.encounter?.period?.start || '').slice(0, 16)} onChange={(e) => {
+            const start = e.target.value ? new Date(e.target.value).toISOString() : "";
+            const end = formData.encounter?.dischargeDate || formData.encounter?.period?.end || "";
+            const los = calculateLosDays(start, end);
+            setFormData({...formData, encounter: {...formData.encounter, admissionDate: start, period: {...formData.encounter?.period, start}}, extra: {...formData.extra, los: los > 0 ? String(los) : formData.extra.los}})
+          }} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-text">Tanggal pulang</label>
+          <input type="datetime-local" value={(formData.encounter?.dischargeDate || formData.encounter?.period?.end || '').slice(0, 16)} onChange={(e) => {
+            const start = formData.encounter?.admissionDate || formData.encounter?.period?.start || "";
+            const end = e.target.value ? new Date(e.target.value).toISOString() : "";
+            const los = calculateLosDays(start, end);
+            setFormData({...formData, encounter: {...formData.encounter, dischargeDate: end, period: {...formData.encounter?.period, end}}, extra: {...formData.extra, los: los > 0 ? String(los) : formData.extra.los}})
+          }} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" />
         </div>
       </div>
     </div>
@@ -516,9 +673,10 @@ export default function PathwayWizard({ providers }: { providers: any[] }) {
                   <input type="text" value={diag.name || ''} onChange={e => updateItem("diagnoses", i, "name", e.target.value)} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary" placeholder="Name..." />
                 </td>
                 <td className="px-4 py-2">
-                  <select value={diag.type} onChange={e => updateItem("diagnoses", i, "type", e.target.value)} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-sm text-text focus:border-primary focus:ring-1 focus:ring-primary">
-                    <option value="primary">Primary</option>
-                    <option value="secondary">Secondary</option>
+                  <select value={normalizeDiagnosisType(diag.type, i)} onChange={e => updateItem("diagnoses", i, "type", e.target.value)} className="w-full rounded-md border border-border bg-surface px-2 py-1 text-base text-text focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm">
+                    <option value="PRIMARY">Primer</option>
+                    <option value="SECONDARY">Sekunder</option>
+                    <option value="COMPLICATION">Komplikasi</option>
                   </select>
                 </td>
                 <td className="px-4 py-2 text-right">

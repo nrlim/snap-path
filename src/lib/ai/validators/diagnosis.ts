@@ -1,9 +1,53 @@
 import prisma from '@/lib/db';
+import { buildClinicalReferenceSearchContext } from '@/lib/evidence/clinical-reference-search';
+import type { MedicalSourceReference, MedicalSourceReferenceType } from '@/lib/evidence/types';
 import { ClaimValidationInput, ClaimValidationOutput } from '../types';
 import { getAIGateway } from '../gateway';
 
 type DiagnosisValidationDetail = ClaimValidationOutput['diagnosisValidation']['details'][number];
 type ProcedureFinding = NonNullable<DiagnosisValidationDetail['procedureFindings']>[number];
+
+const MEDICAL_REFERENCE_TYPES: ReadonlySet<MedicalSourceReferenceType> = new Set([
+  'INDONESIA_GUIDELINE',
+  'WHO_GUIDELINE',
+  'SPECIALTY_SOCIETY_GUIDELINE',
+  'PUBMED',
+  'COCHRANE',
+  'CLINICAL_TRIALS',
+  'FDA',
+  'RXNORM',
+  'AAP',
+  'TOP_MEDICAL_JOURNAL',
+  'GOOGLE_SCHOLAR',
+  'OTHER',
+]);
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function normalizeEvidenceReferences(value: unknown): MedicalSourceReference[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.map((item) => {
+    const record = asRecord(item);
+    const sourceType = String(record.sourceType || '').toUpperCase();
+    const safeSourceType: MedicalSourceReferenceType = MEDICAL_REFERENCE_TYPES.has(sourceType as MedicalSourceReferenceType)
+      ? sourceType as MedicalSourceReferenceType
+      : 'OTHER';
+    const strength: MedicalSourceReference['strength'] = record.strength === 'HIGH' ? 'HIGH' : record.strength === 'LOW' ? 'LOW' : 'MEDIUM';
+    return {
+      sourceType: safeSourceType,
+      title: String(record.title || safeSourceType),
+      organization: record.organization ? String(record.organization) : null,
+      year: record.year ? String(record.year) : null,
+      url: record.url ? String(record.url) : null,
+      identifier: record.identifier ? String(record.identifier) : null,
+      relevance: String(record.relevance || 'Mendukung reasoning klinis diagnosis-tindakan.'),
+      strength,
+    };
+  }).filter((item) => item.title.trim().length > 0 && item.relevance.trim().length > 0);
+}
 
 function deriveDiagnosisCategory(icdCode: string) {
   return icdCode.trim().toUpperCase().match(/^[A-Z]\d{2}/)?.[0] || 'UNCLASSIFIED';
@@ -189,10 +233,16 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
 
   // 2. AI-based holistic validation
   let aiScore = 100;
+  const externalClinicalEvidenceContext = await buildClinicalReferenceSearchContext({
+    diagnoses: input.diagnoses.map((diagnosis) => ({ code: diagnosis.code, name: diagnosis.name })),
+    procedures: input.procedures.map((procedure) => ({ code: procedure.code, name: procedure.name })),
+    medications: input.medications?.map((medication) => ({ name: medication.name, genericName: medication.genericName })) || [],
+  });
   try {
     const { data } = await gateway.validateDiagnosisTreatment({
       ...input,
-      clinicalReviewMode: 'AI_FALLBACK_WHEN_LOCAL_MAPPING_ABSENT_OR_INCOMPLETE',
+      clinicalReviewMode: 'AI_FALLBACK_WHEN_LOCAL_MAPPING_ABSENT_OR_INCOMPLETE_WITH_EXTERNAL_MEDICAL_EVIDENCE',
+      externalClinicalEvidenceContext,
       localMappingCoverage: details.map((detail) => ({
         diagnosisCode: detail.diagnosisCode,
         diagnosisName: detail.diagnosisName,
@@ -221,6 +271,7 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
               reason: String(item.reason),
               againstDiagnosis: String(item.againstDiagnosis || existing.diagnosisCode),
               confidence: item.confidence === 'HIGH' ? 'HIGH' as const : item.confidence === 'LOW' ? 'LOW' as const : 'MEDIUM' as const,
+              evidenceReferences: normalizeEvidenceReferences(item.evidenceReferences),
             }));
           const localFindings = existing.procedureFindings || [];
           const mergedByCode = new Map(localFindings.map((finding) => [finding.procedureCode, finding]));
@@ -241,6 +292,7 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
               reason: String(item.reason),
               againstDiagnosis: String(item.againstDiagnosis || existing.diagnosisCode),
               confidence: item.confidence === 'HIGH' ? 'HIGH' as const : 'MEDIUM' as const,
+              evidenceReferences: normalizeEvidenceReferences(item.evidenceReferences),
             }));
         }
         if (Array.isArray(aiDetail.irrelevantProcedures) && aiDetail.irrelevantProcedures.length) {
@@ -269,6 +321,12 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
         } else if (Array.isArray(aiDetail.unmatchedProcedures) && aiDetail.unmatchedProcedures.length) {
           // Backward-compatible fallback for older AI schemas. Keep as review text, but do not add DB-only unmapped items.
           existing.unmatchedProcedures = aiDetail.unmatchedProcedures;
+        }
+        if (aiDetail.clinicalEvidenceSummary) existing.clinicalEvidenceSummary = String(aiDetail.clinicalEvidenceSummary);
+        const evidenceReferences = normalizeEvidenceReferences(aiDetail.evidenceReferences);
+        if (evidenceReferences.length > 0) existing.evidenceReferences = evidenceReferences;
+        if (['LIVE_SEARCH_USED', 'MODEL_KNOWLEDGE_WITH_REFERENCES', 'NO_EXTERNAL_REFERENCE_AVAILABLE'].includes(String(aiDetail.evidenceRetrievalStatus))) {
+          existing.evidenceRetrievalStatus = aiDetail.evidenceRetrievalStatus;
         }
         if (aiDetail.suggestedProcedures?.length) existing.suggestedProcedures = aiDetail.suggestedProcedures;
         if (Array.isArray(aiDetail.missingRequiredProcedureDetails) && aiDetail.missingRequiredProcedureDetails.length) {

@@ -225,6 +225,30 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
   }
 
   async validateDiagnosisTreatment(payload: any): Promise<{ data: any; usage?: Usage }> {
+    const evidenceReferenceSchema = z.object({
+      sourceType: z.enum([
+        'INDONESIA_GUIDELINE',
+        'WHO_GUIDELINE',
+        'SPECIALTY_SOCIETY_GUIDELINE',
+        'PUBMED',
+        'COCHRANE',
+        'CLINICAL_TRIALS',
+        'FDA',
+        'RXNORM',
+        'AAP',
+        'TOP_MEDICAL_JOURNAL',
+        'GOOGLE_SCHOLAR',
+        'OTHER',
+      ]),
+      title: z.string().describe('Specific source title. Do not invent article titles; use source family/organization title if exact title is unavailable.'),
+      organization: z.string().nullable().optional(),
+      year: z.string().nullable().optional(),
+      url: z.string().nullable().optional().describe('Official URL when available from live search. Null if not retrieved.'),
+      identifier: z.string().nullable().optional().describe('PMID, DOI, NCT, guideline id, NDC/RxCUI, or null.'),
+      relevance: z.string().describe('Why this source supports the diagnosis-procedure or diagnosis-medication reasoning.'),
+      strength: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+    });
+
     const schema = z.object({
       isValid: z.boolean(),
       score: z.number().min(0).max(100),
@@ -240,7 +264,8 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
           status: z.enum(['APPROPRIATE', 'REVIEW_NEEDED', 'INAPPROPRIATE']),
           reason: z.string().describe('Specific clinical rationale for the status, tied to diagnosis, procedure purpose, and available claim context'),
           againstDiagnosis: z.string().describe('Diagnosis/code being assessed'),
-          confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Use HIGH only when the relationship is clear from standard clinical practice or clearly unrelated')
+          confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Use HIGH only when the relationship is clear from standard clinical practice or clearly unrelated'),
+          evidenceReferences: z.array(evidenceReferenceSchema).optional().describe('External medical references used for this specific diagnosis-procedure finding, when available.')
         })).describe('One finding for every claimed procedure against this diagnosis. Use REVIEW_NEEDED when clinical context is insufficient.'),
         irrelevantProcedures: z.array(z.object({
           procedureCode: z.string(),
@@ -255,7 +280,8 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
           status: z.enum(['APPROPRIATE', 'REVIEW_NEEDED', 'INAPPROPRIATE']),
           reason: z.string().describe('Clinical reason explaining whether the medication matches this diagnosis'),
           againstDiagnosis: z.string().describe('Diagnosis/code being assessed'),
-          confidence: z.enum(['LOW', 'MEDIUM', 'HIGH'])
+          confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+          evidenceReferences: z.array(evidenceReferenceSchema).optional().describe('External medical references used for this diagnosis-medication finding, when available.')
         })).describe('Medication appropriateness findings against this diagnosis. Use REVIEW_NEEDED if indication depends on comorbidity, symptom, lab, or route context.'),
         missingRequiredProcedures: z.array(z.string()),
         missingRequiredProcedureDetails: z.array(z.object({
@@ -270,6 +296,9 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
           rationale: z.string().describe('Why this procedure is relevant to the diagnosis'),
           evidenceLevel: z.enum(['COMMON', 'OPTIONAL']).describe('Suggested procedures are not mandatory; use COMMON or OPTIONAL only')
         })).describe('Procedures relevant to this diagnosis that were NOT claimed, AI-suggested for admission review'),
+        clinicalEvidenceSummary: z.string().optional().describe('Short source-backed rationale for the diagnosis-procedure review.'),
+        evidenceReferences: z.array(evidenceReferenceSchema).optional().describe('Best references supporting this diagnosis review.'),
+        evidenceRetrievalStatus: z.enum(['LIVE_SEARCH_USED', 'MODEL_KNOWLEDGE_WITH_REFERENCES', 'NO_EXTERNAL_REFERENCE_AVAILABLE']).optional(),
         notes: z.string()
       }))
     });
@@ -285,8 +314,10 @@ You are a senior clinical pathway reviewer for healthcare claims across multiple
 CLAIM PAYLOAD:
 ${JSON.stringify(payload, null, 2)}
 
+If externalClinicalEvidenceContext is present in the payload, use it as pre-fetched official/reference context for diagnosis-procedure reasoning. Do not treat absence of articles as evidence of inappropriateness.
+
 CORE PRINCIPLES:
-1. Do NOT use hardcoded diagnosis-procedure mappings. Base your review on clinical reasoning, standard pathway logic, and the actual claim context only.
+1. Do NOT use hardcoded diagnosis-procedure mappings. Base your review on clinical reasoning, standard pathway logic, reputable medical references, and the actual claim context only.
 2. Local lookup/mapping data, if present in the payload, is supporting evidence only. If it is absent/empty/incomplete, perform direct AI clinical review; absence from mapping is NEVER evidence of non-compliance.
 3. Support multiple diagnoses. Return one detail object for EVERY diagnosis in the claim, preserving diagnosis code, name, type, and sequence context where available.
 4. Assess every CLAIMED procedure against the full episode first, then explain its relationship to each relevant diagnosis. A procedure that is appropriate for one diagnosis/comorbidity/complication should not be treated as an episode-level inconsistency merely because it is not tied to another diagnosis.
@@ -299,6 +330,16 @@ CORE PRINCIPLES:
 11. Missing required procedures must be conservative. Use REQUIRED only when a standard pathway strongly requires the item for safe care in this encounter. Common/optional items should go to suggestedProcedures, not missingRequiredProcedures.
 12. Medication findings should include supportive therapy, symptom control, antibiotics, fluids, chronic medication continuation, prophylaxis, and comorbidity context. Use REVIEW_NEEDED if indication depends on undocumented context.
 
+EXTERNAL MEDICAL EVIDENCE EXCEPTION FOR DIAGNOSIS-PROCEDURE REASONING:
+- This exception applies ONLY to clinical diagnosis/procedure/medication reasoning. It does NOT apply to tariff, drug pricing, policy, FWA, document, or payable calculation.
+- If the model/provider has native web or literature search capability, use it to support the reasoning with authoritative sources.
+- Preferred source hierarchy, inspired by the medical-mcp source architecture: Indonesian Kemenkes/PNPK/Formularium/internal clinical guideline when available; WHO or specialty society guidelines; Cochrane/systematic reviews; PubMed indexed guideline/review/clinical study; top medical journals such as NEJM/JAMA/Lancet/BMJ/Nature Medicine; FDA/RxNorm only for drug nomenclature/safety; AAP for pediatric claims.
+- Google Scholar may be used only as a discovery path, never as the sole adjudication source. Do not cite scraped Google Scholar result pages as primary evidence.
+- Do not invent PMID, DOI, URL, guideline titles, publication years, or organizations. If exact identifiers are not available, keep identifier/url null and cite the source family/organization honestly.
+- For every INAPPROPRIATE finding with MEDIUM/HIGH confidence and every REQUIRED missing procedure, include at least one evidence reference whenever available.
+- For APPROPRIATE findings, include concise references when they materially support the relation, but do not over-cite routine inpatient workflow.
+- Set evidenceRetrievalStatus to LIVE_SEARCH_USED if actual provider search/retrieval was used OR if externalClinicalEvidenceContext contains pre-fetched PubMed/reference results that you used; otherwise use MODEL_KNOWLEDGE_WITH_REFERENCES when relying on model-known reputable sources, or NO_EXTERNAL_REFERENCE_AVAILABLE if no reliable reference can be cited.
+
 OUTPUT REQUIREMENTS PER DIAGNOSIS:
 - details length must equal the number of claim diagnoses.
 - procedureFindings: include one finding for each claimed procedure.
@@ -306,7 +347,9 @@ OUTPUT REQUIREMENTS PER DIAGNOSIS:
 - unmatchedProcedures and irrelevantProcedures: include only procedures assessed as INAPPROPRIATE with MEDIUM/HIGH confidence.
 - missingRequiredProcedures: include only REQUIRED items; do not put COMMON/OPTIONAL suggestions here.
 - suggestedProcedures: advisory only, never mandatory.
-- notes: briefly summarize clinical review rationale and any missing context.
+- clinicalEvidenceSummary: summarize the strongest medical-source rationale behind the diagnosis-procedure decision.
+- evidenceReferences: include the strongest references used for this diagnosis review.
+- notes: briefly summarize clinical review rationale, evidence retrieval status, and any missing context.
 - isValid should be false only when there is at least one true REQUIRED missing item, one clearly INAPPROPRIATE procedure/medication with MEDIUM/HIGH confidence, or other material clinical inconsistency.
 - score should reflect severity: keep high scores for plausible care with context gaps; reduce more for clear unrelated procedures or missing required critical care.
 
