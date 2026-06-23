@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PathwayTimeline from "./PathwayTimeline";
-import { ArrowUp, BrainCircuit, BookOpen, Calculator, CheckCheck, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MinusCircle, FileText, Pill, Stethoscope } from 'lucide-react';
+import { ArrowUp, BrainCircuit, BookOpen, Calculator, CheckCheck, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MinusCircle, FileText, Pill, Stethoscope, AlertTriangle, Info } from 'lucide-react';
 import { resolveActualLosDays } from '@/lib/los';
 
 export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?: number }) {
@@ -34,23 +34,30 @@ export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?
         />
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="font-extrabold text-foreground leading-none" style={{ fontSize: size * 0.23 }}>{score}</span>
+        <span className="font-extrabold text-slate-800 leading-none" style={{ fontSize: size * 0.23 }}>{score}</span>
         <span className="font-medium text-muted-foreground uppercase tracking-wider mt-0.5" style={{ fontSize: size * 0.08 }}>Score</span>
       </div>
     </div>
   );
 }
 
-function ConformanceRow({ label, value, badgeLabel, isSuccess, isWarning }: { label: string; value: string; badgeLabel: string; isSuccess: boolean; isWarning?: boolean }) {
+function ConformanceRow({ label, value, badgeLabel, isSuccess, isWarning, onInfoClick }: { label: string; value: string; badgeLabel: string; isSuccess: boolean; isWarning?: boolean; onInfoClick?: () => void }) {
   return (
     <div className="flex items-center justify-between gap-4 py-3 border-b border-border/60 last:border-0">
-      <span className="text-sm font-light text-muted-foreground shrink-0">{label}</span>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <span className="text-sm font-light text-muted-foreground">{label}</span>
+        {onInfoClick && (
+          <button onClick={onInfoClick} className="text-muted-foreground hover:text-primary focus:outline-none transition-colors" title="Lihat detail">
+            <Info className="w-4 h-4" />
+          </button>
+        )}
+      </div>
       <div className="flex flex-wrap items-center justify-end gap-2 min-w-0">
-        <span className="text-sm font-light text-foreground text-right">{value}</span>
+        <span className="text-sm font-light text-slate-800 text-right">{value}</span>
         <span className={`shrink-0 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em] rounded ${
-          isSuccess ? 'bg-green-500/10 text-green-700 ring-1 ring-inset ring-green-500/20' :
-          isWarning ? 'bg-yellow-500/10 text-yellow-700 ring-1 ring-inset ring-yellow-500/20' :
-          'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'
+          isSuccess ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' :
+          isWarning ? 'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/20' :
+          'bg-rose-500/10 text-rose-700 ring-1 ring-inset ring-rose-500/20'
         }`}>
           {badgeLabel}
         </span>
@@ -99,15 +106,15 @@ function ScoreBreakdownPanel({ score, items }: { score: number; items: ScoreBrea
   const calculatedScore = Math.max(0, Math.round(totalEarnedScore));
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white">
+    <div className="rounded-lg border border-slate-200 bg-slate-100/50">
       {/* Header with totals */}
-      <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-100/60 px-4 py-3">
         <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-[0.15em] text-muted-foreground">
           <Calculator className="h-3.5 w-3.5 text-primary" />
           Skor per Aspek
         </div>
         <div className="flex items-center gap-4 text-xs">
-          <span className="text-muted-foreground">Maks: <span className="font-mono text-foreground font-light">{totalMaxScore}</span></span>
+          <span className="text-muted-foreground">Maks: <span className="font-mono text-slate-800 font-light">{totalMaxScore}</span></span>
           <span className="text-muted-foreground">Diperoleh: <span className="font-mono text-primary font-light">{Number.isFinite(score) ? score : calculatedScore}</span></span>
           <span className="text-muted-foreground">Temuan: <span className="font-mono text-amber-600 font-light">{totalFindings}</span></span>
         </div>
@@ -120,20 +127,20 @@ function ScoreBreakdownPanel({ score, items }: { score: number; items: ScoreBrea
           const hasDeduction = item.deducted > 0;
           const isPartial = hasDeduction && earnedScore > 0;
           return (
-            <div key={item.label} className="flex gap-3 px-4 py-3 transition-colors hover:bg-slate-50/70">
+            <div key={item.label} className="flex gap-3 px-4 py-3 transition-colors hover:bg-slate-100/70">
               <div className="mt-0.5 shrink-0">
                 {hasDeduction
-                  ? <MinusCircle className={`h-3.5 w-3.5 ${isPartial ? 'text-amber-500' : 'text-red-500'}`} />
-                  : <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                  ? <MinusCircle className={`h-3.5 w-3.5 ${isPartial ? 'text-amber-500' : 'text-rose-500'}`} />
+                  : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                 }
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-light text-foreground">{item.label}</p>
+                  <p className="text-sm font-light text-slate-800">{item.label}</p>
                   <span className={`shrink-0 rounded px-2 py-0.5 text-xs font-mono tabular-nums font-light ${
                     hasDeduction
-                      ? (isPartial ? 'bg-amber-500/10 text-amber-700' : 'bg-red-500/10 text-red-700')
-                      : 'bg-green-500/10 text-green-700'
+                      ? (isPartial ? 'bg-amber-500/10 text-amber-700' : 'bg-rose-500/10 text-rose-700')
+                      : 'bg-emerald-500/10 text-emerald-700'
                   }`}>
                     {earnedScore}/{maxScore}
                   </span>
@@ -155,6 +162,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   const [copied, setCopied] = useState(false);
   const [copiedInput, setCopiedInput] = useState(false);
   const [loadingInput, setLoadingInput] = useState(false);
+  const [showFwaModal, setShowFwaModal] = useState(false);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
   const [expandedDiagnosisDetails, setExpandedDiagnosisDetails] = useState<Record<string, boolean>>({});
 
   const scrollToTop = () => {
@@ -190,7 +199,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     return (
       <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden p-12 text-center">
         <div className="mx-auto w-16 h-16 rounded-full border-[3px] border-primary/20 border-t-primary animate-spin mb-6"></div>
-        <h2 className="text-xl font-light text-foreground mb-2">AI Brain is processing...</h2>
+        <h2 className="text-xl font-light text-slate-800 mb-2">AI Brain is processing...</h2>
         <p className="text-muted-foreground mb-8 max-w-md mx-auto">
           Analyzing claim data, validating procedures against Master Fee Schedule, checking drug prices, and compiling clinical pathway.
         </p>
@@ -215,17 +224,18 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
   if (job.status === "FAILED") {
     return (
-      <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 mb-4">
-          <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+      <div className="rounded-lg border border-rose-200 bg-rose-50 p-8 text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 mb-4">
+          <svg className="h-6 w-6 text-rose-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
         </div>
-        <h3 className="text-lg font-medium text-red-800">Processing Failed</h3>
-        <p className="text-sm text-red-600 mt-2 max-w-md mx-auto">{job.error || "Internal error occurred in AI Engine."}</p>
+        <h3 className="text-lg font-medium text-rose-800">Processing Failed</h3>
+        <p className="text-sm text-rose-600 mt-2 max-w-md mx-auto">{job.error || "Internal error occurred in AI Engine."}</p>
       </div>
     );
   }
 
   const result = job.outputResult || {};
+  const fwaRisk = result.fwaRisk || null;
   const policyValidation = result.policyValidation || null;
   const policyFindings = policyValidation?.findings || [];
   const persistedValidationScore = result.overallScore || result.validationScore || 0;
@@ -583,16 +593,16 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   };
 
   const renderPriceSummary = (summary: PriceSummary) => {
-    const varianceClass = summary.variance > 0 ? 'text-red-600' : summary.variance < 0 ? 'text-yellow-600' : 'text-green-600';
+    const varianceClass = summary.variance > 0 ? 'text-rose-600' : summary.variance < 0 ? 'text-amber-600' : 'text-emerald-600';
     return (
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-3">
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Total Klaim</p>
-          <p className="mt-1 font-mono text-sm font-light text-foreground">Rp {idrFormatter.format(summary.totalClaimed)}</p>
+          <p className="mt-1 font-mono text-sm font-light text-slate-800">Rp {idrFormatter.format(summary.totalClaimed)}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Total Master Data</p>
-          <p className="mt-1 font-mono text-sm font-light text-foreground">Rp {idrFormatter.format(summary.totalExpected)}</p>
+          <p className="mt-1 font-mono text-sm font-light text-slate-800">Rp {idrFormatter.format(summary.totalExpected)}</p>
         </div>
         <div className="rounded-lg border border-border bg-card p-3">
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Selisih Agregat</p>
@@ -643,10 +653,11 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     { id: "tariff", label: "Biaya & Obat", icon: <Pill className="h-4 w-4" /> },
     { id: "policy", label: "Polis & Benefit", icon: <ClipboardCheck className="h-4 w-4" /> },
     { id: "diagnosis", label: "Diagnosis & Dokumen", icon: <FileText className="h-4 w-4" /> },
+    { id: "fwa", label: "Investigasi FWA", icon: <AlertTriangle className="h-4 w-4" /> },
   ];
 
   return (
-    <div className="space-y-0">
+    <div className="space-y-6">
       {/* Scroll to top button */}
       <button
         type="button"
@@ -658,12 +669,12 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
       </button>
 
       {/* ── SECTION 1: Score & Summary Banner ─────────────────────────── */}
-      <div className="overflow-hidden rounded-t-lg border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100/50 shadow-sm">
         {/* Top bar */}
-        <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4">
+        <div className="flex items-center justify-between gap-4 border-b border-slate-200 bg-slate-100/60 px-6 py-4">
           <div className="flex items-center gap-2.5">
             <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white"><BrainCircuit className="w-4 h-4" /></span>
-            <h2 className="text-sm font-light text-foreground">AI Outcome & Validation Summary</h2>
+            <h2 className="text-sm font-light text-slate-800">AI Outcome & Validation Summary</h2>
             {workflowLatencyMs > 0 && (
               <span className="text-xs font-mono text-muted-foreground">
                 ({(workflowLatencyMs / 1000).toFixed(2)}s)
@@ -672,9 +683,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
           </div>
           <div className="flex items-center gap-2">
             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-[0.15em] ${
-              statusConfig.color === 'success' ? 'bg-green-500/10 text-green-700 border border-green-500/20' :
-              statusConfig.color === 'warning' ? 'bg-yellow-500/10 text-yellow-700 border border-yellow-500/20' :
-              'bg-red-500/10 text-red-700 border border-red-500/20'
+              statusConfig.color === 'success' ? 'bg-emerald-500/10 text-emerald-700 border border-emerald-500/20' :
+              statusConfig.color === 'warning' ? 'bg-amber-500/10 text-amber-700 border border-amber-500/20' :
+              'bg-rose-500/10 text-rose-700 border border-rose-500/20'
             }`}>
               <ClipboardCheck className="w-3 h-3" />
               {statusConfig.label}
@@ -685,13 +696,13 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
         {/* Score row: gauge left, conformance rows right */}
         <div className="grid grid-cols-1 divide-y divide-slate-200 lg:grid-cols-[200px_1fr] lg:divide-x lg:divide-y-0">
           {/* Score gauge column */}
-          <div className="flex flex-col items-center justify-center gap-3 bg-slate-50/60 p-6">
+          <div className="flex flex-col items-center justify-center gap-3 bg-slate-100/60 p-6">
             <ScoreCircularGauge score={validationScore} size={130} />
             <p className="text-xs font-mono uppercase tracking-[0.15em] text-muted-foreground text-center">Skor Validasi</p>
           </div>
 
           {/* Conformance metrics column */}
-          <div className="bg-white px-6 py-4">
+          <div className="bg-slate-100/50 px-6 py-4">
             <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Metrik Kepatuhan</p>
             <ConformanceRow
               label="Validasi Obat & Tindakan"
@@ -744,10 +755,26 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               isWarning={workflowLatencyMs > 60000}
               badgeLabel={workflowLatencyMs > 0 ? 'Tercatat Real-time' : 'Tidak Tercatat'}
             />
+            <ConformanceRow
+              label="Kepatuhan Polis & Benefit"
+              value={policyValidation ? (policyValidation.summary || `${policyFindings.length || 0} pelanggaran terdeteksi`) : 'Pengecekan Polis tidak tersedia'}
+              isSuccess={policyValidation?.status === 'PASS' || !policyValidation}
+              isWarning={policyValidation?.status === 'REVIEW_NEEDED'}
+              badgeLabel={policyValidation?.status === 'PASS' ? 'Sesuai' : policyValidation?.status === 'REVIEW_NEEDED' ? 'Perlu Review' : policyValidation?.status === 'REJECT_RECOMMENDED' ? 'Ditolak' : 'N/A'}
+              onInfoClick={() => setShowPolicyModal(true)}
+            />
+            <ConformanceRow
+              label="Fraud, Waste & Abuse (FWA)"
+              value={fwaRisk ? (fwaRisk.summary || `${fwaRisk.signals?.length || 0} Sinyal terdeteksi`) : 'Pengecekan FWA tidak tersedia'}
+              isSuccess={fwaRisk?.level === 'LOW' || !fwaRisk}
+              isWarning={fwaRisk?.level === 'MEDIUM'}
+              badgeLabel={fwaRisk ? `Risiko ${fwaRisk.level}` : 'N/A'}
+              onInfoClick={fwaRisk ? () => setShowFwaModal(true) : undefined}
+            />
             {/* Variance note */}
             <div className="mt-3 pt-3 border-t border-border/60">
               <span className="text-xs font-mono uppercase tracking-[0.15em] text-muted-foreground">Catatan Varians</span>
-              <p className="mt-1 text-sm font-light text-foreground italic">{varianceText}</p>
+              <p className="mt-1 text-sm font-light text-slate-800 italic">{varianceText}</p>
             </div>
             {losValidation?.aiJustification && (
               <div className="mt-3 pt-3 border-t border-border/60">
@@ -769,24 +796,24 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
         {/* Score Breakdown (collapsed by default within summary) */}
         <div className="border-t border-slate-200">
-          <div className="flex items-center justify-between bg-slate-50 px-6 py-3">
+          <div className="flex items-center justify-between bg-slate-100/60 px-6 py-3">
             <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Perhitungan Skor per Aspek</p>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleCopySanitizedInput}
                 disabled={loadingInput}
-                className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1 text-xs font-light text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1 text-xs font-light text-muted-foreground transition-colors hover:bg-muted hover:text-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Copy input JSON yang dikirim ke AI (sudah disanitasi PII)"
               >
-                {copiedInput ? <CheckCheck className="w-3 h-3 text-green-500" /> : loadingInput ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin inline-block" /> : <Copy className="w-3 h-3" />}
+                {copiedInput ? <CheckCheck className="w-3 h-3 text-emerald-500" /> : loadingInput ? <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin inline-block" /> : <Copy className="w-3 h-3" />}
                 {copiedInput ? 'Copied!' : 'Copy AI Input'}
               </button>
               <button
                 onClick={handleCopyJSON}
-                className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1 text-xs font-light text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="inline-flex items-center gap-1.5 rounded border border-border px-2.5 py-1 text-xs font-light text-muted-foreground transition-colors hover:bg-muted hover:text-slate-800"
                 title="Copy hasil output JSON dari AI"
               >
-                {copied ? <CheckCheck className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                {copied ? <CheckCheck className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                 {copied ? 'Copied!' : 'Export JSON'}
               </button>
             </div>
@@ -798,17 +825,17 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
       </div>
 
       {/* ── SECTION 2: Detail Tabs ─────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-b-lg border-x border-b border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100/50 shadow-sm">
         {/* Tab strip */}
-        <div className="flex overflow-x-auto border-b border-slate-200 bg-slate-100/80 hide-scrollbar">
+        <div className="flex overflow-x-auto border-b border-slate-200 bg-slate-100/80 hide-scrollbar w-full">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-5 py-3.5 text-xs font-mono uppercase tracking-[0.15em] border-b-2 whitespace-nowrap transition-colors ${
+              className={`flex-1 flex justify-center items-center gap-2 px-5 py-3.5 text-xs font-mono uppercase tracking-[0.15em] border-b-2 whitespace-nowrap transition-colors ${
                 activeTab === tab.id
-                  ? "border-primary bg-white text-primary"
-                  : "border-transparent text-muted-foreground hover:bg-white/70 hover:text-foreground"
+                  ? "border-primary bg-slate-100/50 text-primary"
+                  : "border-transparent text-muted-foreground hover:bg-slate-100/70 hover:text-slate-800"
               }`}
             >
               {tab.icon}
@@ -827,37 +854,37 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               {inputPayload && (
                 <div>
                   <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-primary">Ringkasan Klinis Pasien</p>
-                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50/30">
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100/30">
                     <div className="grid grid-cols-1 divide-y divide-slate-200 md:grid-cols-2 md:divide-x md:divide-y-0">
                       {/* Identitas */}
-                      <div className="bg-white/70 p-5">
+                      <div className="bg-slate-100/70 p-5">
                         <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Identitas Pasien</p>
                         <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
                           <span className="text-muted-foreground font-light">Nama</span>
-                          <span className="text-foreground font-light">{inputPayload.patient?.name || '—'}</span>
+                          <span className="text-slate-800 font-light">{inputPayload.patient?.name || '—'}</span>
                           <span className="text-muted-foreground font-light">Gender / Tgl Lahir</span>
-                          <span className="text-foreground font-light">{inputPayload.patient?.gender || '—'} · {(inputPayload.patient?.birthDate || inputPayload.patient?.dateOfBirth) ? new Date(inputPayload.patient.birthDate || inputPayload.patient.dateOfBirth).toLocaleDateString('id-ID') : '—'}</span>
+                          <span className="text-slate-800 font-light">{inputPayload.patient?.gender || '—'} · {(inputPayload.patient?.birthDate || inputPayload.patient?.dateOfBirth) ? new Date(inputPayload.patient.birthDate || inputPayload.patient.dateOfBirth).toLocaleDateString('id-ID') : '—'}</span>
                           <span className="text-muted-foreground font-light">MRN</span>
-                          <span className="text-foreground font-light font-mono">{inputPayload.patient?.identifier?.[0]?.value || inputPayload.patient?.id || '—'}</span>
+                          <span className="text-slate-800 font-light font-mono">{inputPayload.patient?.identifier?.[0]?.value || inputPayload.patient?.id || '—'}</span>
                           <span className="text-muted-foreground font-light">Asuransi</span>
-                          <span className="text-foreground font-light">{inputPayload.extra?.insuranceNumber || '—'}</span>
+                          <span className="text-slate-800 font-light">{inputPayload.extra?.insuranceNumber || '—'}</span>
                         </div>
                       </div>
                       {/* Episode */}
-                      <div className="bg-slate-50/50 p-5">
+                      <div className="bg-slate-100/50 p-5">
                         <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Episode Perawatan</p>
                         <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-sm">
                           <span className="text-muted-foreground font-light">Jenis</span>
-                          <span className="text-foreground font-light">{inputPayload.encounter?.type || inputPayload.encounter?.class?.code || '—'}</span>
+                          <span className="text-slate-800 font-light">{inputPayload.encounter?.type || inputPayload.encounter?.class?.code || '—'}</span>
                           <span className="text-muted-foreground font-light">Masuk</span>
-                          <span className="text-foreground font-light">{(inputPayload.encounter?.admissionDate || inputPayload.encounter?.period?.start) ? new Date(inputPayload.encounter.admissionDate || inputPayload.encounter.period.start).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
+                          <span className="text-slate-800 font-light">{(inputPayload.encounter?.admissionDate || inputPayload.encounter?.period?.start) ? new Date(inputPayload.encounter.admissionDate || inputPayload.encounter.period.start).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
                           <span className="text-muted-foreground font-light">Pulang</span>
-                          <span className="text-foreground font-light">{(inputPayload.encounter?.dischargeDate || inputPayload.encounter?.period?.end) ? new Date(inputPayload.encounter.dischargeDate || inputPayload.encounter.period.end).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
+                          <span className="text-slate-800 font-light">{(inputPayload.encounter?.dischargeDate || inputPayload.encounter?.period?.end) ? new Date(inputPayload.encounter.dischargeDate || inputPayload.encounter.period.end).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</span>
                           <span className="text-muted-foreground font-light">LOS</span>
                           {actualLOSVal > 0 ? (
-                            <span className="text-foreground font-light">{actualLOSVal} Hari <span className="text-muted-foreground">{expectedLOSVal > 0 ? `(Standar AI: ${expectedLOSVal} hari)` : ''}</span></span>
+                            <span className="text-slate-800 font-light">{actualLOSVal} Hari <span className="text-muted-foreground">{expectedLOSVal > 0 ? `(Standar AI: ${expectedLOSVal} hari)` : ''}</span></span>
                           ) : (
-                            <span className="text-foreground font-light">—</span>
+                            <span className="text-slate-800 font-light">—</span>
                           )}
                         </div>
                       </div>
@@ -865,7 +892,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
                     {/* Diagnoses */}
                     {inputPayload.diagnoses?.length > 0 && (
-                      <div className="border-t border-slate-200 bg-white/65 p-5">
+                      <div className="border-t border-slate-200 bg-slate-100/65 p-5">
                         <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-muted-foreground mb-3">Diagnosis</p>
                         <div className="flex flex-wrap gap-2 mb-3">
                           {inputPayload.diagnoses.map((d: any, i: number) => (
@@ -900,7 +927,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           {(inputPayload.procedures || []).slice(0, 5).map((p: any, i: number) => {
                             const name = p.name || p.description || p.procedureName || 'Tindakan medis';
                             const code = p.code || p.procedureCode;
-                            return <li key={i} className="text-xs text-muted-foreground font-light">· <span className="text-foreground">{name}</span>{code ? <span className="font-mono"> — {code}</span> : null}</li>;
+                            return <li key={i} className="text-xs text-muted-foreground font-light">· <span className="text-slate-800">{name}</span>{code ? <span className="font-mono"> — {code}</span> : null}</li>;
                           })}
                           {inputPayload.procedures?.length > 5 && <li className="text-xs text-muted-foreground">+ {inputPayload.procedures.length - 5} lainnya...</li>}
                         </ul>
@@ -935,7 +962,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                   )}
                 </div>
                 {inputPayload.diagnoses?.length > 1 && (
-                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-muted-foreground">
+                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-100/60 p-3 text-xs leading-5 text-muted-foreground">
                     Pathway ini tetap memakai diagnosis primer sebagai driver utama, tetapi AI generator menerima diagnosis sekunder/komplikasi sebagai konteks untuk monitoring, terapi pendukung, risiko, dan kriteria pulang.
                   </div>
                 )}
@@ -949,11 +976,11 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
             <div className="space-y-10 animate-fade-in">
               {/* Fee Schedule Validation */}
               <div>
-                <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-foreground">Master Fee Schedule Validation</p>
+                <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-slate-800">Master Fee Schedule Validation</p>
                 {tariffPriceSummary ? renderPriceSummary(tariffPriceSummary) : null}
-                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-100/50">
                   <table className="w-full text-left text-sm">
-                    <thead className="border-b border-slate-200 bg-slate-50 text-xs font-mono uppercase tracking-[0.2em] text-foreground/70">
+                    <thead className="border-b border-slate-200 bg-slate-100/60 text-xs font-mono uppercase tracking-[0.2em] text-slate-800/70">
                       <tr>
                         <th className="px-4 py-3">Procedure</th>
                         <th className="px-4 py-3 text-right">Qty</th>
@@ -974,16 +1001,16 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         const masterTotal = getProcedureMasterTotal(item);
                         const varianceAmount = getPriceVariance(toFiniteNumber(claimedTotal), masterTotal);
                         return (
-                          <tr key={i} className={`transition-colors ${isOver ? "bg-red-500/5" : isNotFound || isUnder ? "bg-yellow-500/5" : "hover:bg-muted/30"}`}>
+                          <tr key={i} className={`transition-colors ${isOver ? "bg-rose-500/5" : isNotFound || isUnder ? "bg-amber-500/5" : "hover:bg-muted/30"}`}>
                             <td className="px-4 py-3">
-                              <p className="font-light text-foreground">{getProcedureDisplayName(item)}</p>
+                              <p className="font-light text-slate-800">{getProcedureDisplayName(item)}</p>
                               {getProcedureDisplayCode(item) && <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{getProcedureDisplayCode(item)}</p>}
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-xs font-light text-muted-foreground">
                               {item.quantity || 1}
                             </td>
                             <td className="px-4 py-3 text-right">
-                              <div className="font-mono text-sm font-light text-foreground">{claimedTotal ? new Intl.NumberFormat('id-ID').format(claimedTotal) : '—'}</div>
+                              <div className="font-mono text-sm font-light text-slate-800">{claimedTotal ? new Intl.NumberFormat('id-ID').format(claimedTotal) : '—'}</div>
                               {claimedUnit ? (
                                 <div className="text-[10px] text-muted-foreground font-mono mt-0.5">@ {new Intl.NumberFormat('id-ID').format(claimedUnit)}</div>
                               ) : null}
@@ -996,7 +1023,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                             </td>
                             <td className="px-4 py-3 text-right font-mono text-xs">
                               {isNotFound ? '—' : (
-                                <div className={variancePct > 0 ? 'text-red-500' : variancePct < -15 ? 'text-yellow-500' : 'text-green-600'}>
+                                <div className={variancePct > 0 ? 'text-rose-500' : variancePct < -15 ? 'text-amber-500' : 'text-emerald-600'}>
                                   <span>{variancePct > 0 ? '+' : ''}{variancePct.toFixed(1)}%</span>
                                   {varianceAmount !== null && (
                                     <div className="mt-0.5 text-[10px] font-light">{formatVarianceAmount(varianceAmount)}</div>
@@ -1006,13 +1033,13 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                             </td>
                             <td className="px-4 py-3 text-center">
                               {isOver ? (
-                                <span className="inline-flex items-center rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-red-600 ring-1 ring-inset ring-red-500/20">Overcharge</span>
+                                <span className="inline-flex items-center rounded bg-rose-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-rose-600 ring-1 ring-inset ring-rose-500/20">Overcharge</span>
                               ) : isUnder ? (
-                                <span className="inline-flex items-center rounded bg-yellow-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-yellow-600 ring-1 ring-inset ring-yellow-500/20">Undercharge</span>
+                                <span className="inline-flex items-center rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-amber-600 ring-1 ring-inset ring-amber-500/20">Undercharge</span>
                               ) : isNotFound ? (
                                 <span className="inline-flex items-center rounded bg-orange-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-orange-600 ring-1 ring-inset ring-orange-500/20">Unregistered</span>
                               ) : (
-                                <span className="inline-flex items-center rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-green-600 ring-1 ring-inset ring-green-500/20">Compliant</span>
+                                <span className="inline-flex items-center rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-emerald-600 ring-1 ring-inset ring-emerald-500/20">Compliant</span>
                               )}
                             </td>
                           </tr>
@@ -1031,11 +1058,11 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               {/* Drug Price Validation */}
               {drugItems && drugItems.length > 0 && (
                 <div>
-                  <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-foreground">Drug Price Validation</p>
+                  <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-slate-800">Drug Price Validation</p>
                   {drugPriceSummary ? renderPriceSummary(drugPriceSummary) : null}
-                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-100/50">
                     <table className="w-full text-left text-sm">
-                      <thead className="border-b border-slate-200 bg-slate-50 text-xs font-mono uppercase tracking-[0.2em] text-foreground/70">
+                      <thead className="border-b border-slate-200 bg-slate-100/60 text-xs font-mono uppercase tracking-[0.2em] text-slate-800/70">
                         <tr>
                           <th className="px-4 py-3">Drug Name</th>
                           <th className="px-4 py-3 text-right">Qty</th>
@@ -1057,9 +1084,9 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           const drugMasterTotal = getDrugMasterTotal(item);
                           const drugVarianceAmount = getPriceVariance(toFiniteNumber(drugClaimedTotal), drugMasterTotal);
                           return (
-                            <tr key={i} className={`transition-colors ${isDrugOver ? "bg-red-500/5" : isDrugNotFound || isDrugUnder ? "bg-yellow-500/5" : "hover:bg-muted/30"}`}>
+                            <tr key={i} className={`transition-colors ${isDrugOver ? "bg-rose-500/5" : isDrugNotFound || isDrugUnder ? "bg-amber-500/5" : "hover:bg-muted/30"}`}>
                               <td className="px-4 py-3">
-                                <p className="font-light text-foreground">{item.name || item.medicationName}</p>
+                                <p className="font-light text-slate-800">{item.name || item.medicationName}</p>
                                 {item.resolvedProductName && (
                                   <p className="text-[10px] text-primary/80 mt-0.5">Referensi: {item.resolvedProductName}</p>
                                 )}
@@ -1074,7 +1101,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 {item.quantity || 1}
                               </td>
                               <td className="px-4 py-3 text-right">
-                                <div className="font-mono text-sm font-light text-foreground">{drugClaimedTotal ? new Intl.NumberFormat('id-ID').format(drugClaimedTotal) : '—'}</div>
+                                <div className="font-mono text-sm font-light text-slate-800">{drugClaimedTotal ? new Intl.NumberFormat('id-ID').format(drugClaimedTotal) : '—'}</div>
                                 {drugClaimedUnit ? (
                                   <div className="text-[10px] text-muted-foreground font-mono mt-0.5">@ {new Intl.NumberFormat('id-ID').format(drugClaimedUnit)}</div>
                                 ) : null}
@@ -1092,7 +1119,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                               </td>
                               <td className="px-4 py-3 text-right font-mono text-xs">
                                 {isDrugNotFound || isDrugNonMed ? '—' : (
-                                  <div className={drugVariancePct > 0 ? 'text-red-500' : drugVariancePct < -15 ? 'text-yellow-500' : 'text-green-600'}>
+                                  <div className={drugVariancePct > 0 ? 'text-rose-500' : drugVariancePct < -15 ? 'text-amber-500' : 'text-emerald-600'}>
                                     <span>{drugVariancePct > 0 ? '+' : ''}{drugVariancePct.toFixed(1)}%</span>
                                     {drugVarianceAmount !== null && (
                                       <div className="mt-0.5 text-[10px] font-light">{formatVarianceAmount(drugVarianceAmount)}</div>
@@ -1102,15 +1129,15 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                               </td>
                               <td className="px-4 py-3 text-center">
                                 {isDrugOver ? (
-                                  <span className="inline-flex items-center rounded bg-red-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-red-600 ring-1 ring-inset ring-red-500/20">Overcharge</span>
+                                  <span className="inline-flex items-center rounded bg-rose-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-rose-600 ring-1 ring-inset ring-rose-500/20">Overcharge</span>
                                 ) : isDrugUnder ? (
-                                  <span className="inline-flex items-center rounded bg-yellow-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-yellow-600 ring-1 ring-inset ring-yellow-500/20">Undercharge</span>
+                                  <span className="inline-flex items-center rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-amber-600 ring-1 ring-inset ring-amber-500/20">Undercharge</span>
                                 ) : isDrugNonMed ? (
-                                  <span className="inline-flex items-center rounded bg-slate-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-slate-500 ring-1 ring-inset ring-slate-500/20">Bukan Obat</span>
+                                  <span className="inline-flex items-center rounded bg-slate-100/600/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-slate-500 ring-1 ring-inset ring-slate-500/20">Bukan Obat</span>
                                 ) : isDrugNotFound ? (
                                   <span className="inline-flex items-center rounded bg-orange-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-orange-600 ring-1 ring-inset ring-orange-500/20">Referensi N/A</span>
                                 ) : (
-                                  <span className="inline-flex items-center rounded bg-green-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-green-600 ring-1 ring-inset ring-green-500/20">Compliant</span>
+                                  <span className="inline-flex items-center rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] text-emerald-600 ring-1 ring-inset ring-emerald-500/20">Compliant</span>
                                 )}
                               </td>
                             </tr>
@@ -1127,48 +1154,48 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
           {/* ── TAB: POLICY & BENEFIT ─────────────────────────────────── */}
           {activeTab === "policy" && (
             <div className="space-y-6 animate-fade-in">
-              <div className="rounded-lg border border-slate-200 bg-slate-50/30 p-5">
+              <div className="rounded-lg border border-slate-200 bg-slate-100/30 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <p className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Policy & Benefit Engine</p>
-                    <h3 className="mt-2 text-xl font-light text-foreground">Validasi TC Polis dan benefit</h3>
+                    <h3 className="mt-2 text-xl font-light text-slate-800">Validasi TC Polis dan benefit</h3>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                       {policyValidation?.summary || 'Belum ada hasil validasi polis untuk klaim ini. Rule dapat dikirim dari sistem integrasi atau dikelola sebagai master data client.'}
                     </p>
                   </div>
                   <span className={`inline-flex w-fit items-center rounded px-2.5 py-1 text-xs font-mono uppercase tracking-[0.12em] ${
                     !policyValidation || policyValidation.status === 'PASS'
-                      ? 'bg-green-500/10 text-green-700 ring-1 ring-inset ring-green-500/20'
+                      ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20'
                       : policyValidation.status === 'WARNING'
                         ? 'bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/20'
-                        : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'
+                        : 'bg-rose-500/10 text-rose-700 ring-1 ring-inset ring-rose-500/20'
                   }`}>
                     {policyValidation?.status || 'BELUM ADA'}
                   </span>
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-4">
-                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-100/50 p-4">
                     <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-primary/80">Rule Dievaluasi</p>
-                    <p className="mt-2 font-mono text-2xl font-light text-foreground">{policyValidation?.evaluatedRuleCount ?? 0}</p>
+                    <p className="mt-2 font-mono text-2xl font-light text-slate-800">{policyValidation?.evaluatedRuleCount ?? 0}</p>
                   </div>
-                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-100/50 p-4">
                     <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-primary/80">Temuan</p>
-                    <p className="mt-2 font-mono text-2xl font-light text-foreground">{policyFindings.length}</p>
+                    <p className="mt-2 font-mono text-2xl font-light text-slate-800">{policyFindings.length}</p>
                   </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-100/60 p-4">
                     <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Covered</p>
-                    <p className="mt-2 font-mono text-lg font-light text-foreground">Rp {formatIdrAmount(policyValidation?.totals.coveredAmount ?? 0)}</p>
+                    <p className="mt-2 font-mono text-lg font-light text-slate-800">Rp {formatIdrAmount(policyValidation?.totals.coveredAmount ?? 0)}</p>
                   </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-100/60 p-4">
                     <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Excess Estimasi</p>
-                    <p className="mt-2 font-mono text-lg font-light text-red-600">Rp {formatIdrAmount(policyValidation?.totals.excessAmount ?? 0)}</p>
+                    <p className="mt-2 font-mono text-lg font-light text-rose-600">Rp {formatIdrAmount(policyValidation?.totals.excessAmount ?? 0)}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white">
-                <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
+              <div className="rounded-lg border border-slate-200 bg-slate-100/50">
+                <div className="border-b border-slate-200 bg-slate-100/60 px-4 py-3">
                   <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground">Temuan Rule Polis</p>
                 </div>
                 {policyFindings.length > 0 ? (
@@ -1178,26 +1205,26 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-medium text-foreground">{finding.ruleName}</p>
+                              <p className="text-sm font-medium text-slate-800">{finding.ruleName}</p>
                               <span className="rounded bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{finding.ruleType}</span>
                               <span className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] ${
                                 finding.severity === 'INFO'
-                                  ? 'bg-slate-500/10 text-slate-600'
+                                  ? 'bg-slate-100/600/10 text-slate-600'
                                   : finding.severity === 'WARNING'
                                     ? 'bg-amber-500/10 text-amber-700'
-                                    : 'bg-red-500/10 text-red-700'
+                                    : 'bg-rose-500/10 text-rose-700'
                               }`}>
                                 {finding.severity}
                               </span>
                             </div>
                             <p className="mt-2 text-sm leading-6 text-muted-foreground">{finding.message}</p>
-                            <p className="mt-1 text-sm leading-6 text-foreground">Rekomendasi: {finding.recommendation}</p>
+                            <p className="mt-1 text-sm leading-6 text-slate-800">Rekomendasi: {finding.recommendation}</p>
                           </div>
                           {finding.calculation && (
                             <div className="min-w-52 rounded-lg border border-border bg-muted/20 p-3 text-xs">
-                              <div className="flex justify-between gap-4 py-1"><span className="text-muted-foreground">Claim</span><span className="font-mono text-foreground">Rp {formatIdrAmount(finding.calculation.claimAmount)}</span></div>
-                              <div className="flex justify-between gap-4 py-1"><span className="text-muted-foreground">Covered</span><span className="font-mono text-foreground">Rp {formatIdrAmount(finding.calculation.coveredAmount)}</span></div>
-                              <div className="flex justify-between gap-4 py-1"><span className="text-muted-foreground">Excess</span><span className="font-mono text-red-600">Rp {formatIdrAmount(finding.calculation.excessAmount)}</span></div>
+                              <div className="flex justify-between gap-4 py-1"><span className="text-muted-foreground">Claim</span><span className="font-mono text-slate-800">Rp {formatIdrAmount(finding.calculation.claimAmount)}</span></div>
+                              <div className="flex justify-between gap-4 py-1"><span className="text-muted-foreground">Covered</span><span className="font-mono text-slate-800">Rp {formatIdrAmount(finding.calculation.coveredAmount)}</span></div>
+                              <div className="flex justify-between gap-4 py-1"><span className="text-muted-foreground">Excess</span><span className="font-mono text-rose-600">Rp {formatIdrAmount(finding.calculation.excessAmount)}</span></div>
                             </div>
                           )}
                         </div>
@@ -1205,7 +1232,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           <div className="mt-3 flex flex-wrap gap-2">
                             {finding.evidence.map((evidence: any) => (
                               <span key={`${finding.ruleCode}-${evidence.type}-${evidence.label}-${evidence.value}`} className="inline-flex rounded border border-border bg-muted/30 px-2 py-1 text-xs text-muted-foreground">
-                                {evidence.label}: <span className="ml-1 font-mono text-foreground">{evidence.value}</span>
+                                {evidence.label}: <span className="ml-1 font-mono text-slate-800">{evidence.value}</span>
                               </span>
                             ))}
                           </div>
@@ -1227,7 +1254,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
             <div className="space-y-10 animate-fade-in">
               {/* Diagnosis vs Procedure Validation */}
               <div>
-                <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-foreground">Diagnosis vs Procedure Validation</p>
+                <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-slate-800">Diagnosis vs Procedure Validation</p>
                 <div className="space-y-3">
                   {diagDetails.map((diag: any, i: number) => {
                     const diagnosisKey = `${diag.diagnosisCode || 'diagnosis'}-${i}`;
@@ -1236,25 +1263,25 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                     const isExpanded = isDiagnosisDetailExpanded(diagnosisKey);
 
                     return (
-                      <div key={diagnosisKey} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                      <div key={diagnosisKey} className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100/50">
                         {/* Diag header */}
-                        <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3.5 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-100/60 px-5 py-3.5 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="font-mono text-xs font-light text-primary bg-primary/10 px-2 py-0.5 rounded">{diag.diagnosisCode}</span>
                               {diagnosisType && (
                                 <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.15em] text-muted-foreground">{diagnosisType}</span>
                               )}
-                              <h4 className="font-light text-foreground text-sm">{diag.diagnosisName || diag.diagnosisCode}</h4>
+                              <h4 className="font-light text-slate-800 text-sm">{diag.diagnosisName || diag.diagnosisCode}</h4>
                             </div>
                             {diag.clinicalSummary && isExpanded && (
                               <p className="text-xs text-muted-foreground mt-1.5 italic max-w-xl">{diag.clinicalSummary}</p>
                             )}
                             {diag.clinicalEvidenceSummary && isExpanded && (
-                              <div className="mt-3 rounded-md border border-slate-200 bg-white p-3">
+                              <div className="mt-3 rounded-md border border-slate-200 bg-slate-100/50 p-3">
                                 <div className="flex items-start gap-2">
                                   <BrainCircuit className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                                  <p className="text-xs text-foreground/90 leading-relaxed">{diag.clinicalEvidenceSummary}</p>
+                                  <p className="text-xs text-slate-800/90 leading-relaxed">{diag.clinicalEvidenceSummary}</p>
                                 </div>
                                 {diag.evidenceReferences?.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).length > 0 && (
                                   <div className="mt-3">
@@ -1263,7 +1290,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                     </p>
                                     <div className="flex flex-col gap-1.5">
                                       {diag.evidenceReferences.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).map((ref: any, rIdx: number) => (
-                                        <div key={rIdx} className="text-[11px] bg-white rounded-md border border-slate-200 px-2.5 py-2">
+                                        <div key={rIdx} className="text-[11px] bg-slate-100/50 rounded-md border border-slate-200 px-2.5 py-2">
                                           <p className="font-medium text-slate-800 leading-snug">{ref.title}</p>
                                           {(ref.organization || ref.year) && <p className="text-slate-500 mt-0.5">{ref.organization} {ref.year}</p>}
                                         </div>
@@ -1278,7 +1305,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                             type="button"
                             onClick={() => toggleDiagnosisDetail(diagnosisKey)}
                             aria-expanded={isExpanded}
-                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded border border-border bg-card px-3 py-2 text-xs font-light text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 shrink-0"
+                            className="inline-flex min-h-10 items-center justify-center gap-2 rounded border border-border bg-card px-3 py-2 text-xs font-light text-muted-foreground transition-colors hover:bg-muted hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/30 shrink-0"
                           >
                             {isExpanded ? 'Sembunyikan detail' : 'Tampilkan detail'}
                             <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
@@ -1298,7 +1325,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                       <p className="font-medium text-orange-900">{detail?.name || p}</p>
                                       {detail?.code && <p className="mt-0.5 font-mono text-[11px] text-orange-700/70">{detail.code}</p>}
                                       {detail?.reason && (
-                                        <div className="mt-2 rounded-md bg-white/60 p-2.5 border border-orange-100">
+                                        <div className="mt-2 rounded-md bg-slate-100/60 p-2.5 border border-orange-100">
                                           <div className="flex items-start gap-2">
                                             <BrainCircuit className="w-4 h-4 text-orange-500 shrink-0 mt-0.5 opacity-70" />
                                             <div>
@@ -1315,35 +1342,35 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           )}
                           
                           {diag.procedureFindings && diag.procedureFindings.length > 0 && (
-                            <div className="p-3 bg-slate-500/5 border border-border rounded-md">
-                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-foreground mb-1.5">Kesesuaian tindakan terhadap diagnosis ({diag.procedureFindings.length})</p>
+                            <div className="p-3 bg-slate-100/600/5 border border-border rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-slate-800 mb-1.5">Kesesuaian tindakan terhadap diagnosis ({diag.procedureFindings.length})</p>
                               <p className="mb-2 text-xs leading-5 text-muted-foreground">Bagian ini menjelaskan apakah tindakan yang diklaim sesuai, perlu konteks tambahan, atau tidak sesuai terhadap diagnosis.</p>
                               <ul className="space-y-2">
                                 {diag.procedureFindings.map((p: any, j: number) => {
                                   const isIssue = p.status === 'REVIEW_NEEDED' || p.status === 'INAPPROPRIATE';
                                   return (
-                                    <li key={j} className={`rounded bg-card p-3 text-sm border ${isIssue ? 'border-amber-200 bg-amber-50/30' : 'border-green-200 bg-green-50/30'}`}>
+                                    <li key={j} className={`rounded bg-card p-3 text-sm border ${isIssue ? 'border-amber-200 bg-amber-50/30' : 'border-emerald-200 bg-emerald-50/30'}`}>
                                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-2">
                                         <div>
-                                          <p className="font-medium text-foreground">{getProcedureLine(p).name}</p>
+                                          <p className="font-medium text-slate-800">{getProcedureLine(p).name}</p>
                                           {getProcedureLine(p).code && <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{getProcedureLine(p).code}</p>}
                                         </div>
-                                        <span className={`w-fit shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${p.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : p.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                                        <span className={`w-fit shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${p.status === 'APPROPRIATE' ? 'bg-emerald-500/10 text-emerald-700' : p.status === 'INAPPROPRIATE' ? 'bg-rose-500/10 text-rose-700' : 'bg-amber-500/10 text-amber-700'}`}>
                                           {p.status === 'APPROPRIATE' ? 'Sesuai' : p.status === 'INAPPROPRIATE' ? 'Tidak Sesuai' : 'Perlu Review'}
                                         </span>
                                       </div>
-                                      <div className="rounded-md bg-white/60 p-2.5 border border-slate-100 mb-2">
+                                      <div className="rounded-md bg-slate-100/60 p-2.5 border border-slate-100 mb-2">
                                         <div className="flex items-start gap-2">
                                           <BrainCircuit className="w-4 h-4 text-primary shrink-0 mt-0.5 opacity-70" />
                                           <div>
-                                            <p className="text-xs text-foreground/90 leading-relaxed">{p.reason}</p>
+                                            <p className="text-xs text-slate-800/90 leading-relaxed">{p.reason}</p>
                                           </div>
                                         </div>
                                       </div>
                                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                                        <span>Dinilai terhadap: <span className="font-mono text-foreground/80">{p.againstDiagnosis || diag.diagnosisCode}</span></span>
+                                        <span>Dinilai terhadap: <span className="font-mono text-slate-800/80">{p.againstDiagnosis || diag.diagnosisCode}</span></span>
                                         <span>·</span>
-                                        <span>Keyakinan AI: <span className="text-foreground/80">{p.confidence === 'HIGH' ? 'Tinggi' : p.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</span></span>
+                                        <span>Keyakinan AI: <span className="text-slate-800/80">{p.confidence === 'HIGH' ? 'Tinggi' : p.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</span></span>
                                       </div>
                                       {p.evidenceReferences?.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).length > 0 && (
                                         <div className="mt-3">
@@ -1352,7 +1379,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                           </p>
                                           <div className="flex flex-col gap-1.5">
                                             {p.evidenceReferences.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).map((ref: any, rIdx: number) => (
-                                              <div key={rIdx} className="text-[11px] bg-white rounded-md border border-slate-200 px-2.5 py-2">
+                                              <div key={rIdx} className="text-[11px] bg-slate-100/50 rounded-md border border-slate-200 px-2.5 py-2">
                                                 <p className="font-medium text-slate-800 leading-snug">{ref.title}</p>
                                                 {(ref.organization || ref.year) && <p className="text-slate-500 mt-0.5">{ref.organization} {ref.year}</p>}
                                                 {ref.relevance && <p className="text-slate-600 italic mt-1.5 border-l-2 border-slate-200 pl-2">{ref.relevance}</p>}
@@ -1369,18 +1396,18 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           )}
 
                           {(!diag.procedureFindings || diag.procedureFindings.length === 0) && diag.matchedProcedures && diag.matchedProcedures.length > 0 && (
-                            <div className="p-3 bg-slate-500/5 border border-border rounded-md">
-                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-foreground mb-1.5">Kesesuaian tindakan terhadap diagnosis ({diag.matchedProcedures.length})</p>
+                            <div className="p-3 bg-slate-100/600/5 border border-border rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-slate-800 mb-1.5">Kesesuaian tindakan terhadap diagnosis ({diag.matchedProcedures.length})</p>
                               <p className="mb-2 text-xs leading-5 text-muted-foreground">Tindakan ini dinilai sesuai oleh AI. (Detail reasoning belum didukung pada hasil analisis versi sebelumnya).</p>
                               <ul className="space-y-2">
                                 {diag.matchedProcedures.map((p: any, j: number) => (
-                                  <li key={j} className="rounded bg-card p-3 text-sm border border-green-200 bg-green-50/30">
+                                  <li key={j} className="rounded bg-card p-3 text-sm border border-emerald-200 bg-emerald-50/30">
                                     <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                                       <div>
-                                        <p className="font-medium text-foreground">{getProcedureLine(p).name}</p>
+                                        <p className="font-medium text-slate-800">{getProcedureLine(p).name}</p>
                                         {getProcedureLine(p).code && <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{getProcedureLine(p).code}</p>}
                                       </div>
-                                      <span className="w-fit shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] bg-green-500/10 text-green-700">
+                                      <span className="w-fit shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] bg-emerald-500/10 text-emerald-700">
                                         Sesuai
                                       </span>
                                     </div>
@@ -1391,45 +1418,45 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           )}
 
                           {((diag.irrelevantProcedures && diag.irrelevantProcedures.length > 0) || (diag.unmatchedProcedures && diag.unmatchedProcedures.length > 0)) && (
-                            <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-md">
-                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-red-600 mb-1.5">Tindakan perlu review relevansi ({(diag.irrelevantProcedures?.length || diag.unmatchedProcedures?.length || 0)})</p>
-                              <p className="mb-2 text-xs leading-5 text-red-700/80">Tindakan di bawah ini hanya ditandai jika AI memberi alasan klinis spesifik. Tidak relevan berarti tidak ada hubungan jelas terhadap diagnosis yang dinilai.</p>
+                            <div className="p-3 bg-rose-500/5 border border-rose-500/20 rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-rose-600 mb-1.5">Tindakan perlu review relevansi ({(diag.irrelevantProcedures?.length || diag.unmatchedProcedures?.length || 0)})</p>
+                              <p className="mb-2 text-xs leading-5 text-rose-700/80">Tindakan di bawah ini hanya ditandai jika AI memberi alasan klinis spesifik. Tidak relevan berarti tidak ada hubungan jelas terhadap diagnosis yang dinilai.</p>
                               <ul className="space-y-2">
                                 {(diag.irrelevantProcedures?.length ? diag.irrelevantProcedures : diag.unmatchedProcedures).map((item: any, j: number) => {
                                   const isDetailed = typeof item === 'object' && item !== null;
                                   return (
-                                    <li key={j} className="rounded bg-card p-3 text-sm border border-red-200 bg-red-50/30">
+                                    <li key={j} className="rounded bg-card p-3 text-sm border border-rose-200 bg-rose-50/30">
                                       {isDetailed ? (
                                         <div>
-                                          <p className="font-medium text-red-900">{getProcedureLine(item).name}</p>
-                                          {getProcedureLine(item).code && <p className="mt-0.5 font-mono text-[11px] text-red-700/70">{getProcedureLine(item).code}</p>}
+                                          <p className="font-medium text-rose-900">{getProcedureLine(item).name}</p>
+                                          {getProcedureLine(item).code && <p className="mt-0.5 font-mono text-[11px] text-rose-700/70">{getProcedureLine(item).code}</p>}
                                         </div>
                                       ) : (
-                                        <p className="font-medium text-red-900">{String(item).split(':')[0]}</p>
+                                        <p className="font-medium text-rose-900">{String(item).split(':')[0]}</p>
                                       )}
                                       
                                       {isDetailed ? (
                                         <>
-                                          <div className="mt-2 rounded-md bg-white/60 p-2.5 border border-red-100 mb-2">
+                                          <div className="mt-2 rounded-md bg-slate-100/60 p-2.5 border border-rose-100 mb-2">
                                             <div className="flex items-start gap-2">
-                                              <BrainCircuit className="w-4 h-4 text-red-500 shrink-0 mt-0.5 opacity-70" />
+                                              <BrainCircuit className="w-4 h-4 text-rose-500 shrink-0 mt-0.5 opacity-70" />
                                               <div>
-                                                <p className="text-xs text-red-900/90 leading-relaxed">{item.reason}</p>
+                                                <p className="text-xs text-rose-900/90 leading-relaxed">{item.reason}</p>
                                               </div>
                                             </div>
                                           </div>
-                                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-red-700/70">
-                                            <span>Dinilai terhadap: <span className="font-mono text-red-800/80">{item.againstDiagnosis || diag.diagnosisCode}</span></span>
+                                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-rose-700/70">
+                                            <span>Dinilai terhadap: <span className="font-mono text-rose-800/80">{item.againstDiagnosis || diag.diagnosisCode}</span></span>
                                             <span>·</span>
-                                            <span>Keyakinan AI: <span className="text-red-800/80">{item.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</span></span>
+                                            <span>Keyakinan AI: <span className="text-rose-800/80">{item.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</span></span>
                                           </div>
                                         </>
                                       ) : String(item).includes(':') ? (
-                                        <div className="mt-2 rounded-md bg-white/60 p-2.5 border border-red-100">
+                                        <div className="mt-2 rounded-md bg-slate-100/60 p-2.5 border border-rose-100">
                                           <div className="flex items-start gap-2">
-                                            <BrainCircuit className="w-4 h-4 text-red-500 shrink-0 mt-0.5 opacity-70" />
+                                            <BrainCircuit className="w-4 h-4 text-rose-500 shrink-0 mt-0.5 opacity-70" />
                                             <div>
-                                              <p className="text-xs text-red-900/90 leading-relaxed">{String(item).split(':').slice(1).join(':').trim()}</p>
+                                              <p className="text-xs text-rose-900/90 leading-relaxed">{String(item).split(':').slice(1).join(':').trim()}</p>
                                             </div>
                                           </div>
                                         </div>
@@ -1442,32 +1469,32 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           )}
 
                           {diag.medicationFindings && diag.medicationFindings.length > 0 && (
-                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-md">
-                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-foreground mb-1.5">Kesesuaian obat terhadap diagnosis ({diag.medicationFindings.length})</p>
+                            <div className="p-3 bg-slate-100/60 border border-slate-200 rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-slate-800 mb-1.5">Kesesuaian obat terhadap diagnosis ({diag.medicationFindings.length})</p>
                               <p className="mb-2 text-xs leading-5 text-muted-foreground">Bagian ini menilai apakah obat yang diklaim selaras dengan diagnosis, termasuk terapi utama, suportif, simptomatik, antibiotik, cairan, atau obat komorbid.</p>
                               <ul className="space-y-2">
                                 {diag.medicationFindings.map((m: any, j: number) => {
                                   const isIssue = m.status === 'REVIEW_NEEDED' || m.status === 'INAPPROPRIATE';
                                   return (
-                                    <li key={j} className={`rounded bg-card p-3 text-sm border ${isIssue ? 'border-amber-200 bg-amber-50/30' : 'border-green-200 bg-green-50/30'}`}>
+                                    <li key={j} className={`rounded bg-card p-3 text-sm border ${isIssue ? 'border-amber-200 bg-amber-50/30' : 'border-emerald-200 bg-emerald-50/30'}`}>
                                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-2">
-                                        <p className="font-medium text-foreground">{m.medicationName}{m.genericName ? ` (${m.genericName})` : ''}</p>
-                                        <span className={`w-fit shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${m.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : m.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                                        <p className="font-medium text-slate-800">{m.medicationName}{m.genericName ? ` (${m.genericName})` : ''}</p>
+                                        <span className={`w-fit shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${m.status === 'APPROPRIATE' ? 'bg-emerald-500/10 text-emerald-700' : m.status === 'INAPPROPRIATE' ? 'bg-rose-500/10 text-rose-700' : 'bg-amber-500/10 text-amber-700'}`}>
                                           {m.status === 'APPROPRIATE' ? 'Sesuai' : m.status === 'INAPPROPRIATE' ? 'Tidak Sesuai' : 'Perlu Review'}
                                         </span>
                                       </div>
-                                      <div className="rounded-md bg-white/60 p-2.5 border border-slate-100 mb-2">
+                                      <div className="rounded-md bg-slate-100/60 p-2.5 border border-slate-100 mb-2">
                                         <div className="flex items-start gap-2">
                                           <BrainCircuit className="w-4 h-4 text-primary shrink-0 mt-0.5 opacity-70" />
                                           <div>
-                                            <p className="text-xs text-foreground/90 leading-relaxed">{m.reason}</p>
+                                            <p className="text-xs text-slate-800/90 leading-relaxed">{m.reason}</p>
                                           </div>
                                         </div>
                                       </div>
                                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                                        <span>Dinilai terhadap: <span className="font-mono text-foreground/80">{m.againstDiagnosis || diag.diagnosisCode}</span></span>
+                                        <span>Dinilai terhadap: <span className="font-mono text-slate-800/80">{m.againstDiagnosis || diag.diagnosisCode}</span></span>
                                         <span>·</span>
-                                        <span>Keyakinan AI: <span className="text-foreground/80">{m.confidence === 'HIGH' ? 'Tinggi' : m.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</span></span>
+                                        <span>Keyakinan AI: <span className="text-slate-800/80">{m.confidence === 'HIGH' ? 'Tinggi' : m.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</span></span>
                                       </div>
                                       {m.evidenceReferences?.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).length > 0 && (
                                         <div className="mt-3">
@@ -1476,7 +1503,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                           </p>
                                           <div className="flex flex-col gap-1.5">
                                             {m.evidenceReferences.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).map((ref: any, rIdx: number) => (
-                                              <div key={rIdx} className="text-[11px] bg-white rounded-md border border-slate-200 px-2.5 py-2">
+                                              <div key={rIdx} className="text-[11px] bg-slate-100/50 rounded-md border border-slate-200 px-2.5 py-2">
                                                 <p className="font-medium text-slate-800 leading-snug">{ref.title}</p>
                                                 {(ref.organization || ref.year) && <p className="text-slate-500 mt-0.5">{ref.organization} {ref.year}</p>}
                                                 {ref.relevance && <p className="text-slate-600 italic mt-1.5 border-l-2 border-slate-200 pl-2">{ref.relevance}</p>}
@@ -1510,7 +1537,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                           )}
 
                           {(!diag.missingRequiredProcedures?.length && !diag.unmatchedProcedures?.length && !diag.procedureFindings?.some((f: any) => f.status !== 'APPROPRIATE') && !diag.medicationFindings?.some((f: any) => f.status !== 'APPROPRIATE')) && (
-                            <div className="flex items-center gap-1.5 text-sm text-green-600">
+                            <div className="flex items-center gap-1.5 text-sm text-emerald-600">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                               Semua tindakan dan obat sesuai dengan diagnosis.
                             </div>
@@ -1528,11 +1555,11 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               {/* Document Completeness */}
               <div>
                 <p className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-4">Document Completeness Validation</p>
-                <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100/50">
                   {docDetails.missingRequiredDocuments?.length > 0 && (
-                    <div className="px-5 py-4 border-b border-red-200 bg-red-50">
-                      <p className="text-sm font-light text-red-800">Mandatory document tidak terlampir.</p>
-                      <p className="mt-1 text-xs text-red-700/80 leading-5">Admin perlu melengkapi atau meminta ulang dokumen berikut sebelum klaim diproses lebih lanjut: {docDetails.missingRequiredDocuments.join(', ')}.</p>
+                    <div className="px-5 py-4 border-b border-rose-200 bg-rose-50">
+                      <p className="text-sm font-light text-rose-800">Mandatory document tidak terlampir.</p>
+                      <p className="mt-1 text-xs text-rose-700/80 leading-5">Admin perlu melengkapi atau meminta ulang dokumen berikut sebelum klaim diproses lebih lanjut: {docDetails.missingRequiredDocuments.join(', ')}.</p>
                     </div>
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
@@ -1542,7 +1569,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                         <ul className="space-y-1.5">
                           {docDetails.providedDocuments.map((doc: string, i: number) => (
                             <li key={i} className="flex items-center gap-2 text-sm font-light text-muted-foreground">
-                              <svg className="w-4 h-4 shrink-0 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                              <svg className="w-4 h-4 shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                               {doc}
                             </li>
                           ))}
@@ -1556,14 +1583,14 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                       {docDetails.missingRequiredDocuments?.length > 0 ? (
                         <ul className="space-y-1.5">
                           {docDetails.missingRequiredDocuments.map((doc: string, i: number) => (
-                            <li key={i} className="flex items-center gap-2 text-sm font-light text-red-600">
-                              <svg className="w-4 h-4 shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            <li key={i} className="flex items-center gap-2 text-sm font-light text-rose-600">
+                              <svg className="w-4 h-4 shrink-0 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                               {doc}
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="flex items-center gap-1.5 text-sm font-light text-green-600">
+                        <p className="flex items-center gap-1.5 text-sm font-light text-emerald-600">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                           All required documents fulfilled
                         </p>
@@ -1575,8 +1602,260 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
             </div>
           )}
 
+          {/* ── TAB: FWA INVESTIGATION ────────────────────────────────────── */}
+          {activeTab === "fwa" && (
+            <div className="space-y-8 animate-fade-in">
+              <div>
+                <p className="mb-4 text-xs font-mono uppercase tracking-[0.2em] text-primary">Analisis Risiko FWA</p>
+                <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100/50">
+                  <div className={`px-5 py-4 border-b ${fwaRisk?.level === 'CRITICAL' || fwaRisk?.level === 'HIGH' ? 'bg-rose-50 border-rose-200' : fwaRisk?.level === 'MEDIUM' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${fwaRisk?.level === 'CRITICAL' || fwaRisk?.level === 'HIGH' ? 'bg-rose-100 text-rose-600' : fwaRisk?.level === 'MEDIUM' ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                        <AlertTriangle className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className={`text-lg font-medium ${fwaRisk?.level === 'CRITICAL' || fwaRisk?.level === 'HIGH' ? 'text-rose-900' : fwaRisk?.level === 'MEDIUM' ? 'text-amber-900' : 'text-emerald-900'}`}>
+                          Tingkat Risiko: {fwaRisk?.level || 'LOW'}
+                        </h3>
+                        <p className={`text-sm ${fwaRisk?.level === 'CRITICAL' || fwaRisk?.level === 'HIGH' ? 'text-rose-700' : fwaRisk?.level === 'MEDIUM' ? 'text-amber-700' : 'text-emerald-700'}`}>
+                          {fwaRisk?.summary || (fwaRisk?.signals?.length > 0 ? `${fwaRisk.signals.length} Sinyal terdeteksi` : 'Tidak ada sinyal FWA signifikan terdeteksi.')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {fwaRisk?.signals && fwaRisk.signals.length > 0 ? (
+                    <div className="divide-y divide-slate-200 bg-card">
+                      {fwaRisk.signals.map((signal: any, idx: number) => (
+                        <div key={idx} className="p-6">
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className={`px-2 py-1 rounded text-xs font-mono uppercase tracking-wider ${signal.severity === 'CRITICAL' ? 'bg-rose-600 text-white' : signal.severity === 'HIGH' ? 'bg-rose-100 text-rose-700' : signal.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {signal.severity}
+                            </span>
+                            <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">{signal.category}</span>
+                            <h4 className="text-base font-medium text-slate-900">{signal.label}</h4>
+                          </div>
+                          
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="rounded-md bg-slate-50 p-4 border border-slate-100">
+                              <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">Evidence / Temuan</p>
+                              <p className="text-sm text-slate-700 leading-relaxed">{signal.evidence}</p>
+                            </div>
+                            <div className="rounded-md bg-primary/5 p-4 border border-primary/10">
+                              <p className="text-xs font-mono uppercase tracking-wider text-primary mb-2">Rekomendasi Tindakan</p>
+                              <p className="text-sm text-slate-800 leading-relaxed font-medium">{signal.recommendation}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-card">
+                      <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-3" />
+                      <p className="text-slate-600">Tidak ada anomali atau sinyal FWA yang membutuhkan perhatian khusus pada klaim ini.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
+
+      {/* ── MODAL: TENTANG FWA ────────────────────────────────────── */}
+      {showFwaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowFwaModal(false)} />
+          <div className="relative bg-card rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-slate-900">
+                    Tentang Fraud, Waste & Abuse (FWA)
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    Panduan sistem deteksi anomali pada klaim
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowFwaModal(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="overflow-y-auto p-6 flex-1 space-y-8">
+              {/* Tujuan FWA */}
+              <section>
+                <h4 className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-3">Tujuan Analisis</h4>
+                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-4">
+                  Sistem FWA secara otomatis memindai pola mencurigakan pada setiap klaim untuk mencegah kerugian akibat <strong className="font-semibold text-slate-900">Fraud</strong> (Penipuan/Manipulasi), <strong className="font-semibold text-slate-900">Waste</strong> (Pemborosan/Inakurasi), dan <strong className="font-semibold text-slate-900">Abuse</strong> (Penyalahgunaan prosedur medis).
+                </p>
+              </section>
+
+              {/* Kategori */}
+              <section>
+                <h4 className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-3">Kategori Sinyal</h4>
+                <div className="grid gap-3">
+                  <div className="flex gap-3 items-start border border-slate-100 rounded-lg p-3">
+                    <div className="bg-amber-100 text-amber-600 p-2 rounded-md shrink-0"><Calculator className="w-4 h-4" /></div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Financial</p>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">Indikasi manipulasi harga, <em>upcoding</em> (menagihkan kode prosedur yang lebih mahal), tagihan ganda (<em>duplicate billing</em>), atau tarif yang melampaui ambang batas <em>master fee schedule</em>.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 items-start border border-slate-100 rounded-lg p-3">
+                    <div className="bg-blue-100 text-blue-600 p-2 rounded-md shrink-0"><Stethoscope className="w-4 h-4" /></div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Clinical</p>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">Ketidaksesuaian tindakan medis/obat dengan diagnosis utama, <em>Length of Stay</em> (LOS) aktual yang menyimpang jauh dari standar AI Pathway, atau pola perawatan berlebih (<em>overutilization</em>).</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 items-start border border-slate-100 rounded-lg p-3">
+                    <div className="bg-purple-100 text-purple-600 p-2 rounded-md shrink-0"><FileText className="w-4 h-4" /></div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Administrative</p>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">Inkonsistensi dokumen persyaratan, diskrepansi riwayat pasien, atau pola pengajuan klaim abnormal yang berulang dari entitas rumah sakit/klinik tertentu.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Severity Levels */}
+              <section>
+                <h4 className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-3">Tingkat Risiko (Severity)</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 p-2.5 rounded-md bg-emerald-50/50 border border-emerald-100">
+                    <span className="shrink-0 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-[0.15em] bg-emerald-100 text-emerald-700 w-20 text-center">LOW</span>
+                    <p className="text-xs text-slate-700">Klaim wajar, anomali nihil atau sangat minim. Aman untuk diproses.</p>
+                  </div>
+                  <div className="flex items-center gap-3 p-2.5 rounded-md bg-amber-50/50 border border-amber-100">
+                    <span className="shrink-0 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-[0.15em] bg-amber-100 text-amber-700 w-20 text-center">MEDIUM</span>
+                    <p className="text-xs text-slate-700">Ditemukan variansi ringan. Diperlukan peninjauan cepat.</p>
+                  </div>
+                  <div className="flex items-center gap-3 p-2.5 rounded-md bg-rose-50/50 border border-rose-100">
+                    <span className="shrink-0 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-[0.15em] bg-rose-200 text-rose-800 w-20 text-center">HIGH</span>
+                    <p className="text-xs text-slate-700">Terdapat anomali yang berpotensi merugikan (contoh: <em>overstay</em> ekstrem). Wajib diinvestigasi.</p>
+                  </div>
+                  <div className="flex items-center gap-3 p-2.5 rounded-md bg-rose-100/50 border border-rose-200">
+                    <span className="shrink-0 px-2 py-1 rounded text-[10px] font-mono uppercase tracking-[0.15em] bg-rose-600 text-white w-20 text-center">CRITICAL</span>
+                    <p className="text-xs text-slate-700">Indikasi kuat pelanggaran FWA berat. Proses pembayaran harus ditahan sementara.</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Scoring */}
+              <section>
+                <h4 className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-3">Metode Skoring (0-100)</h4>
+                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-4 mb-3">
+                  Setiap sinyal anomali yang ditemukan akan memberikan penalti skor sesuai dengan tingkat bahayanya. Semakin tinggi total skor, semakin tinggi tingkat risiko FWA pada klaim tersebut:
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-md p-3 text-center">
+                    <p className="text-lg font-medium text-emerald-700">0 - 25</p>
+                    <p className="text-[10px] font-mono uppercase text-emerald-600 mt-1">LOW</p>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-md p-3 text-center">
+                    <p className="text-lg font-medium text-amber-700">26 - 50</p>
+                    <p className="text-[10px] font-mono uppercase text-amber-600 mt-1">MEDIUM</p>
+                  </div>
+                  <div className="bg-rose-50 border border-rose-100 rounded-md p-3 text-center">
+                    <p className="text-lg font-medium text-rose-700">51 - 75</p>
+                    <p className="text-[10px] font-mono uppercase text-rose-600 mt-1">HIGH</p>
+                  </div>
+                  <div className="bg-rose-100 border border-rose-200 rounded-md p-3 text-center">
+                    <p className="text-lg font-medium text-rose-800">76 - 100</p>
+                    <p className="text-[10px] font-mono uppercase text-rose-700 mt-1">CRITICAL</p>
+                  </div>
+                </div>
+              </section>
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end shrink-0">
+              <button onClick={() => setShowFwaModal(false)} className="px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">Mengerti</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: TENTANG POLIS & BENEFIT ────────────────────────────────────── */}
+      {showPolicyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowPolicyModal(false)} />
+          <div className="relative bg-card rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <ClipboardCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-slate-900">
+                    Tentang Kepatuhan Polis & Benefit
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    Panduan validasi aturan asuransi pada tingkat klaim
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowPolicyModal(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="overflow-y-auto p-6 flex-1 space-y-8">
+              {/* Tujuan FWA */}
+              <section>
+                <h4 className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-3">Tujuan Analisis</h4>
+                <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-4">
+                  Modul ini secara otomatis memvalidasi prosedur dan obat yang diklaim terhadap kontrak asuransi (polis). Tujuannya adalah memastikan <strong className="font-semibold text-slate-900">eligibilitas</strong> medis yang diklaim terjamin dalam syarat kepesertaan.
+                </p>
+              </section>
+
+              {/* Kategori */}
+              <section>
+                <h4 className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-3">Kategori Pemeriksaan</h4>
+                <div className="grid gap-3">
+                  <div className="flex gap-3 items-start border border-slate-100 rounded-lg p-3">
+                    <div className="bg-amber-100 text-amber-600 p-2 rounded-md shrink-0"><MinusCircle className="w-4 h-4" /></div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Pengecualian (Exclusion)</p>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">Tindakan atau kondisi yang secara eksplisit tertulis tidak dijamin (contoh: tindakan estetika murni, suplemen di luar tanggungan).</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 items-start border border-slate-100 rounded-lg p-3">
+                    <div className="bg-blue-100 text-blue-600 p-2 rounded-md shrink-0"><Calculator className="w-4 h-4" /></div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Limit / Plafon</p>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">Mengecek apakah item yang diklaim melebihi batas maksimal asuransi (per tindakan, maupun akumulasi per tahun kalender).</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 items-start border border-slate-100 rounded-lg p-3">
+                    <div className="bg-purple-100 text-purple-600 p-2 rounded-md shrink-0"><BookOpen className="w-4 h-4" /></div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">Klausa Khusus</p>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">Pemeriksaan masa tunggu (<em>waiting period</em>) atau pengecualian atas penyakit yang sudah ada sebelumnya (<em>pre-existing condition</em>).</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end shrink-0">
+              <button onClick={() => setShowPolicyModal(false)} className="px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">Mengerti</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

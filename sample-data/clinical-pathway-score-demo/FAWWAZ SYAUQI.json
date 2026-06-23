@@ -30,7 +30,7 @@
       "code": "J00",
       "name": "Acute nasopharyngitis (common cold)",
       "type": "primary"
-    },
+    }
   ],
   "procedures": [
     {
@@ -88,7 +88,7 @@
       "quantity": 1,
       "unitPrice": 252000,
       "totalPrice": 252000
-    },	
+    },
     {
       "code": "PRWT000117",
       "name": "Aff IV Line Acces",
@@ -97,7 +97,7 @@
       "unitPrice": 77000,
       "totalPrice": 77000
     },
-	{
+    {
       "code": "RADA030001",
       "name": "Thorax AP/PA",
       "category": "Radiologi",
@@ -129,7 +129,7 @@
       "unitPrice": 773000,
       "totalPrice": 773000
     },
-	{
+    {
       "code": "LABA100200",
       "name": "Darah Rutin",
       "category": "Laboratorium",
@@ -137,14 +137,14 @@
       "unitPrice": 349000,
       "totalPrice": 349000
     },
-	{
+    {
       "code": "LABA320100",
       "name": "CRP Kuantitatif",
       "category": "Laboratorium",
       "quantity": 1,
       "unitPrice": 882000,
       "totalPrice": 882000
-    }	
+    }
   ],
   "medications": [
     {
@@ -298,6 +298,29 @@
       "type": "SURAT PERNYATAAN RAWAT INAP",
       "date": "2026-05-25T08:43:06.874Z",
       "conclusion": "Persetujuan rawat inap ditandatangani."
+    }
+  ],
+  "policyRules": [
+    {
+      "ruleCode": "LMT-01",
+      "ruleName": "Batas Maksimal Rawat Inap",
+      "ruleType": "LIMIT",
+      "actionJson": {
+        "maxAmount": 5000000
+      },
+      "severity": "WARNING",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
+    },
+    {
+      "ruleCode": "EXC-01",
+      "ruleName": "Pengecualian Vitamin",
+      "ruleType": "EXCLUSION",
+      "targetType": "MEDICATION_TYPE",
+      "targetPattern": "vitamin|suplemen",
+      "severity": "REVIEW_NEEDED",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
     }
   ],
   "extra": {

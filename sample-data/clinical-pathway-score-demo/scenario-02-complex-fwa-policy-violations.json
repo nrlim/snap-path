@@ -1,0 +1,149 @@
+{
+  "scenario": {
+    "id": "SC02_COMPLEX_FWA_POLICY",
+    "title": "Complex FWA & Policy Violations",
+    "purpose": "Skenario kreatif untuk menguji respon AI terhadap berbagai jenis pelanggaran: FWA Clinical (Upcoding/Unnecessary procedures), FWA Administrative (Missing documents), Tariff markup, dan Policy Violations (Limit exceeded & Exclusion).",
+    "expectedValidation": {
+      "status": "INVALID",
+      "overallScore": 30,
+      "policyStatus": "REJECT_RECOMMENDED",
+      "fwaRiskLevel": "CRITICAL"
+    }
+  },
+  "providerId": "MITRA_KELUARGA_BEKASI_TIMUR",
+  "claimId": "CLM-MK-2026-SC02-COMPLEX",
+  "patient": {
+    "id": "PAT-MK-99121",
+    "name": "Bapak Anton Wijaya",
+    "dateOfBirth": "1975-10-20",
+    "gender": "M"
+  },
+  "encounter": {
+    "type": "RAWAT_INAP",
+    "admissionDate": "2026-06-01T08:00:00Z",
+    "dischargeDate": "2026-06-05T08:00:00Z",
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "I10",
+      "name": "Essential (primary) hypertension",
+      "type": "PRIMARY",
+      "sequence": 1
+    }
+  ],
+  "procedures": [
+    {
+      "code": "LABA100200",
+      "name": "Darah Rutin",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 150000,
+      "totalPrice": 150000
+    },
+    {
+      "code": "RADE010033",
+      "name": "CT Scan Kepala (Tanpa Indikasi Jelas)",
+      "category": "RADIOLOGI",
+      "quantity": 1,
+      "unitPrice": 4500000,
+      "totalPrice": 4500000
+    },
+    {
+      "code": "EST001001",
+      "name": "Injeksi Botox Estetika",
+      "category": "KOSMETIK",
+      "quantity": 1,
+      "unitPrice": 3000000,
+      "totalPrice": 3000000
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - VIP (Markup Kelas)",
+      "category": "KAMAR",
+      "quantity": 4,
+      "unitPrice": 1500000,
+      "totalPrice": 6000000
+    }
+  ],
+  "medications": [
+    {
+      "name": "Amlodipine 5mg",
+      "genericName": "Amlodipine",
+      "dosage": "5mg Tablet",
+      "quantity": 10,
+      "unitPrice": 15000,
+      "totalPrice": 150000,
+      "frequency": "1 kali sehari",
+      "duration": "10 hari"
+    },
+    {
+      "name": "Suplemen Vitamin C Dosis Tinggi",
+      "genericName": "Vitamin C",
+      "dosage": "1000mg Ampul",
+      "quantity": 5,
+      "unitPrice": 250000,
+      "totalPrice": 1250000,
+      "frequency": "1 kali sehari",
+      "duration": "5 hari"
+    }
+  ],
+  "totalClaimAmount": 15050000,
+  "currency": "IDR",
+  "notes": "Pasien masuk karena tensi tinggi (Hipertensi primer). Terdapat penambahan prosedur estetika dan CT scan kepala tanpa indikasi defisit neurologis yang jelas. Dicurigai adanya fraud klinis dan markup kelas rawat.",
+  "documents": [
+    {
+      "type": "LMA",
+      "description": "Laporan Medis Awal: tekanan darah 160/100, tidak ada keluhan defisit saraf."
+    },
+    {
+      "type": "KTP",
+      "description": "Identitas pasien sesuai."
+    }
+  ],
+  "policyRules": [
+    {
+      "ruleCode": "LMT-01",
+      "ruleName": "Batas Maksimal Rawat Inap Hipertensi",
+      "ruleType": "LIMIT",
+      "actionJson": {
+        "maxAmount": 5000000
+      },
+      "severity": "WARNING",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
+    },
+    {
+      "ruleCode": "EXC-KOSMETIK",
+      "ruleName": "Pengecualian Prosedur Estetika & Kosmetik",
+      "ruleType": "EXCLUSION",
+      "targetType": "PROCEDURE",
+      "targetPattern": "botox|estetika|kosmetik",
+      "severity": "REJECT_RECOMMENDED",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
+    },
+    {
+      "ruleCode": "EXC-SUPLEMEN",
+      "ruleName": "Pengecualian Vitamin/Suplemen",
+      "ruleType": "EXCLUSION",
+      "targetType": "MEDICATION_NAME",
+      "targetPattern": "suplemen|vitamin",
+      "severity": "REVIEW_NEEDED",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
+    }
+  ],
+  "extra": {
+    "nik": "3175021508850002",
+    "phone": "081298760002",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "AS-2026-FWA-0002",
+    "claimId": "CLM-MK-2026-SC02-COMPLEX",
+    "providerId": "MITRA_KELUARGA_BEKASI_TIMUR"
+  }
+}

@@ -409,6 +409,19 @@
       "conclusion": "Persetujuan rawat inap ditandatangani."
     }
   ],
+  "policyRules": [
+    {
+      "ruleCode": "LMT-03",
+      "ruleName": "Batas Tahunan Obat-obatan",
+      "ruleType": "LIMIT",
+      "actionJson": {
+        "maxAmount": 7000000
+      },
+      "severity": "WARNING",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
+    }
+  ],
   "extra": {
     "nik": "3275014404930008",
     "phone": "081298761235",

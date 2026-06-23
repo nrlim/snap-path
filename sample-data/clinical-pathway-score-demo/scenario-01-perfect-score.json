@@ -151,6 +151,19 @@
       "description": "Surat pernyataan rawat inap ditandatangani pasien/keluarga."
     }
   ],
+  "policyRules": [
+    {
+      "ruleCode": "LMT-04",
+      "ruleName": "Batas Maksimal Rawat Inap",
+      "ruleType": "LIMIT",
+      "actionJson": {
+        "maxAmount": 10000000
+      },
+      "severity": "WARNING",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
+    }
+  ],
   "extra": {
     "nik": "3175021508850001",
     "phone": "081298760001",

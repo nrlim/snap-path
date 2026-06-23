@@ -124,6 +124,19 @@
       "conclusion": "Persetujuan rawat inap ditandatangani."
     }
   ],
+  "policyRules": [
+    {
+      "ruleCode": "LMT-05",
+      "ruleName": "Limit Tahunan Dengue",
+      "ruleType": "LIMIT",
+      "actionJson": {
+        "maxAmount": 12000000
+      },
+      "severity": "WARNING",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
+    }
+  ],
   "extra": {
     "nik": "3175021234567890",
     "phone": "081298761234",

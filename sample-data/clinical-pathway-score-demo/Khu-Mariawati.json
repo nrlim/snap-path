@@ -297,6 +297,29 @@
       "conclusion": "Persetujuan rawat inap ditandatangani."
     }
   ],
+  "policyRules": [
+    {
+      "ruleCode": "LMT-02",
+      "ruleName": "Limit Kelas Kamar 2",
+      "ruleType": "LIMIT",
+      "actionJson": {
+        "limitAmount": 15000000
+      },
+      "severity": "WARNING",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
+    },
+    {
+      "ruleCode": "EXC-02",
+      "ruleName": "Pengecualian Kecelakaan",
+      "ruleType": "EXCLUSION",
+      "targetType": "DIAGNOSIS",
+      "targetPattern": "injury|fracture",
+      "severity": "REVIEW_NEEDED",
+      "status": "ACTIVE",
+      "effectiveFrom": "2020-01-01T00:00:00Z"
+    }
+  ],
   "extra": {
     "nik": "3275025211570016",
     "phone": "081298761234",
