@@ -203,6 +203,17 @@ export default function OcrUploadWizard(): ReactElement {
         method: "POST",
         body: formData,
       });
+      
+      if (res.status === 413) {
+        throw new Error("Ukuran file terlalu besar. Server menolak permintaan (Request Entity Too Large).");
+      }
+
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const textError = await res.text();
+        throw new Error(`Server merespons dengan format tidak valid: ${textError.slice(0, 50)}...`);
+      }
+
       const rawData: unknown = await res.json();
       const data = isRecord(rawData) ? rawData : {};
       const responseError = readString(data, "error");
