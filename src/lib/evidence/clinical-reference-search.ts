@@ -1,5 +1,7 @@
+import { searchPubMedWithAbstracts, searchFdaDrugLabels, searchRxNormDrug, searchWhoIndicator } from './medical-sources';
+
 export interface ClinicalReferenceSource {
-  sourceType: 'PUBMED' | 'REFERENCE_SOURCE_POLICY';
+  sourceType: 'PUBMED' | 'REFERENCE_SOURCE_POLICY' | 'FDA' | 'RXNORM' | 'WHO_GUIDELINE' | 'OTHER';
   title: string;
   organization: string | null;
   year: string | null;
@@ -46,30 +48,6 @@ export interface ClinicalReferenceSearchInput {
   medications?: MedicationSearchInput[];
 }
 
-interface PubMedSearchResponse {
-  esearchresult?: {
-    idlist?: string[];
-  };
-}
-
-interface PubMedSummaryItem {
-  uid?: string;
-  title?: string;
-  fulljournalname?: string;
-  pubdate?: string;
-  elocationid?: string;
-  articleids?: Array<{
-    idtype?: string;
-    value?: string;
-  }>;
-}
-
-interface PubMedSummaryResponse {
-  result?: Record<string, PubMedSummaryItem | string[]>;
-}
-
-const PUBMED_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
-const FETCH_TIMEOUT_MS = 4500;
 const MAX_DIAGNOSES = 4;
 const MAX_TERMS_PER_DIAGNOSIS = 5;
 
@@ -89,23 +67,6 @@ function normalizeQueryTerm(value: unknown): string {
     .slice(0, 80);
 }
 
-async function fetchJsonWithTimeout<T>(url: string): Promise<T | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { accept: 'application/json' },
-    });
-    if (!response.ok) return null;
-    return await response.json() as T;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 function buildPubMedQuery(diagnosis: DiagnosisSearchInput, procedures: ProcedureSearchInput[], medications: MedicationSearchInput[]): string {
   const diagnosisTerms = unique([
     normalizeQueryTerm(diagnosis.name),
@@ -123,50 +84,35 @@ function buildPubMedQuery(diagnosis: DiagnosisSearchInput, procedures: Procedure
   return `${condition}${clinicalClause}${evidenceFilter}`.trim();
 }
 
-function extractYear(pubdate: string | undefined): string | null {
-  const match = stringValue(pubdate).match(/\b(19|20)\d{2}\b/);
-  return match?.[0] || null;
-}
-
-function extractDoi(item: PubMedSummaryItem): string | null {
-  const doi = item.articleids?.find((articleId) => articleId.idtype === 'doi')?.value;
-  if (doi) return doi;
-  const location = stringValue(item.elocationid);
-  const match = location.match(/10\.\S+/);
-  return match?.[0] || null;
-}
-
-async function searchPubMedForDiagnosis(diagnosis: DiagnosisSearchInput, procedures: ProcedureSearchInput[], medications: MedicationSearchInput[]): Promise<ClinicalReferenceQueryResult> {
+async function fetchSourcesForDiagnosis(diagnosis: DiagnosisSearchInput, procedures: ProcedureSearchInput[], medications: MedicationSearchInput[]): Promise<ClinicalReferenceQueryResult> {
   const diagnosisCode = stringValue(diagnosis.code) || 'UNSPECIFIED';
   const diagnosisName = stringValue(diagnosis.name) || diagnosisCode;
   const query = buildPubMedQuery(diagnosis, procedures, medications);
-  if (!query) return { diagnosisCode, diagnosisName, query: '', sources: [] };
+  const sources: ClinicalReferenceSource[] = [];
 
-  const searchUrl = `${PUBMED_BASE_URL}/esearch.fcgi?db=pubmed&retmode=json&retmax=4&sort=relevance&term=${encodeURIComponent(query)}`;
-  const search = await fetchJsonWithTimeout<PubMedSearchResponse>(searchUrl);
-  const ids = search?.esearchresult?.idlist || [];
-  if (ids.length === 0) return { diagnosisCode, diagnosisName, query, sources: [] };
+  if (query) {
+    // 1. Fetch PubMed
+    const pubMedSources = await searchPubMedWithAbstracts(query, 4);
+    sources.push(...pubMedSources);
+  }
 
-  const summaryUrl = `${PUBMED_BASE_URL}/esummary.fcgi?db=pubmed&retmode=json&id=${encodeURIComponent(ids.join(','))}`;
-  const summary = await fetchJsonWithTimeout<PubMedSummaryResponse>(summaryUrl);
-  const result = summary?.result || {};
-  const sources = ids.map((id): ClinicalReferenceSource | null => {
-    const item = result[id];
-    if (!item || Array.isArray(item)) return null;
-    const title = stringValue(item.title);
-    if (!title) return null;
-    const doi = extractDoi(item);
-    return {
-      sourceType: 'PUBMED',
-      title,
-      organization: stringValue(item.fulljournalname) || null,
-      year: extractYear(item.pubdate),
-      url: `https://pubmed.ncbi.nlm.nih.gov/${id}/`,
-      identifier: doi ? `PMID:${id}; DOI:${doi}` : `PMID:${id}`,
-      snippet: `PubMed indexed article related to ${diagnosisName} and claimed clinical items. Use as supporting reference, not as automatic denial basis.`,
-      strength: title.toLowerCase().includes('guideline') || title.toLowerCase().includes('systematic review') ? 'HIGH' : 'MEDIUM',
-    };
-  }).filter((source): source is ClinicalReferenceSource => Boolean(source));
+  // 2. Fetch WHO Indicator for diagnosis
+  const whoSource = await searchWhoIndicator(diagnosisName);
+  if (whoSource) sources.push(whoSource);
+
+  // 3. Fetch FDA & RxNorm for medications
+  for (const med of medications) {
+    const medName = stringValue(med.genericName || med.name);
+    if (!medName) continue;
+    
+    // RxNorm
+    const rxNormSource = await searchRxNormDrug(medName);
+    if (rxNormSource) sources.push(rxNormSource);
+    
+    // FDA
+    const fdaSource = await searchFdaDrugLabels(medName);
+    if (fdaSource) sources.push(fdaSource);
+  }
 
   return { diagnosisCode, diagnosisName, query, sources };
 }
@@ -188,7 +134,9 @@ export async function buildClinicalReferenceSearchContext(input: ClinicalReferen
   const diagnoses = input.diagnoses.slice(0, MAX_DIAGNOSES);
   const procedures = input.procedures;
   const medications = input.medications || [];
-  const queries = await Promise.all(diagnoses.map((diagnosis) => searchPubMedForDiagnosis(diagnosis, procedures, medications)));
+  
+  // Fetch for all diagnoses concurrently
+  const queries = await Promise.all(diagnoses.map((diagnosis) => fetchSourcesForDiagnosis(diagnosis, procedures, medications)));
 
   return {
     sourcePolicy: 'DIAGNOSIS_PROCEDURE_EXTERNAL_EVIDENCE_ONLY',
@@ -212,7 +160,7 @@ export async function buildClinicalReferenceSearchContext(input: ClinicalReferen
       'PubMed search uses diagnosis/procedure/medication terms only and never includes patient identifiers.',
       'Search results are evidence context for AI reasoning and human review, not deterministic claim denial rules.',
       'Absence of search results does not prove that a procedure is inappropriate.',
-      'MCP servers and Google Scholar scraping are not used by CONSUL runtime.',
+      'MCP servers and Google Scholar scraping are not used by CONSUL runtime. Direct APIs are used instead.',
     ],
   };
 }

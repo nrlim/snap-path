@@ -25,7 +25,7 @@ export interface AIGatewayContext {
 export interface AIGatewayDriver {
   generateText(prompt: string, context?: AIMessage[]): Promise<{ text: string; usage?: Usage }>;
   extractMedicalData(clinicalText: string): Promise<{ data: Record<string, unknown>; usage?: Usage }>;
-  
+
   validateDiagnosisTreatment(payload: any): Promise<{ data: any; usage?: Usage }>;
   resolveMedicalItemMatch?(input: { medication: any; diagnoses: any[]; candidates: any[] }): Promise<{ data: any; usage?: Usage }>;
   resolveMedicalItemMatches?(input: { requests: Array<{ requestId: string; medication: any; candidates: any[] }>; diagnoses: any[] }): Promise<{ data: any; usage?: Usage }>;
@@ -157,6 +157,7 @@ export class AIGateway {
 // Singleton helper to get default configured gateway
 import { VercelAIDriver } from './drivers/vercel';
 import { SumoPodAIDriver } from './drivers/sumopod';
+import { OpenAICompatibleAIDriver } from './drivers/openai-compatible';
 
 import prisma from '../db';
 import { recordApiUsage } from '../api-key';
@@ -171,21 +172,42 @@ export async function getAIGateway(context: AIGatewayContext = {}): Promise<AIGa
       : Promise.resolve(null),
   ]);
 
-  const providerName = providerConfig?.aiProvider || config?.aiProvider || "vercel-ai-gateway";
-  const baseURL = providerConfig?.aiGatewayUrl || config?.aiGatewayUrl || "";
-  const model = providerConfig?.aiModel || config?.aiModel || (providerName === "sumopod" ? process.env.SUMOPOD_MODEL : null) || "gpt-4o-mini";
-  const maxTokens = providerConfig?.aiMaxTokens || config?.aiMaxTokens || 1500;
-  const temperature = providerConfig?.aiTemperature ?? config?.aiTemperature ?? 0.7;
+  const activeConfig = providerConfig?.aiProvider ? providerConfig : config;
 
-  const driver = providerName === "sumopod"
-    ? new SumoPodAIDriver(process.env.SUMOPOD_API_KEY, baseURL || process.env.SUMOPOD_BASE_URL, model, maxTokens, temperature)
-    : new VercelAIDriver(
-      process.env.AI_GATEWAY_API_KEY || "",
-      providerName === "vercel-ai-gateway" ? (baseURL || "https://ai-gateway.vercel.sh/v1") : baseURL,
+  const providerName = activeConfig?.aiProvider || "vercel-ai-gateway";
+  const baseURL = activeConfig?.aiGatewayUrl || "";
+  const model = activeConfig?.aiModel || (providerName === "sumopod" ? process.env.SUMOPOD_MODEL : null) || "gpt-4o-mini";
+  const maxTokens = activeConfig?.aiMaxTokens || 1500;
+  const temperature = activeConfig?.aiTemperature ?? 0.7;
+
+  let driver: AIGatewayDriver;
+
+  if (providerName === "sumopod") {
+    driver = new SumoPodAIDriver(
+      process.env.SUMOPOD_API_KEY || "",
+      baseURL || process.env.SUMOPOD_BASE_URL || "",
       model,
       maxTokens,
-      temperature,
+      temperature
     );
+  } else if (providerName === "custom" || providerName === "openai") {
+    driver = new OpenAICompatibleAIDriver(
+      process.env.OPENAI_API_KEY || process.env.CUSTOM_AI_API_KEY || process.env.AI_GATEWAY_API_KEY || "",
+      baseURL || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+      model,
+      maxTokens,
+      temperature
+    );
+  } else {
+    // Default to vercel-ai-gateway
+    driver = new VercelAIDriver(
+      process.env.AI_GATEWAY_API_KEY || process.env.OPENAI_API_KEY || "",
+      baseURL || "https://ai-gateway.vercel.sh/v1",
+      model,
+      maxTokens,
+      temperature
+    );
+  }
 
   const piiRedactPatterns = providerConfig ? providerConfig.piiRedactPatterns : config?.piiRedactPatterns;
   const piiSafeContexts = providerConfig ? providerConfig.piiSafeContexts : config?.piiSafeContexts;

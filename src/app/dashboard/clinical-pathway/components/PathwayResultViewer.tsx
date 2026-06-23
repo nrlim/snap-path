@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import PathwayTimeline from "./PathwayTimeline";
-import { ArrowUp, BrainCircuit, Calculator, CheckCheck, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MinusCircle, FileText, Pill, Stethoscope } from 'lucide-react';
+import { ArrowUp, BrainCircuit, BookOpen, Calculator, CheckCheck, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MinusCircle, FileText, Pill, Stethoscope } from 'lucide-react';
 import { resolveActualLosDays } from '@/lib/los';
 
 export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?: number }) {
@@ -162,7 +162,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
   };
 
   const toggleDiagnosisDetail = (key: string) => {
-    setExpandedDiagnosisDetails((current) => ({ ...current, [key]: !(current[key] ?? false) }));
+    setExpandedDiagnosisDetails((current) => ({ ...current, [key]: !(current[key] ?? true) }));
   };
 
   const isDiagnosisDetailExpanded = (key: string) => expandedDiagnosisDetails[key] ?? true;
@@ -1250,6 +1250,29 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                             {diag.clinicalSummary && isExpanded && (
                               <p className="text-xs text-muted-foreground mt-1.5 italic max-w-xl">{diag.clinicalSummary}</p>
                             )}
+                            {diag.clinicalEvidenceSummary && isExpanded && (
+                              <div className="mt-3 rounded-md border border-slate-200 bg-white p-3">
+                                <div className="flex items-start gap-2">
+                                  <BrainCircuit className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                                  <p className="text-xs text-foreground/90 leading-relaxed">{diag.clinicalEvidenceSummary}</p>
+                                </div>
+                                {diag.evidenceReferences?.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).length > 0 && (
+                                  <div className="mt-3">
+                                    <p className="text-[10px] font-mono uppercase tracking-[0.1em] text-muted-foreground mb-1.5 flex items-center gap-1">
+                                      <BookOpen className="w-3 h-3" /> Referensi
+                                    </p>
+                                    <div className="flex flex-col gap-1.5">
+                                      {diag.evidenceReferences.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).map((ref: any, rIdx: number) => (
+                                        <div key={rIdx} className="text-[11px] bg-white rounded-md border border-slate-200 px-2.5 py-2">
+                                          <p className="font-medium text-slate-800 leading-snug">{ref.title}</p>
+                                          {(ref.organization || ref.year) && <p className="text-slate-500 mt-0.5">{ref.organization} {ref.year}</p>}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -1271,10 +1294,19 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 {diag.missingRequiredProcedures.map((p: string, j: number) => {
                                   const detail = diag.missingRequiredProcedureDetails?.find((item: any) => p.includes(item.code) || item.code === p);
                                   return (
-                                    <li key={j} className="rounded bg-card p-2 text-sm text-orange-800">
-                                      <p className="font-light">{detail?.name || p}</p>
+                                    <li key={j} className="rounded bg-card p-3 text-sm border border-orange-200 bg-orange-50/30">
+                                      <p className="font-medium text-orange-900">{detail?.name || p}</p>
                                       {detail?.code && <p className="mt-0.5 font-mono text-[11px] text-orange-700/70">{detail.code}</p>}
-                                      {detail?.reason && <p className="mt-1 text-xs leading-5 text-orange-700/80">Alasan: {detail.reason}</p>}
+                                      {detail?.reason && (
+                                        <div className="mt-2 rounded-md bg-white/60 p-2.5 border border-orange-100">
+                                          <div className="flex items-start gap-2">
+                                            <BrainCircuit className="w-4 h-4 text-orange-500 shrink-0 mt-0.5 opacity-70" />
+                                            <div>
+                                              <p className="text-xs text-orange-900/90 leading-relaxed">{detail.reason}</p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
                                     </li>
                                   );
                                 })}
@@ -1290,21 +1322,70 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 {diag.procedureFindings.map((p: any, j: number) => {
                                   const isIssue = p.status === 'REVIEW_NEEDED' || p.status === 'INAPPROPRIATE';
                                   return (
-                                    <li key={j} className={`rounded bg-card p-2 text-sm ${isIssue ? 'text-amber-800' : 'text-green-800'}`}>
-                                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                    <li key={j} className={`rounded bg-card p-3 text-sm border ${isIssue ? 'border-amber-200 bg-amber-50/30' : 'border-green-200 bg-green-50/30'}`}>
+                                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-2">
                                         <div>
-                                          <p className="font-light">{getProcedureLine(p).name}</p>
-                                          {getProcedureLine(p).code && <p className="mt-0.5 font-mono text-[11px] opacity-70">{getProcedureLine(p).code}</p>}
+                                          <p className="font-medium text-foreground">{getProcedureLine(p).name}</p>
+                                          {getProcedureLine(p).code && <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{getProcedureLine(p).code}</p>}
                                         </div>
-                                        <span className={`w-fit rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${p.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : p.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
-                                          {p.status === 'APPROPRIATE' ? 'Sesuai' : p.status === 'INAPPROPRIATE' ? 'Tidak sesuai' : 'Perlu review'}
+                                        <span className={`w-fit shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${p.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : p.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                                          {p.status === 'APPROPRIATE' ? 'Sesuai' : p.status === 'INAPPROPRIATE' ? 'Tidak Sesuai' : 'Perlu Review'}
                                         </span>
                                       </div>
-                                      <p className="mt-1 text-xs leading-5 opacity-80">Alasan: {p.reason}</p>
-                                      <p className="mt-1 text-[11px] opacity-70">Dinilai terhadap: {p.againstDiagnosis || diag.diagnosisCode} · Keyakinan: {p.confidence === 'HIGH' ? 'Tinggi' : p.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</p>
+                                      <div className="rounded-md bg-white/60 p-2.5 border border-slate-100 mb-2">
+                                        <div className="flex items-start gap-2">
+                                          <BrainCircuit className="w-4 h-4 text-primary shrink-0 mt-0.5 opacity-70" />
+                                          <div>
+                                            <p className="text-xs text-foreground/90 leading-relaxed">{p.reason}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                                        <span>Dinilai terhadap: <span className="font-mono text-foreground/80">{p.againstDiagnosis || diag.diagnosisCode}</span></span>
+                                        <span>·</span>
+                                        <span>Keyakinan AI: <span className="text-foreground/80">{p.confidence === 'HIGH' ? 'Tinggi' : p.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</span></span>
+                                      </div>
+                                      {p.evidenceReferences?.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).length > 0 && (
+                                        <div className="mt-3">
+                                          <p className="text-[10px] font-mono uppercase tracking-[0.1em] text-muted-foreground mb-1.5 flex items-center gap-1">
+                                            <BookOpen className="w-3 h-3" /> Referensi
+                                          </p>
+                                          <div className="flex flex-col gap-1.5">
+                                            {p.evidenceReferences.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).map((ref: any, rIdx: number) => (
+                                              <div key={rIdx} className="text-[11px] bg-white rounded-md border border-slate-200 px-2.5 py-2">
+                                                <p className="font-medium text-slate-800 leading-snug">{ref.title}</p>
+                                                {(ref.organization || ref.year) && <p className="text-slate-500 mt-0.5">{ref.organization} {ref.year}</p>}
+                                                {ref.relevance && <p className="text-slate-600 italic mt-1.5 border-l-2 border-slate-200 pl-2">{ref.relevance}</p>}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
                                     </li>
                                   );
                                 })}
+                              </ul>
+                            </div>
+                          )}
+
+                          {(!diag.procedureFindings || diag.procedureFindings.length === 0) && diag.matchedProcedures && diag.matchedProcedures.length > 0 && (
+                            <div className="p-3 bg-slate-500/5 border border-border rounded-md">
+                              <p className="text-xs font-mono uppercase tracking-[0.15em] text-foreground mb-1.5">Kesesuaian tindakan terhadap diagnosis ({diag.matchedProcedures.length})</p>
+                              <p className="mb-2 text-xs leading-5 text-muted-foreground">Tindakan ini dinilai sesuai oleh AI. (Detail reasoning belum didukung pada hasil analisis versi sebelumnya).</p>
+                              <ul className="space-y-2">
+                                {diag.matchedProcedures.map((p: any, j: number) => (
+                                  <li key={j} className="rounded bg-card p-3 text-sm border border-green-200 bg-green-50/30">
+                                    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                                      <div>
+                                        <p className="font-medium text-foreground">{getProcedureLine(p).name}</p>
+                                        {getProcedureLine(p).code && <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{getProcedureLine(p).code}</p>}
+                                      </div>
+                                      <span className="w-fit shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] bg-green-500/10 text-green-700">
+                                        Sesuai
+                                      </span>
+                                    </div>
+                                  </li>
+                                ))}
                               </ul>
                             </div>
                           )}
@@ -1317,23 +1398,41 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 {(diag.irrelevantProcedures?.length ? diag.irrelevantProcedures : diag.unmatchedProcedures).map((item: any, j: number) => {
                                   const isDetailed = typeof item === 'object' && item !== null;
                                   return (
-                                    <li key={j} className="rounded bg-card p-2 text-sm text-red-800">
+                                    <li key={j} className="rounded bg-card p-3 text-sm border border-red-200 bg-red-50/30">
                                       {isDetailed ? (
                                         <div>
-                                          <p className="font-light">{getProcedureLine(item).name}</p>
+                                          <p className="font-medium text-red-900">{getProcedureLine(item).name}</p>
                                           {getProcedureLine(item).code && <p className="mt-0.5 font-mono text-[11px] text-red-700/70">{getProcedureLine(item).code}</p>}
                                         </div>
                                       ) : (
-                                        <p className="font-light">{String(item).split(':')[0]}</p>
+                                        <p className="font-medium text-red-900">{String(item).split(':')[0]}</p>
                                       )}
+                                      
                                       {isDetailed ? (
-                                        <div className="mt-1 space-y-1 text-xs leading-5 text-red-700/80">
-                                          <p>Alasan: {item.reason}</p>
-                                          <p>Dinilai terhadap: {item.againstDiagnosis || diag.diagnosisCode}</p>
-                                          <p>Keyakinan AI: {item.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</p>
-                                        </div>
+                                        <>
+                                          <div className="mt-2 rounded-md bg-white/60 p-2.5 border border-red-100 mb-2">
+                                            <div className="flex items-start gap-2">
+                                              <BrainCircuit className="w-4 h-4 text-red-500 shrink-0 mt-0.5 opacity-70" />
+                                              <div>
+                                                <p className="text-xs text-red-900/90 leading-relaxed">{item.reason}</p>
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-red-700/70">
+                                            <span>Dinilai terhadap: <span className="font-mono text-red-800/80">{item.againstDiagnosis || diag.diagnosisCode}</span></span>
+                                            <span>·</span>
+                                            <span>Keyakinan AI: <span className="text-red-800/80">{item.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</span></span>
+                                          </div>
+                                        </>
                                       ) : String(item).includes(':') ? (
-                                        <p className="mt-1 text-xs leading-5 text-red-700/80">Alasan: {String(item).split(':').slice(1).join(':').trim()}</p>
+                                        <div className="mt-2 rounded-md bg-white/60 p-2.5 border border-red-100">
+                                          <div className="flex items-start gap-2">
+                                            <BrainCircuit className="w-4 h-4 text-red-500 shrink-0 mt-0.5 opacity-70" />
+                                            <div>
+                                              <p className="text-xs text-red-900/90 leading-relaxed">{String(item).split(':').slice(1).join(':').trim()}</p>
+                                            </div>
+                                          </div>
+                                        </div>
                                       ) : null}
                                     </li>
                                   );
@@ -1350,15 +1449,42 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                                 {diag.medicationFindings.map((m: any, j: number) => {
                                   const isIssue = m.status === 'REVIEW_NEEDED' || m.status === 'INAPPROPRIATE';
                                   return (
-                                    <li key={j} className={`rounded bg-card p-2 text-sm ${isIssue ? 'text-amber-800' : 'text-green-800'}`}>
-                                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                        <p className="font-light">{m.medicationName}{m.genericName ? ` (${m.genericName})` : ''}</p>
-                                        <span className={`w-fit rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${m.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : m.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
-                                          {m.status === 'APPROPRIATE' ? 'Sesuai' : m.status === 'INAPPROPRIATE' ? 'Tidak sesuai' : 'Perlu review'}
+                                    <li key={j} className={`rounded bg-card p-3 text-sm border ${isIssue ? 'border-amber-200 bg-amber-50/30' : 'border-green-200 bg-green-50/30'}`}>
+                                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-2">
+                                        <p className="font-medium text-foreground">{m.medicationName}{m.genericName ? ` (${m.genericName})` : ''}</p>
+                                        <span className={`w-fit shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.2em] ${m.status === 'APPROPRIATE' ? 'bg-green-500/10 text-green-700' : m.status === 'INAPPROPRIATE' ? 'bg-red-500/10 text-red-700' : 'bg-amber-500/10 text-amber-700'}`}>
+                                          {m.status === 'APPROPRIATE' ? 'Sesuai' : m.status === 'INAPPROPRIATE' ? 'Tidak Sesuai' : 'Perlu Review'}
                                         </span>
                                       </div>
-                                      <p className="mt-1 text-xs leading-5 opacity-80">Alasan: {m.reason}</p>
-                                      <p className="mt-1 text-[11px] opacity-70">Dinilai terhadap: {m.againstDiagnosis || diag.diagnosisCode} · Keyakinan AI: {m.confidence === 'HIGH' ? 'Tinggi' : 'Sedang'}</p>
+                                      <div className="rounded-md bg-white/60 p-2.5 border border-slate-100 mb-2">
+                                        <div className="flex items-start gap-2">
+                                          <BrainCircuit className="w-4 h-4 text-primary shrink-0 mt-0.5 opacity-70" />
+                                          <div>
+                                            <p className="text-xs text-foreground/90 leading-relaxed">{m.reason}</p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                                        <span>Dinilai terhadap: <span className="font-mono text-foreground/80">{m.againstDiagnosis || diag.diagnosisCode}</span></span>
+                                        <span>·</span>
+                                        <span>Keyakinan AI: <span className="text-foreground/80">{m.confidence === 'HIGH' ? 'Tinggi' : m.confidence === 'MEDIUM' ? 'Sedang' : 'Rendah'}</span></span>
+                                      </div>
+                                      {m.evidenceReferences?.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).length > 0 && (
+                                        <div className="mt-3">
+                                          <p className="text-[10px] font-mono uppercase tracking-[0.1em] text-muted-foreground mb-1.5 flex items-center gap-1">
+                                            <BookOpen className="w-3 h-3" /> Referensi
+                                          </p>
+                                          <div className="flex flex-col gap-1.5">
+                                            {m.evidenceReferences.filter((ref: any) => !ref.title?.toLowerCase().includes('inspired by')).map((ref: any, rIdx: number) => (
+                                              <div key={rIdx} className="text-[11px] bg-white rounded-md border border-slate-200 px-2.5 py-2">
+                                                <p className="font-medium text-slate-800 leading-snug">{ref.title}</p>
+                                                {(ref.organization || ref.year) && <p className="text-slate-500 mt-0.5">{ref.organization} {ref.year}</p>}
+                                                {ref.relevance && <p className="text-slate-600 italic mt-1.5 border-l-2 border-slate-200 pl-2">{ref.relevance}</p>}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
                                     </li>
                                   );
                                 })}

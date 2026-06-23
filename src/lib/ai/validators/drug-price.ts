@@ -190,16 +190,37 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
 
   // ── STEP 1: Parallel — fetch threshold config, exact master references and local medical-item master data ──
   const now = new Date();
-  const [config, exactMasterEntries, masterEntries] = await Promise.all([
-    prisma.systemConfig.findUnique({ where: { id: 'GLOBAL_CONFIG' } }),
-    Promise.all(medications.map((med) =>
-      prisma.medicalItemPriceMaster.findFirst({
+  
+  const configPromise = prisma.systemConfig.findUnique({ where: { id: 'GLOBAL_CONFIG' } });
+
+  const exactMasterPromises = new Map<string, Promise<any>>();
+  const masterPromises = new Map<string, Promise<any>>();
+  
+  const getMedKey = (med: any) => `${med.name?.trim()?.toLowerCase() || ''}|${med.genericName?.trim()?.toLowerCase() || ''}`;
+
+  for (let i = 0; i < medications.length; i++) {
+    const med = medications[i];
+    const key = getMedKey(med);
+    if (!exactMasterPromises.has(key)) {
+      exactMasterPromises.set(key, prisma.medicalItemPriceMaster.findFirst({
         where: { itemName: med.name, expiresAt: { gt: now } },
         orderBy: { createdAt: 'desc' },
-      }),
-    )),
-    Promise.all(medications.map((med) => findMedicalMasterItemPrice(med, now))),
-  ]);
+      }));
+    }
+    if (!masterPromises.has(key)) {
+      masterPromises.set(key, findMedicalMasterItemPrice(med, now));
+    }
+  }
+
+  const config = await configPromise;
+  const exactMasterEntries = new Array(medications.length);
+  const masterEntries = new Array(medications.length);
+  
+  for (let i = 0; i < medications.length; i++) {
+    const key = getMedKey(medications[i]);
+    exactMasterEntries[i] = await exactMasterPromises.get(key);
+    masterEntries[i] = await masterPromises.get(key);
+  }
 
   const thresholdPct = config?.thresholdObatPct ?? 10;
 
@@ -216,15 +237,28 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
   // never searches internet, and never invents products.
   const resolverEntries: Array<Awaited<ReturnType<typeof findMedicalMasterItemPrice>>> = new Array(medications.length).fill(null);
   const resolverIndexes = medications.map((_, index) => index).filter((index) => !masterEntries[index] && !hasValidReferenceEntry(index));
+  
   if (resolverIndexes.length > 0) {
     const gateway = await getAIGateway({ clientId: input.clientId, providerId, jobId });
-    const resolverRequests = (await Promise.all(resolverIndexes.map(async (index) => {
+    
+    // Deduplicate resolver requests
+    const uniqueRequests = new Map<string, { index: number; med: any; key: string }>();
+    for (const index of resolverIndexes) {
       const med = medications[index];
+      const key = getMedKey(med);
+      if (!uniqueRequests.has(key)) {
+        uniqueRequests.set(key, { index, med, key });
+      }
+    }
+
+    const resolverRequests = (await Promise.all(Array.from(uniqueRequests.values()).map(async ({ index, med, key }) => {
       const rankedCandidates = await getRankedMedicalItemCandidates(med, now, 50);
       const candidates = rankedCandidates.map((item) => item.candidate).slice(0, AI_RESOLVER_CANDIDATE_LIMIT);
       if (candidates.length === 0) return null;
-      return { requestId: String(index), index, medication: med, candidates };
+      return { requestId: key, index, medication: med, candidates };
     }))).filter((request): request is { requestId: string; index: number; medication: any; candidates: Awaited<ReturnType<typeof getMedicalItemCandidates>> } => Boolean(request));
+
+    const resolvedPricesByKey = new Map<string, any>();
 
     for (let start = 0; start < resolverRequests.length; start += AI_RESOLVER_BATCH_SIZE) {
       const batch = resolverRequests.slice(start, start + AI_RESOLVER_BATCH_SIZE);
@@ -241,11 +275,20 @@ export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string)
           const confidence = match?.confidence;
           if (!requestId || !selectedId || confidence === 'LOW') continue;
           const selected = candidateByRequestId.get(requestId)?.find((candidate) => candidate.id === selectedId);
-          const targetIndex = Number(requestId);
-          if (selected && Number.isInteger(targetIndex)) resolverEntries[targetIndex] = buildFinalPriceFromMasterItem(selected);
+          if (selected) {
+            resolvedPricesByKey.set(requestId, buildFinalPriceFromMasterItem(selected));
+          }
         }
       } catch (error) {
         console.error(`[checkDrugPrices] Bulk medical item resolver failed for ${batch.length} item(s):`, error);
+      }
+    }
+
+    // Apply resolved prices back to all original identical medications
+    for (const index of resolverIndexes) {
+      const key = getMedKey(medications[index]);
+      if (resolvedPricesByKey.has(key)) {
+        resolverEntries[index] = resolvedPricesByKey.get(key);
       }
     }
   }

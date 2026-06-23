@@ -241,10 +241,10 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
         'OTHER',
       ]),
       title: z.string().describe('Specific source title. Do not invent article titles; use source family/organization title if exact title is unavailable.'),
-      organization: z.string().nullable().optional(),
-      year: z.string().nullable().optional(),
-      url: z.string().nullable().optional().describe('Official URL when available from live search. Null if not retrieved.'),
-      identifier: z.string().nullable().optional().describe('PMID, DOI, NCT, guideline id, NDC/RxCUI, or null.'),
+      organization: z.string().nullable(),
+      year: z.string().nullable(),
+      url: z.string().nullable().describe('Official URL when available from live search. Null if not retrieved.'),
+      identifier: z.string().nullable().describe('PMID, DOI, NCT, guideline id, NDC/RxCUI, or null.'),
       relevance: z.string().describe('Why this source supports the diagnosis-procedure or diagnosis-medication reasoning.'),
       strength: z.enum(['LOW', 'MEDIUM', 'HIGH']),
     });
@@ -265,7 +265,7 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
           reason: z.string().describe('Specific clinical rationale for the status, tied to diagnosis, procedure purpose, and available claim context'),
           againstDiagnosis: z.string().describe('Diagnosis/code being assessed'),
           confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Use HIGH only when the relationship is clear from standard clinical practice or clearly unrelated'),
-          evidenceReferences: z.array(evidenceReferenceSchema).optional().describe('External medical references used for this specific diagnosis-procedure finding, when available.')
+          evidenceReferences: z.array(evidenceReferenceSchema).nullable().describe('External medical references used for this specific diagnosis-procedure finding, when available.')
         })).describe('One finding for every claimed procedure against this diagnosis. Use REVIEW_NEEDED when clinical context is insufficient.'),
         irrelevantProcedures: z.array(z.object({
           procedureCode: z.string(),
@@ -281,7 +281,7 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
           reason: z.string().describe('Clinical reason explaining whether the medication matches this diagnosis'),
           againstDiagnosis: z.string().describe('Diagnosis/code being assessed'),
           confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']),
-          evidenceReferences: z.array(evidenceReferenceSchema).optional().describe('External medical references used for this diagnosis-medication finding, when available.')
+          evidenceReferences: z.array(evidenceReferenceSchema).nullable().describe('External medical references used for this diagnosis-medication finding, when available.')
         })).describe('Medication appropriateness findings against this diagnosis. Use REVIEW_NEEDED if indication depends on comorbidity, symptom, lab, or route context.'),
         missingRequiredProcedures: z.array(z.string()),
         missingRequiredProcedureDetails: z.array(z.object({
@@ -296,9 +296,9 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
           rationale: z.string().describe('Why this procedure is relevant to the diagnosis'),
           evidenceLevel: z.enum(['COMMON', 'OPTIONAL']).describe('Suggested procedures are not mandatory; use COMMON or OPTIONAL only')
         })).describe('Procedures relevant to this diagnosis that were NOT claimed, AI-suggested for admission review'),
-        clinicalEvidenceSummary: z.string().optional().describe('Short source-backed rationale for the diagnosis-procedure review.'),
-        evidenceReferences: z.array(evidenceReferenceSchema).optional().describe('Best references supporting this diagnosis review.'),
-        evidenceRetrievalStatus: z.enum(['LIVE_SEARCH_USED', 'MODEL_KNOWLEDGE_WITH_REFERENCES', 'NO_EXTERNAL_REFERENCE_AVAILABLE']).optional(),
+        clinicalEvidenceSummary: z.string().nullable().describe('Short source-backed rationale for the diagnosis-procedure review.'),
+        evidenceReferences: z.array(evidenceReferenceSchema).nullable().describe('Best references supporting this diagnosis review.'),
+        evidenceRetrievalStatus: z.enum(['LIVE_SEARCH_USED', 'MODEL_KNOWLEDGE_WITH_REFERENCES', 'NO_EXTERNAL_REFERENCE_AVAILABLE']).nullable(),
         notes: z.string()
       }))
     });
@@ -332,21 +332,24 @@ CORE PRINCIPLES:
 
 EXTERNAL MEDICAL EVIDENCE EXCEPTION FOR DIAGNOSIS-PROCEDURE REASONING:
 - This exception applies ONLY to clinical diagnosis/procedure/medication reasoning. It does NOT apply to tariff, drug pricing, policy, FWA, document, or payable calculation.
-- If the model/provider has native web or literature search capability, use it to support the reasoning with authoritative sources.
+- CRITICAL: You have been provided with real, live-fetched external medical evidence in \`externalClinicalEvidenceContext.queries[].sources[]\`.
+- You MUST actively read and utilize the snippets provided in these sources (e.g., PubMed abstracts, FDA drug labels (indikasi, kontraindikasi), RxNorm nomenclatures, WHO indicators).
+- When validating a medication, strictly check if its FDA indications or PubMed literature support its use for the given diagnosis.
+- When validating a procedure, check if the PubMed abstracts or WHO guidelines mention it as a valid diagnostic/therapeutic step for the condition.
 - Preferred source hierarchy, inspired by the medical-mcp source architecture: Indonesian Kemenkes/PNPK/Formularium/internal clinical guideline when available; WHO or specialty society guidelines; Cochrane/systematic reviews; PubMed indexed guideline/review/clinical study; top medical journals such as NEJM/JAMA/Lancet/BMJ/Nature Medicine; FDA/RxNorm only for drug nomenclature/safety; AAP for pediatric claims.
-- Google Scholar may be used only as a discovery path, never as the sole adjudication source. Do not cite scraped Google Scholar result pages as primary evidence.
-- Do not invent PMID, DOI, URL, guideline titles, publication years, or organizations. If exact identifiers are not available, keep identifier/url null and cite the source family/organization honestly.
+- Do not invent PMID, DOI, URL, guideline titles, publication years, or organizations. USE EXACTLY what is provided in the \`externalClinicalEvidenceContext\`. If exact identifiers are not available, keep identifier/url null and cite the source family/organization honestly.
 - For every INAPPROPRIATE finding with MEDIUM/HIGH confidence and every REQUIRED missing procedure, include at least one evidence reference whenever available.
-- For APPROPRIATE findings, include concise references when they materially support the relation, but do not over-cite routine inpatient workflow.
+- For APPROPRIATE findings, include concise references when they materially support the relation, but do not over-cite routine inpatient workflow. Include the reasoning in the \`reason\` field based on the FDA/PubMed/WHO evidence.
 - Set evidenceRetrievalStatus to LIVE_SEARCH_USED if actual provider search/retrieval was used OR if externalClinicalEvidenceContext contains pre-fetched PubMed/reference results that you used; otherwise use MODEL_KNOWLEDGE_WITH_REFERENCES when relying on model-known reputable sources, or NO_EXTERNAL_REFERENCE_AVAILABLE if no reliable reference can be cited.
 
 OUTPUT REQUIREMENTS PER DIAGNOSIS:
 - details length must equal the number of claim diagnoses.
-- procedureFindings: include one finding for each claimed procedure.
-- matchedProcedures: include procedures assessed as APPROPRIATE.
+- procedureFindings: CRITICAL: YOU MUST INCLUDE EVERY SINGLE CLAIMED PROCEDURE HERE, EVEN IF IT IS 'APPROPRIATE'. Do not omit matching procedures. We need the clinical 'reason' for why it matches.
+- medicationFindings: CRITICAL: YOU MUST INCLUDE EVERY SINGLE CLAIMED MEDICATION HERE, EVEN IF IT IS 'APPROPRIATE'. Do not omit matching medications.
+- matchedProcedures: include procedures assessed as APPROPRIATE (note: they must ALSO be detailed in procedureFindings).
 - unmatchedProcedures and irrelevantProcedures: include only procedures assessed as INAPPROPRIATE with MEDIUM/HIGH confidence.
 - missingRequiredProcedures: include only REQUIRED items; do not put COMMON/OPTIONAL suggestions here.
-- suggestedProcedures: advisory only, never mandatory.
+- suggestedProcedures: advisory only, never mandatory. Provide procedures or medications that would be strongly recommended for this diagnosis.
 - clinicalEvidenceSummary: summarize the strongest medical-source rationale behind the diagnosis-procedure decision.
 - evidenceReferences: include the strongest references used for this diagnosis review.
 - notes: briefly summarize clinical review rationale, evidence retrieval status, and any missing context.
