@@ -136,7 +136,8 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
                 </button>
                 {openMenus['Clinical Workflows'] && (
                   <div className="mt-1 space-y-1 pl-3 border-l border-border/50 ml-3">
-                    <Link href="/dashboard/clinical-pathway" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/clinical-pathway') && !pathname.startsWith('/dashboard/clinical-pathway/review') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Validasi Klaim</Link>
+                    <Link href="/dashboard/clinical-pathway/ocr-import" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/clinical-pathway/ocr-import') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>OCR Import</Link>
+                    <Link href="/dashboard/clinical-pathway" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname === '/dashboard/clinical-pathway' || pathname.startsWith('/dashboard/clinical-pathway/baru') || (pathname.match(/^\/dashboard\/clinical-pathway\/[a-zA-Z0-9-]+$/) && !pathname.includes('ocr-import') && !pathname.includes('review')) ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Validasi Klaim</Link>
                     <Link href="/dashboard/clinical-pathway/review" className={`flex min-h-8 items-center rounded-md px-3 text-sm transition-colors ${pathname.startsWith('/dashboard/clinical-pathway/review') ? 'bg-slate-100 text-primary font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-normal'}`}>Review Klaim</Link>
                   </div>
                 )}
@@ -324,6 +325,13 @@ export default function DashboardShell({ children, userEmail, userRole, requestB
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                     </div>
                     <span className="text-[10px] font-light text-center leading-tight">Policy Rules</span>
+                  </Link>
+
+                  <Link href="/dashboard/clinical-pathway/ocr-import" className="group flex flex-col items-center justify-start gap-2 rounded-xl p-2 transition-colors hover:bg-muted text-foreground">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-background border border-border shadow-sm group-hover:bg-card transition-all text-muted-foreground group-hover:text-primary">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h14a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v4"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="m3 15 2 2 4-4"></path></svg>
+                    </div>
+                    <span className="text-[10px] font-light text-center leading-tight">OCR Import</span>
                   </Link>
 
                   <Link href="/dashboard/clinical-pathway" className="group flex flex-col items-center justify-start gap-2 rounded-xl p-2 transition-colors hover:bg-muted text-foreground">

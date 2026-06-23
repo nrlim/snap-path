@@ -56,6 +56,22 @@
       "totalPrice": 150000
     },
     {
+      "code": "LABA100300",
+      "name": "Feses Lengkap / Rutin",
+      "category": "LAB",
+      "quantity": 1,
+      "unitPrice": 120000,
+      "totalPrice": 120000
+    },
+    {
+      "code": "TIND001001",
+      "name": "Pemasangan Infus",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 100000,
+      "totalPrice": 100000
+    },
+    {
       "code": "RUAA010007",
       "name": "Ruang Rawat - Kelas II",
       "category": "KAMAR",
@@ -66,7 +82,37 @@
   ],
   "medications": [
     {
-      "name": "Ekstrak Psidium guajava Folium 240 mg / Ekstrak Curcuma domestica Rhizoma 204 mg / Ekstrak Terminalia chebula Fructus 84 mg / Ekstrak Punica granatum Pericarpium 72 mg Kapsul (DIAPET)",
+      "name": "Ringer Laktat 500ml",
+      "genericName": "Ringer Lactate",
+      "dosage": "500ml",
+      "quantity": 4,
+      "unitPrice": 25000,
+      "totalPrice": 100000,
+      "frequency": "20 tetes per menit",
+      "duration": "2 hari"
+    },
+    {
+      "name": "Ondansetron 4mg Injeksi",
+      "genericName": "Ondansetron",
+      "dosage": "4mg/2ml ampul",
+      "quantity": 2,
+      "unitPrice": 45000,
+      "totalPrice": 90000,
+      "frequency": "Bila mual muntah (PRN)",
+      "duration": "1 hari"
+    },
+    {
+      "name": "Zinc Sulfate 20mg Dispersible Tablet",
+      "genericName": "Zinc Sulfate",
+      "dosage": "20mg Tablet",
+      "quantity": 10,
+      "unitPrice": 5000,
+      "totalPrice": 50000,
+      "frequency": "1 kali sehari",
+      "duration": "10 hari"
+    },
+    {
+      "name": "Ekstrak Psidium guajava Folium Kapsul (DIAPET)",
       "genericName": "Herbal Antidiare",
       "dosage": "Kapsul oral",
       "quantity": 10,

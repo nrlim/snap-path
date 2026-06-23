@@ -118,6 +118,7 @@ model Client {
   requestLedgers    RequestLedger[]
   policyRules       PolicyRule[]
   claimReviewDecisions ClaimReviewDecision[]
+  ocrJobs           OcrJob[]
 
   @@map("snp_client")
 }
@@ -169,6 +170,7 @@ model Provider {
   apiUsageLogs      ApiUsageLog[]
   tariffBook        TariffEntry[]
   claimJobs         ClaimJob[]
+  ocrJobs           OcrJob[]
 
   @@index([clientId])
   @@unique([clientId, code])
@@ -387,3 +389,43 @@ model SystemConfig {
   @@map("snp_system_config")
 }
 
+// === OCR PROCESSING ===
+
+model OcrJob {
+  id              String    @id @default(uuid())
+  clientId        String?
+  client          Client?   @relation(fields: [clientId], references: [id])
+  providerId      String?
+  provider        Provider? @relation(fields: [providerId], references: [id])
+  
+  // File references
+  pdfStoragePath  String    // Supabase storage path for uploaded PDF
+  pdfUrl          String    // SnapText-accessible URL for the PDF
+  txtStoragePath  String?   // Supabase storage path for TXT ground truth
+  txtContent      String?   // Parsed TXT content (stored for scoring)
+  
+  // SnapText job tracking
+  snaptextJobId   String?   // Job ID from SnapText API
+  snaptextStatus  String    @default("PENDING") // "PENDING" | "UPLOADING" | "PROCESSING" | "COMPLETED" | "FAILED"
+  
+  // OCR results & scoring
+  ocrRawResult    Json?     // Raw OCR output from SnapText
+  ocrItems        Json?     // Parsed structured items from OCR: { items: [{ field, ocrValue, correctedValue? }] }
+  txtItems        Json?     // Parsed structured items from TXT ground truth
+  matchScore      Float?    // 0-100 matching score
+  scoringDetails  Json?     // Per-item scoring breakdown: [{ field, expected, actual, match: boolean }]
+  
+  // Lifecycle
+  status          String    @default("PENDING") // "PENDING" | "OCR_PROCESSING" | "SCORING" | "REVIEW_NEEDED" | "APPROVED" | "FORWARDED" | "FAILED"
+  claimJobId      String?   // Linked ClaimJob ID once forwarded
+  errorMessage    String?
+  reviewedByUserId String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([claimJobId])
+  @@map("snp_ocr_job")
+}

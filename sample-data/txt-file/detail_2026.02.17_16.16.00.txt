@@ -1,0 +1,2 @@
+"CLD260200000011","","OP-28750","","BNI","10691","10691/PK-KES/1125","10691-00012-P0","39","Biaya Konsultasi Dokter Umum","130000","130000","0","0",""
+"CLD260200000011","","OP-28750","","BNI","10691","10691/PK-KES/1125","10691-00012-P0","41","Biaya Pembelian Obat-obatan Sesuai dengan Resep Dokter","370000","370000","0","0",""

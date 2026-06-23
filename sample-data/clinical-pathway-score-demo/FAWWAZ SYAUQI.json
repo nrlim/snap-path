@@ -1,0 +1,312 @@
+{
+  "providerId": "7ddf42dc-8a43-4470-b637-78945a6e0419",
+  "claimId": "CN25101832",
+  "patient": {
+    "name": "FAWWAZ SYAUQI",
+    "identifier": [
+      {
+        "value": "PAT-MK-10041"
+      }
+    ],
+    "birthDate": "2012-05-09",
+    "gender": "MALE"
+  },
+  "encounter": {
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2025-10-16T18:06:51Z",
+      "end": "2025-10-20T10:09:58Z"
+    },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "J00",
+      "name": "Acute nasopharyngitis (common cold)",
+      "type": "primary"
+    },
+  ],
+  "procedures": [
+    {
+      "code": "RUAA010002",
+      "name": "Ruang Rawat - Eksekutif",
+      "category": "Kamar",
+      "quantity": 4,
+      "unitPrice": 2100000,
+      "totalPrice": 8400000
+    },
+    {
+      "code": "KAMAR-39",
+      "name": "Jasa Perawatan - Eksekutif",
+      "category": "Kamar",
+      "quantity": 4,
+      "unitPrice": 155000,
+      "totalPrice": 620000
+    },
+    {
+      "code": "KONA000002",
+      "name": "Konsultasi Umum IGD",
+      "category": "Rawat Jalan",
+      "quantity": 1,
+      "unitPrice": 225000,
+      "totalPrice": 225000
+    },
+    {
+      "code": "KOND000001",
+      "name": "Konsultasi Spesialis Rawat Inap",
+      "category": "Rawat Jalan",
+      "quantity": 5,
+      "unitPrice": 395000,
+      "totalPrice": 1975000
+    },
+    {
+      "code": "PRWT000072",
+      "name": "Pasang IV Line Acces",
+      "category": "Tindakan",
+      "quantity": 1,
+      "unitPrice": 173000,
+      "totalPrice": 173000
+    },
+    {
+      "code": "PRWT000029",
+      "name": "Injeksi IM/ IV",
+      "category": "TINDAKAN",
+      "quantity": 11,
+      "unitPrice": 75000,
+      "totalPrice": 825000
+    },
+    {
+      "code": "RHBB010011",
+      "name": "Tindakan Nebulizer",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 252000,
+      "totalPrice": 252000
+    },	
+    {
+      "code": "PRWT000117",
+      "name": "Aff IV Line Acces",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 77000,
+      "totalPrice": 77000
+    },
+	{
+      "code": "RADA030001",
+      "name": "Thorax AP/PA",
+      "category": "Radiologi",
+      "quantity": 1,
+      "unitPrice": 754000,
+      "totalPrice": 754000
+    },
+    {
+      "code": "LABA100300",
+      "name": "Darah Lengkap",
+      "category": "Laboratorium",
+      "quantity": 1,
+      "unitPrice": 276000,
+      "totalPrice": 276000
+    },
+    {
+      "code": "LABA320100",
+      "name": "CRP Kuantitatif",
+      "category": "Laboratorium",
+      "quantity": 1,
+      "unitPrice": 557000,
+      "totalPrice": 557000
+    },
+    {
+      "code": "LABA340200",
+      "name": "Dengue NS 1 Ag",
+      "category": "Laboratorium",
+      "quantity": 1,
+      "unitPrice": 773000,
+      "totalPrice": 773000
+    },
+	{
+      "code": "LABA100200",
+      "name": "Darah Rutin",
+      "category": "Laboratorium",
+      "quantity": 1,
+      "unitPrice": 349000,
+      "totalPrice": 349000
+    },
+	{
+      "code": "LABA320100",
+      "name": "CRP Kuantitatif",
+      "category": "Laboratorium",
+      "quantity": 1,
+      "unitPrice": 882000,
+      "totalPrice": 882000
+    }	
+  ],
+  "medications": [
+    {
+      "name": "Otsu Sodium Chlorida",
+      "genericName": "Otsu Sodium Chloride",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 13372,
+      "totalPrice": 13372
+    },
+    {
+      "name": "OTSU RL 500 ML SOFT BAG",
+      "genericName": "OTSU RL 500 ML SOFT BAG",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 61568,
+      "totalPrice": 61568
+    },
+    {
+      "name": "REMOPAIN PFS 30 MG/ML",
+      "genericName": "REMOPAIN PFS 30 MG/ML",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 207238,
+      "totalPrice": 207238
+    },
+    {
+      "name": "Otsu Sodium Chlorida",
+      "genericName": "Otsu Sodium Chloride",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 13372,
+      "totalPrice": 13372
+    },
+    {
+      "name": "REMOPAIN PFS 30 MG/ML",
+      "genericName": "REMOPAIN PFS 30 MG/ML",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 69746,
+      "totalPrice": 69746
+    },
+    {
+      "name": "REMOPAIN PFS 30 MG/ML",
+      "genericName": "REMOPAIN PFS 30 MG/ML",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 138491,
+      "totalPrice": 138491
+    },
+    {
+      "name": "REMOPAIN PFS 30 MG/ML",
+      "genericName": "REMOPAIN PFS 30 MG/ML",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 138491,
+      "totalPrice": 138491
+    },
+    {
+      "name": "PAMOL 500 MG TABLET",
+      "genericName": "PAMOL 500 MG TABLET",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 46945,
+      "totalPrice": 46945
+    },
+    {
+      "name": "TRAMOFAL 50 MG KAPSUL",
+      "genericName": "TRAMOFAL 50 MG KAPSUL",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 18276,
+      "totalPrice": 18276
+    },
+    {
+      "name": "ALTAMED EXAM GLOVE S",
+      "genericName": "ALTAMED EXAM GLOVE S",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 10724,
+      "totalPrice": 10724
+    },
+    {
+      "name": "DISP SYRINGE 5 ML",
+      "genericName": "DISP SYRINGE 5 ML",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 33774,
+      "totalPrice": 33774
+    },
+    {
+      "name": "DISP SYRINGE 5 ML",
+      "genericName": "DISP SYRINGE 5 ML",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 22849,
+      "totalPrice": 22849
+    },
+    {
+      "name": "B.AC SWAB 2%",
+      "genericName": "DISP SYRINGE 5 ML",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 1476,
+      "totalPrice": 1476
+    },
+    {
+      "name": "DISP SYRINGE 5 ML",
+      "genericName": "DISP SYRINGE 5 ML",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 33774,
+      "totalPrice": 33774
+    },
+    {
+      "name": "B.AC SWAB 2%",
+      "genericName": "DISP SYRINGE 5 ML",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 1953,
+      "totalPrice": 1953
+    }
+  ],
+  "documents": [
+    {
+      "type": "LMA",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: demam 3 hari, nyeri kepala dan mialgia, NS1 dengue positif, trombosit dan hematokrit dimonitor serial, tidak ada tanda perdarahan aktif. Rawat inap untuk monitoring cairan, tanda vital, dan edukasi tanda bahaya."
+    },
+    {
+      "type": "KTP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kronologi jelas; kasus bukan kecelakaan."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
+    }
+  ],
+  "extra": {
+    "nik": "3673010905120005",
+    "phone": "083829109238",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "10164920",
+    "los": "4",
+    "losJustification": "Rawat inap 4 hari untuk Acute nasopharyngitis (common cold) tanpa warning signs dengan monitoring trombosit, hematokrit, elektrolit, tanda vital, hidrasi oral/IV sesuai kebutuhan, dan observasi fase kritis.",
+    "outcomeNotes": "Pasien afebrile, tanda vital stabil, tidak ada perdarahan, trombosit stabil membaik, toleransi oral baik, dan pulang dengan edukasi tanda bahaya serta kontrol."
+  }
+}

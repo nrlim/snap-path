@@ -1,4 +1,14 @@
 const DEFAULT_DOCUMENT_BUCKET = 'claim-documents';
+const DOCUMENT_BUCKET_FILE_SIZE_LIMIT = 20 * 1024 * 1024;
+const DOCUMENT_ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'text/plain',
+  'text/csv',
+  'application/octet-stream',
+];
 
 export interface SupabaseUploadResult {
   bucket: string;
@@ -34,13 +44,28 @@ function encodeStoragePath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');
 }
 
+function getNetworkErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return 'unknown network error';
+}
+
+async function fetchSupabaseStorage(url: string, init: RequestInit, action: string): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (error: unknown) {
+    throw new Error(
+      `Gagal menghubungi Supabase Storage saat ${action}. Periksa SUPABASE_URL, DNS/jaringan, dan status project Supabase. Detail: ${getNetworkErrorMessage(error)}`,
+    );
+  }
+}
+
 async function ensureBucket(): Promise<ReturnType<typeof getSupabaseStorageConfig>> {
   const config = getSupabaseStorageConfig();
   const bucketUrl = `${config.supabaseUrl}/storage/v1/bucket/${encodeURIComponent(config.bucket)}`;
-  const getBucket = await fetch(bucketUrl, {
+  const getBucket = await fetchSupabaseStorage(bucketUrl, {
     headers: storageHeaders(config.serviceRoleKey),
     cache: 'no-store',
-  });
+  }, 'mengecek bucket');
 
   if (getBucket.ok) return config;
 
@@ -51,17 +76,17 @@ async function ensureBucket(): Promise<ReturnType<typeof getSupabaseStorageConfi
     throw new Error(`Gagal mengecek bucket Supabase Storage: ${bucketErrorText}`);
   }
 
-  const createBucket = await fetch(`${config.supabaseUrl}/storage/v1/bucket`, {
+  const createBucket = await fetchSupabaseStorage(`${config.supabaseUrl}/storage/v1/bucket`, {
     method: 'POST',
     headers: storageHeaders(config.serviceRoleKey, 'application/json'),
     body: JSON.stringify({
       id: config.bucket,
       name: config.bucket,
       public: false,
-      file_size_limit: 10 * 1024 * 1024,
-      allowed_mime_types: ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'],
+      file_size_limit: DOCUMENT_BUCKET_FILE_SIZE_LIMIT,
+      allowed_mime_types: DOCUMENT_ALLOWED_MIME_TYPES,
     }),
-  });
+  }, 'membuat bucket');
 
   if (!createBucket.ok && createBucket.status !== 409) {
     const errorText = await createBucket.text();
@@ -77,14 +102,14 @@ export async function uploadClaimDocumentToSupabaseStorage(
 ): Promise<SupabaseUploadResult> {
   const config = await ensureBucket();
   const uploadUrl = `${config.supabaseUrl}/storage/v1/object/${encodeURIComponent(config.bucket)}/${encodeStoragePath(path)}`;
-  const upload = await fetch(uploadUrl, {
+  const upload = await fetchSupabaseStorage(uploadUrl, {
     method: 'POST',
     headers: {
       ...storageHeaders(config.serviceRoleKey, file.type || 'application/octet-stream'),
       'x-upsert': 'true',
     },
     body: Buffer.from(await file.arrayBuffer()),
-  });
+  }, 'mengunggah dokumen');
 
   if (!upload.ok) {
     const errorText = await upload.text();
@@ -103,11 +128,11 @@ export async function uploadClaimDocumentToSupabaseStorage(
 async function createSignedUrl(bucket: string, path: string, expiresIn: number): Promise<string | null> {
   const config = getSupabaseStorageConfig();
   const signUrl = `${config.supabaseUrl}/storage/v1/object/sign/${encodeURIComponent(bucket)}/${encodeStoragePath(path)}`;
-  const response = await fetch(signUrl, {
+  const response = await fetchSupabaseStorage(signUrl, {
     method: 'POST',
     headers: storageHeaders(config.serviceRoleKey, 'application/json'),
     body: JSON.stringify({ expiresIn }),
-  });
+  }, 'membuat signed URL');
 
   if (!response.ok) return null;
 
@@ -121,10 +146,10 @@ async function createSignedUrl(bucket: string, path: string, expiresIn: number):
 export async function deleteClaimDocumentFromSupabaseStorage(path: string): Promise<boolean> {
   const config = getSupabaseStorageConfig();
   const deleteUrl = `${config.supabaseUrl}/storage/v1/object/${encodeURIComponent(config.bucket)}/${encodeStoragePath(path)}`;
-  const response = await fetch(deleteUrl, {
+  const response = await fetchSupabaseStorage(deleteUrl, {
     method: 'DELETE',
     headers: storageHeaders(config.serviceRoleKey),
-  });
+  }, 'menghapus dokumen');
   
   if (!response.ok) {
     const errorText = await response.text();

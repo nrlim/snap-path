@@ -1,0 +1,421 @@
+{
+  "providerId": "7ddf42dc-8a43-4470-b637-78945a6e0419",
+  "claimId": "CN25122052",
+  "patient": {
+    "name": "AGNES ELIZABETH S",
+    "identifier": [
+      {
+        "value": "PAT-MK-10041"
+      }
+    ],
+    "birthDate": "1993-04-04",
+    "gender": "female"
+  },
+  "encounter": {
+    "class": {
+      "code": "IMP"
+    },
+    "period": {
+      "start": "2025-12-21T20:03:15Z",
+      "end": "2025-12-24T10:28:58Z"
+    },
+    "facility": {
+      "id": "MITRA_KELUARGA_BEKASI_TIMUR",
+      "name": "Mitra Keluarga Bekasi Timur",
+      "type": "RS_SWASTA"
+    }
+  },
+  "diagnoses": [
+    {
+      "code": "A49.9",
+      "name": "Bacterial infection, unspecified",
+      "type": "primary"
+    },
+    {
+      "code": "R50.9",
+      "name": "Fever, unspecified",
+      "type": "secondary"
+    }
+  ],
+  "procedures": [
+    {
+      "code": "KAMAR-41",
+      "name": "Jasa Perawatan - Kelas II",
+      "category": "Kamar",
+      "quantity": 3,
+      "unitPrice": 69000,
+      "totalPrice": 207000
+    },
+    {
+      "code": "RUAA010007",
+      "name": "Ruang Rawat - Kelas II",
+      "category": "Kamar",
+      "quantity": 3,
+      "unitPrice": 395000,
+      "totalPrice": 1185000
+    },
+    {
+      "code": "KONA000002",
+      "name": "Konsultasi Umum IGD",
+      "category": "Rawat Jalan",
+      "quantity": 1,
+      "unitPrice": 225000,
+      "totalPrice": 225000
+    },
+    {
+      "code": "KOND000001",
+      "name": "Konsultasi Spesialis Rawat Inap",
+      "category": "Rawat Jalan",
+      "quantity": 3,
+      "unitPrice": 280000,
+      "totalPrice": 840000
+    },
+    {
+      "code": "PRWT000072",
+      "name": "Pasang IV Line Acces",
+      "category": "Tindakan",
+      "quantity": 2,
+      "unitPrice": 173000,
+      "totalPrice": 346000
+    },
+    {
+      "code": "PRWT000029",
+      "name": "Injeksi IM/ IV",
+      "category": "TINDAKAN",
+      "quantity": 7,
+      "unitPrice": 75000,
+      "totalPrice": 525000
+    },
+    {
+      "code": "PRWT000117",
+      "name": "Aff IV Line Acces",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 77000,
+      "totalPrice": 77000
+    },
+    {
+      "code": "LABA100300",
+      "name": "Darah Lengkap",
+      "category": "Laboratorium",
+      "quantity": 1,
+      "unitPrice": 304000,
+      "totalPrice": 304000
+    },
+    {
+      "code": "LABA340200",
+      "name": "Dengue NS 1 Ag",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 848000,
+      "totalPrice": 848000
+    },
+    {
+      "code": "LABA320100",
+      "name": "CRP Kuantitatif",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 611000,
+      "totalPrice": 611000
+    },
+    {
+      "code": "LABA340600",
+      "name": "WIDAL",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 395000,
+      "totalPrice": 395000
+    },
+    {
+      "code": "PKTG020054",
+      "name": "DARAH RUTIN",
+      "category": "Laboratorium",
+      "quantity": 1,
+      "unitPrice": 233000,
+      "totalPrice": 233000
+    },
+    {
+      "code": "LABA400100",
+      "name": "URIN LENGKAP",
+      "category": "Laboratorium",
+      "quantity": 1,
+      "unitPrice": 210000,
+      "totalPrice": 210000
+    },
+    {
+      "code": "RADA030001",
+      "name": "Thorax AP/PA",
+      "category": "Radiologi",
+      "quantity": 1,
+      "unitPrice": 578000,
+      "totalPrice": 578000
+    },
+    {
+      "code": "UMUB000026",
+      "name": "Pembelian Materai oleh Pasien",
+      "category": "TINDAKAN",
+      "quantity": 1,
+      "unitPrice": 10000,
+      "totalPrice": 10000
+    }
+  ],
+  "medications": [
+    {
+      "name": "OTSU SODIUM CHLORIDA",
+      "genericName": "OTSU SODIUM CHLORIDA",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 13372,
+      "totalPrice": 13372
+    },
+    {
+      "name": "ACROLASE 40 MG INJEKSI",
+      "genericName": "ACROLASE 40 MG INJEKSI",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 244090,
+      "totalPrice": 244090
+    },
+    {
+      "name": "NARFOZ 4 MG/2 ML INJEKSI",
+      "genericName": "NARFOZ 4 MG/2 ML INJEKSI",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 48808,
+      "totalPrice": 48808
+    },
+    {
+      "name": "CORTIDEX 5 MG/ML INJEKSI",
+      "genericName": "CORTIDEX 5 MG/ML INJEKSI",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 12344,
+      "totalPrice": 12344
+    },
+    {
+      "name": "OTSU RL 500 ML SOFT BAG",
+      "genericName": "OTSU RL 500 ML SOFT BAG",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 31285,
+      "totalPrice": 31285
+    },
+    {
+      "name": "FARMADOL 1 G/100 ML INFUS",
+      "genericName": "FARMADOL 1 G/100 ML INFUS",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 203575,
+      "totalPrice": 203575
+    },
+    {
+      "name": "OTSU RL 500 ML SOFT BAG",
+      "genericName": "OTSU RL 500 ML SOFT BAG",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 31285,
+      "totalPrice": 31285
+    },
+    {
+      "name": "OTSU SODIUM CHLORIDA",
+      "genericName": "OTSU SODIUM CHLORIDA",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 13372,
+      "totalPrice": 13372
+    },
+    {
+      "name": "OTSU SODIUM CHLORIDA",
+      "genericName": "OTSU SODIUM CHLORIDA",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 25743,
+      "totalPrice": 25743
+    },
+    {
+      "name": "OTTOPAN 1 G/100 ML INFUS",
+      "genericName": "OTTOPAN 1 G/100 ML INFUS",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 341326,
+      "totalPrice": 341326
+    },
+    {
+      "name": "ARCOLASE 40 MG INJEKSI",
+      "genericName": "ARCOLASE 40 MG INJEKSI",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 487180,
+      "totalPrice": 487180
+    },
+    {
+      "name": "NARFOZ 4 MG/2 ML INJEKSI",
+      "genericName": "NARFOZ 4 MG/2 ML INJEKSI",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 144423,
+      "totalPrice": 144423
+    },
+    {
+      "name": "OTSU RL 500 ML SOFT BAG",
+      "genericName": "OTSU RL 500 ML SOFT BAG",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 61568,
+      "totalPrice": 61568
+    },
+    {
+      "name": "TRICEFIN 1 G/10 ML INJEKSI",
+      "genericName": "TRICEFIN 1 G/10 ML INJEKSI",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 785370,
+      "totalPrice": 785370
+    },
+    {
+      "name": "OTTOPAN 1 G/100 ML INFUS",
+      "genericName": "OTTOPAN 1 G/100 ML INFUS",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 114442,
+      "totalPrice": 114442
+    },
+    {
+      "name": "ARCOLASE 40 MG INJEKSI",
+      "genericName": "ARCOLASE 40 MG INJEKSI",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 487180,
+      "totalPrice": 487180
+    },
+    {
+      "name": "NARFOZ 4 MG/2 ML INJEKSI",
+      "genericName": "NARFOZ 4 MG/2 ML INJEKSI",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 144423,
+      "totalPrice": 144423
+    },
+    {
+      "name": "OTSU RL 500 ML SOFT BAG",
+      "genericName": "OTSU RL 500 ML SOFT BAG",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 31285,
+      "totalPrice": 31285
+    },
+    {
+      "name": "TRICEFIN 1 G/10 ML INJEKSI",
+      "genericName": "TRICEFIN 1 G/10 ML INJEKSI",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 785370,
+      "totalPrice": 785370
+    },
+    {
+      "name": "SUMAGESIC 600 MG TABLET",
+      "genericName": "SUMAGESIC 600 MG TABLET",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 9961,
+      "totalPrice": 9961
+    },
+    {
+      "name": "VOMETA FT 10 MG TABLET",
+      "genericName": "VOMETA FT 10 MG TABLET",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 82030,
+      "totalPrice": 82030
+    },
+    {
+      "name": "VOMIZOLE 20 MG TABLET",
+      "genericName": "VOMIZOLE 20 MG TABLET",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 244090,
+      "totalPrice": 244090
+    },
+    {
+      "name": "TEQUINOL 500 MG TABLET",
+      "genericName": "TEQUINOL 500 MG TABLET",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 227884,
+      "totalPrice": 227884
+    },
+    {
+      "name": "NOSFOCIN 30 MG/5 ML 120",
+      "genericName": "NOSFOCIN 30 MG/5 ML 120",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 175215,
+      "totalPrice": 175215
+    },
+    {
+      "name": "OTSU RL 500 ML SOFT BAG",
+      "genericName": "OTSU RL 500 ML SOFT BAG",
+      "dosage": "500ml botol infus",
+      "quantity": 1,
+      "unitPrice": 31285,
+      "totalPrice": 31285
+    },
+    {
+      "name": "ARCOLASE 40 MG INJEKSI",
+      "genericName": "ARCOLASE 40 MG INJEKSI",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 244090,
+      "totalPrice": 244090
+    },
+    {
+      "name": "NARFOZ 4 MG/2 ML INJEKSI",
+      "genericName": "NARFOZ 4 MG/2 ML INJEKSI",
+      "dosage": "BOTOL",
+      "quantity": 1,
+      "unitPrice": 48808,
+      "totalPrice": 48808
+    }
+  ],
+  "documents": [
+    {
+      "type": "LMA",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Laporan Medis Awal: demam 3 hari, nyeri kepala dan mialgia, NS1 dengue positif, trombosit dan hematokrit dimonitor serial, tidak ada tanda perdarahan aktif. Rawat inap untuk monitoring cairan, tanda vital, dan edukasi tanda bahaya."
+    },
+    {
+      "type": "KTP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Identitas sesuai KTP."
+    },
+    {
+      "type": "KARTU ASURANSI",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kartu Asuransi aktif."
+    },
+    {
+      "type": "SK KAMAR",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Sesuai hak kelas rawat."
+    },
+    {
+      "type": "FORM KRONOLOGIS KECELAKAAN",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Kronologi jelas; kasus bukan kecelakaan."
+    },
+    {
+      "type": "SURAT PERNYATAAN RAWAT INAP",
+      "date": "2026-05-25T08:43:06.874Z",
+      "conclusion": "Persetujuan rawat inap ditandatangani."
+    }
+  ],
+  "extra": {
+    "nik": "3275014404930008",
+    "phone": "081298761235",
+    "insuranceType": "ASURANSI_SWASTA",
+    "insuranceNumber": "10472877",
+    "los": "3",
+    "losJustification": "Rawat inap 3 hari untuk dengue tanpa warning signs dengan monitoring trombosit, hematokrit, elektrolit, tanda vital, hidrasi oral/IV sesuai kebutuhan, dan observasi fase kritis.",
+    "outcomeNotes": "Pasien afebrile, tanda vital stabil, tidak ada perdarahan, trombosit stabil membaik, toleransi oral baik, dan pulang dengan edukasi tanda bahaya serta kontrol."
+  }
+}
