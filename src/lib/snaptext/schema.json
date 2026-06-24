@@ -69,10 +69,10 @@
     },
     "diagnoses": {
       "type": "array",
-      "description": "Diagnosis final/ICD. Maks 8, dedupe, tepat satu PRIMARY. Jangan ambil dari billing item/obat/lab/radiologi/header.",
+      "description": "Diagnosis final saja. Ambil hanya PRIMARY dan SECONDARY. Maks 3, dedupe. Jangan ambil komplikasi terpisah, gejala, billing item, obat, lab, radiologi, atau header.",
       "items": {
         "type": "object",
-        "description": "Satu diagnosis bersih. Minimal name bermakna; code hanya ICD-10 jelas.",
+        "description": "Satu diagnosis final bersih. Harus PRIMARY atau SECONDARY; code hanya ICD-10 jelas.",
         "properties": {
           "code": {
             "type": "string",
@@ -80,25 +80,25 @@
           },
           "name": {
             "type": "string",
-            "description": "Nama diagnosis klinis bersih. Bukan placeholder/nama pasien/obat/tindakan."
+            "description": "Nama diagnosis klinis final. Bukan keluhan, tindakan, obat, lab, radiologi, atau nama pasien."
           },
           "type": {
             "type": "string",
-            "description": "PRIMARY, SECONDARY, atau COMPLICATION."
+            "description": "Hanya PRIMARY atau SECONDARY. Jangan pakai COMPLICATION."
           },
           "sequence": {
             "type": "number",
-            "description": "Urutan mulai dari 1 setelah dedupe."
+            "description": "Urutan diagnosis final setelah dedupe; PRIMARY harus 1."
           }
         }
       }
     },
     "line_items": {
       "type": "array",
-      "description": "Rincian biaya invoice aktual. Pakai detail jika ada; jangan duplikasi subtotal/ringkasan. Harga IDR penuh tanpa pemisah ribuan.",
+      "description": "Hanya rincian biaya dari tabel/detail invoice aktual. Jangan ambil dari manfaat polis, estimasi, ringkasan benefit, tarif kamar, resep, lab result, clinical note, atau discharge summary.",
       "items": {
         "type": "object",
-        "description": "Satu baris biaya aktual. Wajib item_type, name, quantity, unit_price, total_price. Abaikan benefit/limit/uncovered/total 0.",
+        "description": "Satu baris charge invoice aktual. Wajib item_type, name, quantity, unit_price, total_price. Abaikan subtotal, total, benefit, limit, discount, uncovered, dan total 0.",
         "properties": {
           "item_type": {
             "type": "string",
@@ -110,11 +110,11 @@
           },
           "name": {
             "type": "string",
-            "description": "Nama item tagihan bersih. Jangan gabungkan harga/qty/tanggal."
+            "description": "Nama item persis dari baris invoice detail. Jangan buat dari diagnosis, resep, hasil lab, kategori ringkasan, harga, qty, atau tanggal."
           },
           "category": {
             "type": "string",
-            "description": "Kategori/departemen invoice jika jelas."
+            "description": "Kategori/departemen dari invoice detail jika eksplisit. Bukan header halaman."
           },
           "generic_name": {
             "type": "string",
@@ -126,15 +126,15 @@
           },
           "quantity": {
             "type": "number",
-            "description": "Jumlah item. Untuk summary kategori gunakan 1."
+            "description": "Jumlah pada baris invoice detail. Jika tidak ada gunakan 1; jangan hitung dari teks klinis."
           },
           "unit_price": {
             "type": "number",
-            "description": "Harga satuan IDR. Jika perlu hitung total_price / quantity."
+            "description": "Harga satuan IDR dari invoice detail. Jika kosong, hitung total_price / quantity."
           },
           "total_price": {
             "type": "number",
-            "description": "Total harga baris IDR, wajib > 0."
+            "description": "Total baris invoice detail IDR, wajib > 0. Bukan subtotal/grand total."
           },
           "frequency": {
             "type": "string",
