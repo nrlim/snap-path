@@ -97,12 +97,28 @@ export function sanitizeArbitraryJson(
     .map(p => getSafePattern(p))
     .filter((p): p is RegExp => p !== null);
 
-  function stripPii(obj: unknown, depth: number = 0): void {
+  /**
+   * Recursively redact PII from a JSON object.
+   *
+   * @param obj        - The object to sanitize in-place
+   * @param depth      - Current recursion depth (guard against stack overflow)
+   * @param parentKey  - The key of the parent object that contains `obj`.
+   *                     Used to detect "safe contexts" at the parent level so
+   *                     that clinical names (diagnoses[].name, medications[].name)
+   *                     are NOT redacted even though "name" is a PII key.
+   */
+  function stripPii(obj: unknown, depth: number = 0, parentKey: string = ''): void {
     // Prevent stack overflow from deeply nested objects
     if (!obj || typeof obj !== 'object' || depth > 20) return;
     
+    // Check if the current parent key is itself a safe context
+    // e.g. "diagnoses", "medications", "procedures", "drug", etc.
+    const parentIsSafeContext = parentKey
+      ? safeContexts.some(regex => regex.test(parentKey))
+      : false;
+
     if (Array.isArray(obj)) {
-      obj.forEach(item => stripPii(item, depth + 1));
+      obj.forEach(item => stripPii(item, depth + 1, parentKey));
       return;
     }
 
@@ -111,7 +127,8 @@ export function sanitizeArbitraryJson(
         const value = (obj as Record<string, unknown>)[key];
 
         if (typeof value === 'object') {
-          stripPii(value, depth + 1);
+          // Pass this key as the parent context for the next level
+          stripPii(value, depth + 1, key);
           continue;
         }
 
@@ -119,7 +136,11 @@ export function sanitizeArbitraryJson(
         const isPiiKey = piiKeyPatterns.some(regex => regex.test(key));
         const isSafeContext = safeContexts.some(regex => regex.test(key));
 
-        if (isPiiKey && !isSafeContext && isString) {
+        // Redact only if:
+        // 1. Key matches a PII pattern
+        // 2. Key itself is NOT a safe context
+        // 3. Parent object is NOT a safe context (to protect clinical child names)
+        if (isPiiKey && !isSafeContext && !parentIsSafeContext && isString) {
           (obj as Record<string, unknown>)[key] = '[REDACTED]';
         } else if (isString) {
           (obj as Record<string, unknown>)[key] = sanitizeClinicalText(value);

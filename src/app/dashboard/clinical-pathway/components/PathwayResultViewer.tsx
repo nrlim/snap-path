@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import PathwayTimeline from "./PathwayTimeline";
 import { ArrowUp, BrainCircuit, BookOpen, Calculator, CheckCheck, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MinusCircle, FileText, Pill, Stethoscope, AlertTriangle, Info } from 'lucide-react';
 import { resolveActualLosDays } from '@/lib/los';
+import WorkflowStatusTracker from './WorkflowStatusTracker';
 
 export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?: number }) {
   const strokeWidth = size * 0.08;
@@ -197,28 +198,18 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
 
   if (job.status !== "COMPLETED" && job.status !== "FAILED") {
     return (
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden p-12 text-center">
-        <div className="mx-auto w-16 h-16 rounded-full border-[3px] border-primary/20 border-t-primary animate-spin mb-6"></div>
-        <h2 className="text-xl font-light text-slate-800 mb-2">AI Brain is processing...</h2>
-        <p className="text-muted-foreground mb-8 max-w-md mx-auto">
-          Analyzing claim data, validating procedures against Master Fee Schedule, checking drug prices, and compiling clinical pathway.
-        </p>
-        
-        {/* Progress indicator */}
-        <div className="max-w-xl mx-auto space-y-4 text-left">
-          <div className="flex justify-between text-xs font-light text-muted-foreground mb-1">
-            <span>Status</span>
-            <span className="text-primary uppercase">{job.status}</span>
-          </div>
-          <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-            <div className={`bg-primary h-2 rounded-full transition-all duration-1000 ${
-              job.status === "QUEUED" ? "w-1/4" : 
-              job.status === "PRE_PROCESSING" ? "w-2/4" :
-              job.status === "PROCESSING" ? "w-3/4" : "w-11/12"
-            }`}></div>
-          </div>
-        </div>
-      </div>
+      <WorkflowStatusTracker
+        jobId={job.id}
+        workflowRunId={job.workflowRunId ?? null}
+        currentDbStatus={job.status}
+        onCompleted={() => {
+          // Reload page to get fresh server-rendered data
+          window.location.reload();
+        }}
+        onFailed={(errMsg) => {
+          setJob((prev: any) => ({ ...prev, status: "FAILED", error: errMsg }));
+        }}
+      />
     );
   }
 
@@ -1200,8 +1191,8 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
                 </div>
                 {policyFindings.length > 0 ? (
                   <div className="divide-y divide-border/60">
-                    {policyFindings.map((finding: any) => (
-                      <div key={`${finding.ruleCode}-${finding.message}`} className="p-4">
+                    {policyFindings.map((finding: any, idx: number) => (
+                      <div key={`${finding.ruleCode}-${idx}`} className="p-4">
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">

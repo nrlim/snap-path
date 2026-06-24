@@ -58,6 +58,17 @@ export interface ClaimValidationInput {
     url?: string;
     description?: string;
   }>;
+  policyRules?: Array<{
+    ruleCode: string;
+    ruleName: string;
+    ruleType: string; // e.g. 'LIMIT', 'EXCLUSION'
+    actionJson?: any;
+    severity?: string;
+    status?: string;
+    effectiveFrom?: string;
+    targetType?: string;
+    targetPattern?: string;
+  }>;
 }
 
 export interface ClaimValidationOutput {

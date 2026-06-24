@@ -383,7 +383,7 @@ model SystemConfig {
   thresholdTindakanPct Float @default(10.0)
   thresholdLosDays Int     @default(1)
   piiRedactPatterns String[] @default(["name", "nama", "pasien", "patient", "fullname", "nik", "id", "ktp", "ssn", "identifier", "address", "alamat", "phone", "telepon", "nohp", "mobile", "email", "dob", "dateofbirth", "tanggallahir", "asuransi", "insurance", "bpjs"])
-  piiSafeContexts   String[] @default(["diagnosis", "procedure", "medication", "drug", "facility", "hospital", "clinic", "encounter", "class", "code", "type"])
+  piiSafeContexts   String[] @default(["diagnosis", "diagnoses", "procedure", "procedures", "medication", "medications", "drug", "drugs", "facility", "hospital", "clinic", "encounter", "class", "code", "type", "genericName", "genericname", "category", "dosage"])
   updatedAt       DateTime @updatedAt
 
   @@map("snp_system_config")
@@ -414,6 +414,7 @@ model OcrJob {
   txtItems        Json?     // Parsed structured items from TXT ground truth
   matchScore      Float?    // 0-100 matching score
   scoringDetails  Json?     // Per-item scoring breakdown: [{ field, expected, actual, match: boolean }]
+  aiMappedPayload Json?     // Cached result of AI smart mapping (mapArbitraryJsonToClaim)
   
   // Lifecycle
   status          String    @default("PENDING") // "PENDING" | "OCR_PROCESSING" | "SCORING" | "REVIEW_NEEDED" | "APPROVED" | "FORWARDED" | "FAILED"

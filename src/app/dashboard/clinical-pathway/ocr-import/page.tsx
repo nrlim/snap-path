@@ -10,7 +10,7 @@ export default function OcrImportPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Impor Invoice via OCR</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Unggah PDF invoice beserta TXT ground truth. CONSUL akan mengekstrak data menggunakan schema SnapText, menghitung skor kecocokan, lalu menampilkan HITL jika skor belum 100%.
+          Unggah PDF invoice beserta TXT header/detail. CONSUL membandingkan hasil OCR PDF dengan TXT header, sekaligus memverifikasi nomor klaim header dan detail jika detail ikut diunggah.
         </p>
       </div>
 

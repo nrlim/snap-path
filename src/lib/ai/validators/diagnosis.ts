@@ -144,7 +144,8 @@ async function saveAiApprovedDiagnosisProcedureMappings(details: DiagnosisValida
 }
 
 export async function validateDiagnosisTreatment(input: ClaimValidationInput, jobId?: string): Promise<ClaimValidationOutput['diagnosisValidation']> {
-  const { diagnoses, procedures } = input;
+  const diagnoses = input.diagnoses || [];
+  const procedures = input.procedures || [];
   const gateway = await getAIGateway({ clientId: input.clientId, providerId: input.providerId, jobId });
 
   const details: ClaimValidationOutput['diagnosisValidation']['details'] = [];

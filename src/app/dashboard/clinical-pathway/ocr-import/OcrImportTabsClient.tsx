@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+
 import OcrUploadWizard from "../components/OcrUploadWizard";
 import OcrJobsList from "./OcrJobsList";
 
@@ -37,7 +38,8 @@ export default function OcrImportTabsClient() {
       </div>
 
       <div>
-        {activeTab === "UPLOAD" ? <OcrUploadWizard /> : <OcrJobsList />}
+        {activeTab === "UPLOAD" ? <OcrUploadWizard /> : null}
+        {activeTab === "HISTORY" ? <OcrJobsList /> : null}
       </div>
     </div>
   );

@@ -20,6 +20,8 @@ export default function OcrReviewClient({ jobId }: OcrReviewClientProps) {
   const [ocrRawResult, setOcrRawResult] = useState<unknown>(null);
   const [txtItems, setTxtItems] = useState<unknown>(null);
   const [txtContent, setTxtContent] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [processingTimeMs, setProcessingTimeMs] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchJobData = async () => {
@@ -53,6 +55,10 @@ export default function OcrReviewClient({ jobId }: OcrReviewClientProps) {
         setOcrRawResult(response.ocrRawResult);
         setTxtItems(response.txtItems);
         setTxtContent(typeof response.txtContent === "string" ? response.txtContent : null);
+        setPdfUrl(typeof response.pdfUrl === "string" ? response.pdfUrl : null);
+        if (typeof response.processingTimeMs === "number") {
+          setProcessingTimeMs(response.processingTimeMs);
+        }
 
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : "Terjadi kesalahan sistem.");
@@ -64,9 +70,13 @@ export default function OcrReviewClient({ jobId }: OcrReviewClientProps) {
     void fetchJobData();
   }, [jobId]);
 
-  const handleForwarded = () => {
-    // Navigasi kembali ke daftar riwayat
-    router.push("/dashboard/clinical-pathway/ocr-import");
+  const handleForwarded = (claimJobId?: string) => {
+    console.log("handleForwarded called with claimJobId:", claimJobId);
+    if (claimJobId) {
+      window.location.href = `/dashboard/clinical-pathway/${claimJobId}`;
+    } else {
+      window.location.href = "/dashboard/clinical-pathway/ocr-import";
+    }
   };
 
   if (isLoading) {
@@ -99,17 +109,31 @@ export default function OcrReviewClient({ jobId }: OcrReviewClientProps) {
           <ChevronLeft className="mr-1 h-4 w-4" />
           Kembali ke Riwayat
         </Link>
-        <div className="font-mono text-xs text-slate-500">Job ID: {jobId}</div>
+        <div className="flex flex-col items-end gap-1">
+          <div className="font-mono text-xs text-slate-500">Job ID: {jobId}</div>
+          {processingTimeMs !== null && (
+            <div className="text-xs font-medium text-slate-500">
+              Waktu Proses OCR: {(processingTimeMs / 1000).toFixed(2)} detik
+            </div>
+          )}
+        </div>
       </div>
 
-      <OcrReviewTable
-        ocrJobId={jobId}
+      <OcrReviewTable 
+        ocrJobId={jobId} 
         scoringResult={scoringResult}
         ocrRawResult={ocrRawResult}
         txtItems={txtItems}
         txtContent={txtContent}
-        onCorrected={setScoringResult}
-        onForward={handleForwarded}
+        pdfUrl={pdfUrl ?? undefined}
+        onCorrected={(updatedScoring) => setScoringResult(updatedScoring)}
+        onForward={(claimJobId) => {
+          if (claimJobId) {
+            router.push(`/dashboard/clinical-pathway/${claimJobId}`);
+          } else {
+            router.push('/dashboard/clinical-pathway');
+          }
+        }}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import type { ClaimValidationInput } from "@/lib/ai/types";
-import type { OcrItem } from "@/lib/ocr-scoring";
+import type { OcrItem, TxtItem } from "@/lib/ocr-scoring";
 
 export interface BuildOcrClaimPayloadInput {
   ocrJobId: string;
@@ -9,6 +9,7 @@ export interface BuildOcrClaimPayloadInput {
   pdfUrl: string;
   pdfStoragePath: string;
   ocrItems: OcrItem[];
+  txtItems?: (OcrItem | TxtItem)[];
   ocrRawResult: unknown;
 }
 
@@ -24,6 +25,92 @@ export interface OcrClaimValidationPayload extends ClaimValidationInput {
     los?: string;
     missingClinicalFields: string[];
   };
+}
+
+export function buildClaimValidationPayloadFromAI(
+  aiMappedPayload: Partial<ClaimValidationInput>,
+  input: BuildOcrClaimPayloadInput
+): { payload: OcrClaimValidationPayload; mappingLog: Record<string, string> } {
+  const mappingLog: Record<string, string> = {
+    "_info": "Mapped using AI Smart Mapping (mapArbitraryJsonToClaim)"
+  };
+
+  const txtDiagnoses = extractDiagnosesFromTxtItems(input.txtItems);
+
+  const payload: ClaimValidationInput = {
+    providerId: input.providerId || "",
+    patient: {
+      id: aiMappedPayload.patient?.id || "",
+      name: aiMappedPayload.patient?.name || "Pasien OCR",
+      dateOfBirth: aiMappedPayload.patient?.dateOfBirth || "",
+      gender: aiMappedPayload.patient?.gender || "M",
+    },
+    encounter: {
+      type: aiMappedPayload.encounter?.type || "RAWAT_JALAN",
+      admissionDate: aiMappedPayload.encounter?.admissionDate || "",
+      dischargeDate: aiMappedPayload.encounter?.dischargeDate || "",
+      facility: {
+        id: aiMappedPayload.encounter?.facility?.id || input.providerId || "",
+        name: aiMappedPayload.encounter?.facility?.name || input.providerName || "Faskes",
+        type: aiMappedPayload.encounter?.facility?.type || "KLINIK",
+      }
+    },
+    diagnoses: aiMappedPayload.diagnoses ? [...aiMappedPayload.diagnoses] : [],
+    procedures: aiMappedPayload.procedures ? [...aiMappedPayload.procedures] : [],
+    medications: aiMappedPayload.medications ? [...aiMappedPayload.medications] : [],
+    policyRules: aiMappedPayload.policyRules ? aiMappedPayload.policyRules.map((rule: any) => {
+      let parsedActionJson = undefined;
+      if (rule.actionJsonStr) {
+        try {
+          parsedActionJson = JSON.parse(rule.actionJsonStr);
+        } catch (e) {
+          console.warn("Failed to parse actionJsonStr", rule.actionJsonStr);
+        }
+      }
+      return {
+        ...rule,
+        actionJson: parsedActionJson || rule.actionJson
+      };
+    }) : [],
+    documents: aiMappedPayload.documents ? [...aiMappedPayload.documents] : [],
+    totalClaimAmount: aiMappedPayload.totalClaimAmount || 0,
+    currency: aiMappedPayload.currency,
+    notes: aiMappedPayload.notes,
+  };
+
+  // Inject ICD-10 codes from TXT if missing or invalid
+  payload.diagnoses = payload.diagnoses.map((diag, index) => {
+    let code = diag.code;
+    const isValid = /^[A-TV-Z]\d{2}(?:\.\d+)?$/.test((code || "").trim().toUpperCase());
+    
+    if (!isValid && txtDiagnoses.length > index) {
+      code = txtDiagnoses[index].code;
+      mappingLog[`diagnoses.${index}.code`] = `Injected from ground truth TXT: ${code}`;
+    }
+
+    return {
+      ...diag,
+      code: code || `OCR-DIAG-${index + 1}`
+    };
+  });
+
+  return {
+    payload: {
+      ...payload,
+      providerId: input.providerId || "",
+      extra: {
+        source: "SNAPTEXT_OCR_INVOICE",
+        ocrJobId: input.ocrJobId,
+        missingClinicalFields: [],
+      },
+    },
+    mappingLog,
+  };
+}
+
+export interface OcrClaimValidationPayloadResult {
+  payload: OcrClaimValidationPayload;
+  mappingLog: Record<string, string>;
 }
 
 interface InvoiceDiagnosisInput {
@@ -271,7 +358,35 @@ function normalizeDiagnosisName(value: string): string | null {
   return cleaned;
 }
 
-function buildDiagnoses(record: Record<string, unknown>): ClaimValidationInput["diagnoses"] {
+export function extractDiagnosesFromTxtItems(txtItems?: (OcrItem | TxtItem)[]): Array<{code: string; type: string}> {
+  const txtDiagnoses: Array<{code: string; type: string}> = [];
+  if (txtItems) {
+    const diagCodes = txtItems.filter(item => item.field.startsWith("diagnoses.") && item.field.endsWith(".code"));
+    const diagTypes = txtItems.filter(item => item.field.startsWith("diagnoses.") && item.field.endsWith(".type"));
+    diagCodes.forEach(codeItem => {
+      const match = codeItem.field.match(/^diagnoses\.(\d+)\.code$/);
+      if (match) {
+        const index = match[1];
+        const typeItem = diagTypes.find(t => t.field === `diagnoses.${index}.type`);
+        txtDiagnoses.push({
+          code: codeItem.value,
+          type: typeItem ? typeItem.value : "SECONDARY"
+        });
+      }
+    });
+    // Sort so PRIMARY is first
+    txtDiagnoses.sort((a, b) => {
+      if (a.type === "PRIMARY" && b.type !== "PRIMARY") return -1;
+      if (a.type !== "PRIMARY" && b.type === "PRIMARY") return 1;
+      return 0;
+    });
+  }
+  return txtDiagnoses;
+}
+
+function buildDiagnoses(record: Record<string, unknown>, txtItems?: (OcrItem | TxtItem)[]): ClaimValidationInput["diagnoses"] {
+  const txtDiagnoses = extractDiagnosesFromTxtItems(txtItems);
+
   const diagnoses = readArray(record, ["diagnoses", "diagnosis", "icd10"]);
 
   if (diagnoses.length > 0) {
@@ -280,7 +395,13 @@ function buildDiagnoses(record: Record<string, unknown>): ClaimValidationInput["
         if (!isRecord(item)) return null;
         const diagnosis = item as InvoiceDiagnosisInput;
         const rawCode = typeof diagnosis.code === "string" ? diagnosis.code.trim().toUpperCase() : "";
-        const code = isValidIcdCode(rawCode) ? rawCode : "";
+        let code = isValidIcdCode(rawCode) ? rawCode : "";
+        
+        // If code is not valid or empty, try to get from txt
+        if (!code && txtDiagnoses.length > index) {
+          code = txtDiagnoses[index].code;
+        }
+
         const rawName = typeof diagnosis.name === "string" && diagnosis.name.trim() ? diagnosis.name.trim() : code;
         const name = normalizeDiagnosisName(rawName);
         if (!code && !name) return null;
@@ -325,7 +446,10 @@ function buildDiagnoses(record: Record<string, unknown>): ClaimValidationInput["
   }
 
   const rawCode = getString(record, "diagnosis_code")?.toUpperCase() ?? "";
-  const code = isValidIcdCode(rawCode) ? rawCode : "";
+  let code = isValidIcdCode(rawCode) ? rawCode : "";
+  if (!code && txtDiagnoses.length > 0) {
+    code = txtDiagnoses[0].code;
+  }
   const name = normalizeDiagnosisName(getString(record, "diagnosis_name") ?? code);
   if (!code && !name) return [];
 
@@ -396,7 +520,7 @@ function collectMissingClinicalFields(payload: Pick<ClaimValidationInput, "diagn
   return missing;
 }
 
-export function buildClaimValidationPayloadFromOcr(input: BuildOcrClaimPayloadInput): OcrClaimValidationPayload {
+export function buildClaimValidationPayloadFromOcr(input: BuildOcrClaimPayloadInput): OcrClaimValidationPayloadResult {
   const record = extractStructuredRecord(input.ocrRawResult);
   const providerName = input.providerName ?? getStringFromSources(input.ocrItems, record, "provider_name") ?? "Provider dari invoice OCR";
   const memberName = getStringFromSources(input.ocrItems, record, "member_name") ?? "Pasien dari invoice OCR";
@@ -409,11 +533,28 @@ export function buildClaimValidationPayloadFromOcr(input: BuildOcrClaimPayloadIn
   const dischargeDate = normalizeDate(getString(record, "discharge_date")) ?? undefined;
   const patientIdentifier = getString(record, "patient_identifier") ?? invoiceNumber;
   const insuranceNumber = getString(record, "insurance_number") ?? undefined;
-  const diagnoses = buildDiagnoses(record);
+  const diagnoses = buildDiagnoses(record, input.txtItems);
   const { procedures, medications } = buildProceduresAndMedications(record);
   const missingClinicalFields = collectMissingClinicalFields({ diagnoses, procedures, medications });
 
-  return {
+  const mappingLog: Record<string, string> = {
+    amount: String(totalClaimAmount),
+    provider_name: providerName,
+    member_name: memberName,
+    invoice_number: invoiceNumber,
+    patient_identifier: patientIdentifier,
+    insurance_number: insuranceNumber ?? "",
+    patient_birth_date: birthDate ?? "",
+    patient_gender: gender ?? "",
+    encounter_type: encounterType,
+    admission_date: admissionDate ?? "",
+    discharge_date: dischargeDate ?? "",
+    "diagnoses.length": String(diagnoses.length),
+    "procedures.length": String(procedures.length),
+    "medications.length": String(medications.length),
+  };
+
+  const payload: OcrClaimValidationPayload = {
     clientId: input.clientId,
     providerId: input.providerId ?? "",
     claimId: invoiceNumber,
@@ -461,4 +602,6 @@ export function buildClaimValidationPayloadFromOcr(input: BuildOcrClaimPayloadIn
       missingClinicalFields,
     },
   };
+
+  return { payload, mappingLog };
 }

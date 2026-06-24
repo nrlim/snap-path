@@ -4,7 +4,7 @@
   "properties": {
     "amount": {
       "type": "number",
-      "description": "Grand total tagihan akhir invoice/kuitansi dalam IDR sebagai totalClaimAmount. Ambil hanya nilai total akhir yang ditagihkan/diklaim. Jangan ambil subtotal kategori, benefit limit, reimbursement limit, tarif kamar, estimated cost, deposit, diskon, pajak parsial, atau angka benefit. Untuk angka Indonesia, hapus titik pemisah ribuan: 47.291.139 harus menjadi 47291139; 709.000 harus menjadi 709000, bukan 709."
+      "description": "Grand total tagihan akhir invoice/kuitansi yang harus dibayar atau diklaim, dalam IDR tanpa simbol Rp dan tanpa pemisah ribuan. Ambil hanya satu nilai total akhir. Abaikan subtotal kategori, total departemen, deposit/uang muka, benefit limit, reimbursement limit, tarif kamar, estimated cost, diskon, dan pajak parsial. Jika ada beberapa kandidat, pilih nilai yang berlabel Grand Total / Total Invoice / Total Tagihan / Total Kuitansi / Amount Due."
     },
     "provider_name": {
       "type": "string",

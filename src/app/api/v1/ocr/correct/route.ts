@@ -5,6 +5,7 @@ import { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { buildClaimValidationPayloadFromOcr } from "@/lib/ocr-claim-payload";
 import { applyCorrectionsAndRescore, parseOcrResult, parseTxtGroundTruth, type OcrItem, type TxtItem } from "@/lib/ocr-scoring";
+import { resolveProviderFromOcrName, getProviderNameFromOcrItems } from "@/lib/ocr-job-processor";
 import { getAuthenticatedUser, isPlatformAdminRole } from "@/lib/rbac";
 
 const CorrectOcrSchema = z.object({
@@ -118,14 +119,26 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrCorrectRes
     }
 
     const { updatedItems, scoring } = applyCorrectionsAndRescore(currentOcrItems, corrections ?? {}, txtItems);
+    
+    // Re-resolve provider from updated items
+    const updatedProviderName = getProviderNameFromOcrItems(updatedItems);
+    let resolvedProviderId = ocrJob.providerId;
+    if (updatedProviderName) {
+      const resolvedProvider = await resolveProviderFromOcrName(updatedProviderName, ocrJob.clientId);
+      if (resolvedProvider) {
+        resolvedProviderId = resolvedProvider.id;
+      }
+    }
+
     const claimValidationPayload = buildClaimValidationPayloadFromOcr({
       ocrJobId: ocrJob.id,
       clientId: ocrJob.clientId,
-      providerId: ocrJob.providerId,
-      providerName: null,
+      providerId: resolvedProviderId,
+      providerName: updatedProviderName,
       pdfUrl: ocrJob.pdfUrl,
       pdfStoragePath: ocrJob.pdfStoragePath,
       ocrItems: updatedItems,
+      txtItems,
       ocrRawResult: finalOcrRawResult,
     });
     const nextStatus = scoring.score === 100 ? "APPROVED" : "REVIEW_NEEDED";
@@ -138,6 +151,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrCorrectRes
         matchScore: scoring.score,
         scoringDetails: toJsonValue(scoring.details),
         status: nextStatus,
+        providerId: resolvedProviderId,
         reviewedByUserId: user.id,
       },
     });
@@ -148,8 +162,8 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrCorrectRes
       matchScore: scoring.score,
       scoringDetails: scoring.details,
       ocrItems: updatedItems,
-      claimValidationPayload,
-      claimValidationPayloadReady: scoring.score === 100 && Boolean(ocrJob.providerId),
+      claimValidationPayload: claimValidationPayload.payload,
+      claimValidationPayloadReady: scoring.score === 100 && Boolean(resolvedProviderId),
       claimValidationSkipped: false,
     });
   } catch (error: unknown) {

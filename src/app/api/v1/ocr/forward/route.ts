@@ -7,8 +7,10 @@ import { buildClaimDisplayMetadata } from "@/lib/claim-display";
 import { assertClientHasRequestQuota, debitClientRequestUsage } from "@/lib/credits";
 import { sanitizeClaimValidationInput } from "@/lib/ai/sanitizer";
 import prisma from "@/lib/db";
-import { buildClaimValidationPayloadFromOcr, type OcrClaimValidationPayload } from "@/lib/ocr-claim-payload";
+import { buildClaimValidationPayloadFromAI, type OcrClaimValidationPayload } from "@/lib/ocr-claim-payload";
+import { getAIGateway } from "@/lib/ai/gateway";
 import type { OcrItem } from "@/lib/ocr-scoring";
+import { resolveProviderFromOcrItems, resolveProviderFromOcrName } from "@/lib/ocr-job-processor";
 import { getAuthenticatedUser, isPlatformAdminRole } from "@/lib/rbac";
 import { resolveActualLosDays } from "@/lib/los";
 import { claimValidationWorkflow } from "@/workflows/claim-validation";
@@ -25,7 +27,9 @@ interface OcrForwardResponse {
   claimJobId?: string;
   runId?: string;
   statusUrl?: string;
+  redirectUrl?: string;
   claimValidationPayload?: unknown;
+  mappingLog?: Record<string, string>;
   message?: string;
   error?: string;
   code?: string;
@@ -83,6 +87,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrForwardRes
     }
 
     if (!isPlatformAdminRole(user.role) && ocrJob.clientId !== user.clientId) {
+      console.error("[ocr/forward] 403: Anda tidak memiliki akses ke job OCR ini.");
       return NextResponse.json({ error: "Anda tidak memiliki akses ke job OCR ini." }, { status: 403 });
     }
 
@@ -94,15 +99,65 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrForwardRes
         claimValidationSkipped: false,
         claimJobId: ocrJob.claimJobId,
         statusUrl: `/api/v1/claims/poll?jobId=${ocrJob.claimJobId}`,
+        redirectUrl: `/dashboard/clinical-pathway/${ocrJob.claimJobId}`,
         message: "Job OCR sudah diteruskan ke validasi klaim.",
       });
     }
 
     if (ocrJob.matchScore !== 100) {
+      console.error("[ocr/forward] 400: Skor OCR harus 100%", { matchScore: ocrJob.matchScore });
       return NextResponse.json({ error: "Skor OCR harus 100% sebelum data diteruskan ke validasi klaim." }, { status: 400 });
     }
 
-    if (!ocrJob.providerId) {
+    const resolvedClientId = ocrJob.clientId;
+    if (!resolvedClientId) {
+      console.error("[ocr/forward] 400: Client tidak dapat ditentukan dari job OCR.");
+      return NextResponse.json(
+        { error: "Client tidak dapat ditentukan dari job OCR.", code: "CLIENT_REQUIRED" },
+        { status: 400 },
+      );
+    }
+
+    const client = await prisma.client.findUnique({ where: { id: resolvedClientId }, select: { id: true, isActive: true } });
+    if (!client?.isActive) {
+      return NextResponse.json({ error: "Client tidak aktif atau tidak ditemukan.", code: "CLIENT_INACTIVE" }, { status: 403 });
+    }
+
+    let aiMappedPayload: any;
+    if (ocrJob.aiMappedPayload) {
+      aiMappedPayload = ocrJob.aiMappedPayload;
+    } else {
+      try {
+        const gateway = await getAIGateway({ clientId: resolvedClientId });
+        const result = await gateway.mapArbitraryJsonToClaim(ocrJob.ocrRawResult, true);
+        aiMappedPayload = result.data;
+        
+        await prisma.ocrJob.update({
+          where: { id: ocrJob.id },
+          data: { aiMappedPayload: aiMappedPayload as any }
+        });
+      } catch (err: unknown) {
+        console.error("[ocr/forward] 500: AI Mapping failed:", err);
+        throw err;
+      }
+    }
+
+    const ocrItems = parseOcrItems(ocrJob.ocrItems);
+    let providerId = ocrJob.providerId;
+    if (!providerId) {
+      const resolvedProvider = await resolveProviderFromOcrItems(ocrItems, resolvedClientId)
+        ?? await resolveProviderFromOcrName(aiMappedPayload.encounter?.facility?.name ?? null, resolvedClientId);
+      if (resolvedProvider) {
+        providerId = resolvedProvider.id;
+        await prisma.ocrJob.update({
+          where: { id: ocrJob.id },
+          data: { providerId },
+        });
+      }
+    }
+
+    if (!providerId) {
+      console.error("[ocr/forward] 400: Provider dari invoice belum berhasil dicocokkan dengan master data.", { aiMappedFacility: aiMappedPayload.encounter?.facility });
       return NextResponse.json(
         {
           error: "Provider dari invoice belum berhasil dicocokkan dengan master data. Lengkapi master provider atau koreksi nama provider sebelum validasi klaim dijalankan.",
@@ -113,7 +168,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrForwardRes
     }
 
     const provider = await prisma.provider.findUnique({
-      where: { id: ocrJob.providerId },
+      where: { id: providerId },
       select: { id: true, name: true, clientId: true, isActive: true },
     });
 
@@ -121,29 +176,24 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrForwardRes
       return NextResponse.json({ error: "Provider hasil OCR tidak aktif atau tidak ditemukan.", code: "PROVIDER_INACTIVE" }, { status: 403 });
     }
 
-    const resolvedClientId = provider.clientId ?? ocrJob.clientId;
-    if (!resolvedClientId) {
-      return NextResponse.json(
-        { error: "Client tidak dapat ditentukan dari job OCR atau provider hasil OCR.", code: "CLIENT_REQUIRED" },
-        { status: 400 },
-      );
-    }
+    // Apply bulk master data lookup to resolve procedure and medication codes
+    const { resolvePayloadWithBulkMasterData } = await import("@/lib/bulk-master-matcher");
+    aiMappedPayload = await resolvePayloadWithBulkMasterData(aiMappedPayload, provider.id);
 
-    const client = await prisma.client.findUnique({ where: { id: resolvedClientId }, select: { id: true, isActive: true } });
-    if (!client?.isActive) {
-      return NextResponse.json({ error: "Client tidak aktif atau tidak ditemukan.", code: "CLIENT_INACTIVE" }, { status: 403 });
-    }
-
-    const basePayload = buildClaimValidationPayloadFromOcr({
+    const payloadResult = buildClaimValidationPayloadFromAI(aiMappedPayload, {
       ocrJobId: ocrJob.id,
       clientId: resolvedClientId,
       providerId: provider.id,
       providerName: provider.name,
       pdfUrl: ocrJob.pdfUrl,
       pdfStoragePath: ocrJob.pdfStoragePath,
-      ocrItems: parseOcrItems(ocrJob.ocrItems),
+      ocrItems,
+      txtItems: parseOcrItems(ocrJob.txtItems),
       ocrRawResult: ocrJob.ocrRawResult,
     });
+    
+    const basePayload = payloadResult.payload;
+    const mappingLog = payloadResult.mappingLog;
 
     const actualLos = resolveActualLosDays(basePayload);
     if (actualLos > 0) {
@@ -233,7 +283,9 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrForwardRes
       claimJobId: claimJob.id,
       runId: run.runId,
       statusUrl: `/api/v1/claims/poll?runId=${run.runId}&jobId=${claimJob.id}`,
+      redirectUrl: `/dashboard/clinical-pathway/${claimJob.id}`,
       claimValidationPayload: payload,
+      mappingLog,
       message: "Payload OCR berhasil dibuat dan validasi klaim telah dimulai.",
     });
   } catch (error: unknown) {

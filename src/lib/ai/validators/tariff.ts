@@ -135,7 +135,7 @@ async function resolveMasterTariff(proc: any, providerId: string, requestedCateg
 }
 
 export async function validateTariffPrice(input: TariffValidationInput, jobId: string): Promise<TariffValidationOutput> {
-  const { providerId, procedures, encounterType } = input;
+  const { providerId, procedures = [], encounterType } = input;
 
   // Fetch global threshold configuration from SystemConfig.
   const config = await prisma.systemConfig.findUnique({ where: { id: 'GLOBAL_CONFIG' } });

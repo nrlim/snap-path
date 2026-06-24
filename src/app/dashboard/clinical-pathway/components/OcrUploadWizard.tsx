@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactElement } from "react";
 
 import { put } from "@vercel/blob/client";
-import { FileText, File as FileIcon } from "lucide-react";
+import { FileText, File as FileIcon, Check } from "lucide-react";
 
+import { useRouter } from "next/navigation";
 import type { ScoringDetail, ScoringResult } from "@/lib/ocr-scoring";
 
 import OcrReviewTable from "./OcrReviewTable";
@@ -45,6 +46,31 @@ interface OcrUploadUrlResponse {
 const WIZARD_STEPS: WizardStep[] = ["UPLOAD", "POLLING", "REVIEW", "FORWARDED"];
 const DEFAULT_MAX_PDF_SIZE_MB = 100;
 const MAX_TXT_SIZE_BYTES = 2 * 1024 * 1024;
+const MAX_TXT_FILE_COUNT = 20;
+
+type TxtFileKind = "HEADER" | "DETAIL" | "UNKNOWN";
+
+interface TxtUploadFile {
+  id: string;
+  name: string;
+  size: number;
+  content: string;
+  selectedKind: TxtFileKind;
+  detectedKind: TxtFileKind;
+  claimNumbers: string[];
+  rowCount: number;
+  parseNote: string;
+}
+
+interface TxtVerificationState {
+  canProcessHeader: boolean;
+  status: "IDLE" | "PASS" | "WARNING" | "BLOCKED";
+  message: string;
+  headerClaimNumbers: string[];
+  detailClaimNumbers: string[];
+  detailWithoutHeader: string[];
+  headerWithoutDetail: string[];
+}
 
 const INITIAL_PROGRESS: OcrProgressState = {
   percent: 0,
@@ -81,6 +107,238 @@ function getClientMaxPdfSizeMb(): number {
   if (!Number.isFinite(parsedLimitMb) || parsedLimitMb <= 0) return DEFAULT_MAX_PDF_SIZE_MB;
 
   return parsedLimitMb;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function normalizeClaimNumber(value: string | undefined): string | null {
+  if (!value) return null;
+
+  const cleaned = value
+    .trim()
+    .replace(/^['"`]+|['"`]+$/g, "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+
+  if (!cleaned || cleaned === "NULL" || cleaned === "N/A" || cleaned === "NA" || cleaned === "-") return null;
+  if (cleaned.length < 3 || !/[0-9]/.test(cleaned)) return null;
+
+  return cleaned.replace(/[^A-Z0-9/._-]/g, "");
+}
+
+function normalizeClaimColumnName(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function isClaimColumnName(value: string): boolean {
+  const normalized = normalizeClaimColumnName(value);
+  if (normalized.includes("claimtype") || normalized.includes("claimamount") || normalized.includes("claimdate")) return false;
+
+  return [
+    "claim",
+    "claimid",
+    "claimno",
+    "claimnumber",
+    "clmno",
+    "noclaim",
+    "noklaim",
+    "nomorclaim",
+    "nomorklaim",
+    "nomerclaim",
+    "nomerklaim",
+  ].includes(normalized);
+}
+
+function parseDelimitedLine(line: string, delimiter: string): string[] {
+  const result: string[] = [];
+  let token = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === '"' && nextChar === '"' && inQuotes) {
+      token += '"';
+      index += 1;
+    } else if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === delimiter && !inQuotes) {
+      result.push(token.trim());
+      token = "";
+    } else {
+      token += char;
+    }
+  }
+
+  result.push(token.trim());
+  return result;
+}
+
+function detectDelimiter(lines: string[]): string | null {
+  const delimiters = ["\t", "|", ";", ","];
+  let selectedDelimiter: string | null = null;
+  let bestScore = 0;
+
+  for (const delimiter of delimiters) {
+    const score = lines.slice(0, 10).reduce((total, line) => total + line.split(delimiter).length - 1, 0);
+    if (score > bestScore) {
+      bestScore = score;
+      selectedDelimiter = delimiter;
+    }
+  }
+
+  return bestScore > 0 ? selectedDelimiter : null;
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+}
+
+function extractClaimNumbersFromText(text: string): string[] {
+  const claimNumbers: string[] = [];
+  const keyValuePattern = /^([^:=\t|]+)\s*[:=\t|]\s*(.+)$/gm;
+  let keyValueMatch = keyValuePattern.exec(text);
+
+  while (keyValueMatch) {
+    const key = keyValueMatch[1] ?? "";
+    const value = keyValueMatch[2] ?? "";
+    if (isClaimColumnName(key)) {
+      const claimNumber = normalizeClaimNumber(value);
+      if (claimNumber) claimNumbers.push(claimNumber);
+    }
+    keyValueMatch = keyValuePattern.exec(text);
+  }
+
+  const explicitPattern = /\b(?:CLM|CLAIM|CN|KLAIM)[A-Z0-9][A-Z0-9/._-]{2,}\b/gi;
+  let explicitMatch = explicitPattern.exec(text);
+  while (explicitMatch) {
+    const claimNumber = normalizeClaimNumber(explicitMatch[0]);
+    if (claimNumber) claimNumbers.push(claimNumber);
+    explicitMatch = explicitPattern.exec(text);
+  }
+
+  return uniqueSorted(claimNumbers);
+}
+
+function parseTxtClaimNumbers(content: string): Pick<TxtUploadFile, "claimNumbers" | "rowCount" | "parseNote"> {
+  const lines = content.split(/\r?\n/g).map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) {
+    return { claimNumbers: [], rowCount: 0, parseNote: "File kosong." };
+  }
+
+  const delimiter = detectDelimiter(lines);
+  if (!delimiter) {
+    const claimNumbers = extractClaimNumbersFromText(content);
+    return {
+      claimNumbers,
+      rowCount: lines.length,
+      parseNote: claimNumbers.length > 0 ? "Nomor klaim dibaca dari teks bebas/key-value." : "Kolom nomor klaim belum ditemukan.",
+    };
+  }
+
+  const rows = lines.map((line) => parseDelimitedLine(line, delimiter));
+  const headerSearchLimit = Math.min(rows.length, 5);
+
+  for (let rowIndex = 0; rowIndex < headerSearchLimit; rowIndex += 1) {
+    const row = rows[rowIndex] ?? [];
+    const claimColumnIndex = row.findIndex(isClaimColumnName);
+    if (claimColumnIndex < 0) continue;
+
+    const dataRows = rows.slice(rowIndex + 1).filter((candidate) => candidate.some((cell) => cell.trim().length > 0));
+    const claimNumbers = dataRows
+      .map((candidate) => normalizeClaimNumber(candidate[claimColumnIndex]))
+      .filter((claimNumber): claimNumber is string => claimNumber !== null);
+
+    return {
+      claimNumbers: uniqueSorted(claimNumbers),
+      rowCount: dataRows.length,
+      parseNote: claimNumbers.length > 0 ? "Nomor klaim dibaca dari kolom header TXT." : "Kolom nomor klaim ada, tetapi nilai klaim belum valid.",
+    };
+  }
+
+  const claimNumbers = extractClaimNumbersFromText(content);
+  return {
+    claimNumbers,
+    rowCount: rows.length,
+    parseNote: claimNumbers.length > 0 ? "Nomor klaim dibaca dari pola teks." : "Header kolom nomor klaim belum ditemukan.",
+  };
+}
+
+function detectTxtFileKind(fileName: string, content: string): TxtFileKind {
+  const sample = `${fileName}\n${content.slice(0, 1200)}`.toLowerCase();
+  if (/\b(header|hdr|claim[_\s-]?header|klaim[_\s-]?header)\b/.test(sample)) return "HEADER";
+  if (/\b(detail|dtl|rincian|claim[_\s-]?detail|klaim[_\s-]?detail)\b/.test(sample)) return "DETAIL";
+  return "UNKNOWN";
+}
+
+function getTxtKindLabel(kind: TxtFileKind): string {
+  if (kind === "HEADER") return "Header";
+  if (kind === "DETAIL") return "Detail";
+  return "Pilih tipe";
+}
+
+function buildTxtUploadFile(file: File, content: string, index: number): TxtUploadFile {
+  const claimParsing = parseTxtClaimNumbers(content);
+  const detectedKind = detectTxtFileKind(file.name, content);
+
+  return {
+    id: `${file.name}-${file.size}-${file.lastModified}-${index}`,
+    name: file.name,
+    size: file.size,
+    content,
+    selectedKind: detectedKind,
+    detectedKind,
+    claimNumbers: claimParsing.claimNumbers,
+    rowCount: claimParsing.rowCount,
+    parseNote: claimParsing.parseNote,
+  };
+}
+
+function buildTxtVerification(files: TxtUploadFile[]): TxtVerificationState {
+  const headerFiles = files.filter((file) => file.selectedKind === "HEADER");
+  const detailFiles = files.filter((file) => file.selectedKind === "DETAIL");
+  const unknownFiles = files.filter((file) => file.selectedKind === "UNKNOWN");
+  const headerClaimNumbers = uniqueSorted(headerFiles.flatMap((file) => file.claimNumbers));
+  const detailClaimNumbers = uniqueSorted(detailFiles.flatMap((file) => file.claimNumbers));
+  const headerSet = new Set(headerClaimNumbers);
+  const detailSet = new Set(detailClaimNumbers);
+  const detailWithoutHeader = detailClaimNumbers.filter((claimNumber) => !headerSet.has(claimNumber));
+  const headerWithoutDetail = detailClaimNumbers.length > 0 ? headerClaimNumbers.filter((claimNumber) => !detailSet.has(claimNumber)) : [];
+
+  if (files.length === 0) {
+    return { canProcessHeader: false, status: "IDLE", message: "Unggah minimal satu TXT header untuk OCR.", headerClaimNumbers, detailClaimNumbers, detailWithoutHeader, headerWithoutDetail };
+  }
+
+  if (unknownFiles.length > 0) {
+    return { canProcessHeader: false, status: "BLOCKED", message: "Tentukan tipe Header atau Detail untuk semua file TXT.", headerClaimNumbers, detailClaimNumbers, detailWithoutHeader, headerWithoutDetail };
+  }
+
+  if (headerFiles.length === 0) {
+    return { canProcessHeader: false, status: "BLOCKED", message: "TXT header wajib ada karena hanya header yang dipakai untuk komparasi PDF saat ini.", headerClaimNumbers, detailClaimNumbers, detailWithoutHeader, headerWithoutDetail };
+  }
+
+  if (headerClaimNumbers.length === 0) {
+    return { canProcessHeader: false, status: "BLOCKED", message: "Nomor klaim pada TXT header belum terbaca.", headerClaimNumbers, detailClaimNumbers, detailWithoutHeader, headerWithoutDetail };
+  }
+
+  if (detailFiles.length > 0 && detailClaimNumbers.length === 0) {
+    return { canProcessHeader: false, status: "BLOCKED", message: "TXT detail diunggah, tetapi nomor klaim detail belum terbaca.", headerClaimNumbers, detailClaimNumbers, detailWithoutHeader, headerWithoutDetail };
+  }
+
+  if (detailWithoutHeader.length > 0 || headerWithoutDetail.length > 0) {
+    return { canProcessHeader: false, status: "BLOCKED", message: "Nomor klaim header dan detail belum sesuai.", headerClaimNumbers, detailClaimNumbers, detailWithoutHeader, headerWithoutDetail };
+  }
+
+  if (detailFiles.length === 0) {
+    return { canProcessHeader: true, status: "WARNING", message: "TXT header siap dipakai untuk komparasi PDF. TXT detail belum diunggah, jadi verifikasi header-detail dilewati.", headerClaimNumbers, detailClaimNumbers, detailWithoutHeader, headerWithoutDetail };
+  }
+
+  return { canProcessHeader: true, status: "PASS", message: "TXT header dan detail sesuai. Komparasi PDF akan memakai TXT header saja.", headerClaimNumbers, detailClaimNumbers, detailWithoutHeader, headerWithoutDetail };
 }
 
 function isScoringDetail(value: unknown): value is ScoringDetail {
@@ -203,7 +461,7 @@ function formatElapsed(seconds: number): string {
 export default function OcrUploadWizard(): ReactElement {
   const [step, setStep] = useState<WizardStep>("UPLOAD");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [txtFile, setTxtFile] = useState<File | null>(null);
+  const [txtFiles, setTxtFiles] = useState<TxtUploadFile[]>([]);
   const [ocrJobId, setOcrJobId] = useState<string | null>(null);
   const [scoringResult, setScoringResult] = useState<ScoringResult | null>(null);
   const [ocrRawResult, setOcrRawResult] = useState<unknown>(null);
@@ -214,9 +472,15 @@ export default function OcrUploadWizard(): ReactElement {
   const [progress, setProgress] = useState<OcrProgressState>(INITIAL_PROGRESS);
   const [nowMs, setNowMs] = useState(Date.now());
   const uploadInFlightRef = useRef(false);
+  const router = useRouter();
 
   const maxPdfSizeMb = useMemo(() => getClientMaxPdfSizeMb(), []);
   const maxPdfSizeBytes = maxPdfSizeMb * 1024 * 1024;
+  const txtVerification = useMemo(() => buildTxtVerification(txtFiles), [txtFiles]);
+  const primaryHeaderTxtFile = useMemo(
+    () => txtFiles.find((file) => file.selectedKind === "HEADER") ?? null,
+    [txtFiles],
+  );
 
   const elapsedSeconds = useMemo(() => {
     if (!progress.startedAtMs || step !== "POLLING") return 0;
@@ -226,8 +490,13 @@ export default function OcrUploadWizard(): ReactElement {
   const handleUpload = async (): Promise<void> => {
     if (uploadInFlightRef.current) return;
 
-    if (!pdfFile || !txtFile) {
-      setError("Silakan lengkapi PDF invoice dan TXT ground truth.");
+    if (!pdfFile || !primaryHeaderTxtFile) {
+      setError("Silakan unggah PDF invoice dan minimal satu TXT header.");
+      return;
+    }
+
+    if (!txtVerification.canProcessHeader) {
+      setError(txtVerification.message);
       return;
     }
 
@@ -236,8 +505,8 @@ export default function OcrUploadWizard(): ReactElement {
       return;
     }
 
-    if (txtFile.size > MAX_TXT_SIZE_BYTES) {
-      setError("Ukuran TXT melebihi batas 2MB. Gunakan file ground truth yang lebih ringkas.");
+    if (primaryHeaderTxtFile.size > MAX_TXT_SIZE_BYTES) {
+      setError("Ukuran TXT header melebihi batas 2MB. Gunakan file ground truth yang lebih ringkas.");
       return;
     }
 
@@ -258,12 +527,12 @@ export default function OcrUploadWizard(): ReactElement {
         ...previous,
         percent: 8,
         label: "Menyiapkan dokumen",
-        detail: "CONSUL sedang menghitung hash PDF dan membaca TXT acuan sebelum membuat token unggahan.",
+        detail: "CONSUL sedang menghitung hash PDF dan menyiapkan TXT header sebagai acuan komparasi.",
       }));
 
       const [pdfHash, txtContent] = await Promise.all([
         calculateFileSha256(pdfFile),
-        txtFile.text(),
+        Promise.resolve(primaryHeaderTxtFile.content),
       ]);
 
       setProgress((previous) => ({
@@ -281,8 +550,8 @@ export default function OcrUploadWizard(): ReactElement {
           pdfName: pdfFile.name,
           pdfSize: pdfFile.size,
           pdfHash,
-          txtName: txtFile.name,
-          txtSize: txtFile.size,
+          txtName: primaryHeaderTxtFile.name,
+          txtSize: primaryHeaderTxtFile.size,
         }),
       });
 
@@ -470,16 +739,53 @@ export default function OcrUploadWizard(): ReactElement {
     };
   }, [ocrJobId, step]);
 
-  const handleForwarded = (): void => {
-    setStep("FORWARDED");
+  const handleForwarded = (claimJobId?: string): void => {
+    console.log("Wizard handleForwarded called with claimJobId:", claimJobId);
+    if (claimJobId) {
+      window.location.href = `/dashboard/clinical-pathway/${claimJobId}`;
+    } else {
+      setStep("FORWARDED");
+    }
   };
 
   const handlePdfFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
     setPdfFile(event.target.files?.[0] ?? null);
   };
 
-  const handleTxtFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
-    setTxtFile(event.target.files?.[0] ?? null);
+  const handleTxtFileChange = async (event: ChangeEvent<HTMLInputElement>): Promise<void> => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (selectedFiles.length === 0) return;
+
+    if (txtFiles.length + selectedFiles.length > MAX_TXT_FILE_COUNT) {
+      setError(`Maksimal ${MAX_TXT_FILE_COUNT} file TXT dalam satu unggahan OCR.`);
+      return;
+    }
+
+    const oversizedFile = selectedFiles.find((file) => file.size > MAX_TXT_SIZE_BYTES);
+    if (oversizedFile) {
+      setError(`File ${oversizedFile.name} melebihi batas ${formatBytes(MAX_TXT_SIZE_BYTES)}.`);
+      return;
+    }
+
+    try {
+      setError(null);
+      const parsedFiles = await Promise.all(
+        selectedFiles.map(async (file, index) => buildTxtUploadFile(file, await file.text(), txtFiles.length + index)),
+      );
+      setTxtFiles((previousFiles) => [...previousFiles, ...parsedFiles]);
+    } catch (readError: unknown) {
+      setError(getErrorMessage(readError, "Gagal membaca file TXT."));
+    }
+  };
+
+  const handleTxtKindChange = (fileId: string, event: ChangeEvent<HTMLSelectElement>): void => {
+    const nextKind = event.target.value as TxtFileKind;
+    setTxtFiles((previousFiles) => previousFiles.map((file) => (file.id === fileId ? { ...file, selectedKind: nextKind } : file)));
+  };
+
+  const handleRemoveTxtFile = (fileId: string): void => {
+    setTxtFiles((previousFiles) => previousFiles.filter((file) => file.id !== fileId));
   };
 
   const isUploadLocked = isUploading && step === "UPLOAD";
@@ -502,21 +808,34 @@ export default function OcrUploadWizard(): ReactElement {
       )}
 
       {/* Steps Indicator */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-        {WIZARD_STEPS.map((currentStep, index) => (
-          <div key={currentStep} className="flex items-center">
-            <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium ${
-              step === currentStep ? "bg-sky-700 text-white" :
-              getStepIndex(step) > index ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"
-            }`}>
-              {index + 1}
-            </div>
-            <span className={`ml-2 hidden text-sm font-medium sm:block ${step === currentStep ? "text-foreground" : "text-muted-foreground"}`}>
-              {currentStep === "POLLING" ? "Memproses OCR" : currentStep === "REVIEW" ? "Review & Koreksi" : currentStep === "FORWARDED" ? "Selesai" : "Unggah File"}
-            </span>
-            {index < WIZARD_STEPS.length - 1 && <div className="mx-4 h-px w-8 bg-slate-200 sm:w-16" />}
-          </div>
-        ))}
+      <div className="mx-auto max-w-2xl border-b border-slate-200 pb-12 pt-4">
+        <div className="flex justify-between items-start w-full relative">
+          {WIZARD_STEPS.map((currentStep, index) => {
+            const isActive = step === currentStep;
+            const isPast = getStepIndex(step) > index;
+            return (
+              <div key={currentStep} className="flex-1 relative">
+                {/* Line to next step */}
+                {index < WIZARD_STEPS.length - 1 && (
+                  <div className={`absolute top-4 left-1/2 w-full h-[2px] -translate-y-1/2 ${isPast ? "bg-green-200" : "bg-slate-200"}`} />
+                )}
+                
+                {/* Step Content */}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium ring-4 ring-white ${
+                    isActive ? "bg-sky-700 text-white" :
+                    isPast ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"
+                  }`}>
+                    {isPast ? <Check className="h-4 w-4" /> : index + 1}
+                  </div>
+                  <span className={`absolute top-10 text-xs font-medium whitespace-nowrap ${isActive ? "text-foreground" : "text-muted-foreground"}`}>
+                    {currentStep === "POLLING" ? "Memproses OCR" : currentStep === "REVIEW" ? "Review & Koreksi" : currentStep === "FORWARDED" ? "Selesai" : "Unggah File"}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {error && (
@@ -528,8 +847,8 @@ export default function OcrUploadWizard(): ReactElement {
       {step === "UPLOAD" && (
         <div className="space-y-6 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <div>
-            <h3 className="text-lg font-medium text-foreground">Unggah Invoice & Ground Truth</h3>
-            <p className="text-sm text-muted-foreground">Silakan unggah PDF invoice untuk di-OCR dan file TXT sebagai acuan ground truth berbasis schema SnapText.</p>
+            <h3 className="text-lg font-medium text-foreground">Unggah Invoice & TXT Klaim</h3>
+            <p className="text-sm text-muted-foreground">Silakan unggah PDF invoice dan satu atau lebih TXT. Untuk saat ini komparasi OCR terhadap PDF hanya memakai TXT header; TXT detail dipakai untuk verifikasi nomor klaim terhadap header.</p>
           </div>
 
           <div className="space-y-4">
@@ -554,26 +873,113 @@ export default function OcrUploadWizard(): ReactElement {
                 {pdfFile && <p className="mt-4 max-w-[200px] truncate text-xs font-medium text-sky-700">{pdfFile.name}</p>}
               </div>
 
-              <div className={`relative flex flex-col items-center justify-center rounded-xl border border-slate-200 p-8 text-center transition-colors ${txtFile ? 'bg-sky-50/50 border-sky-200' : 'bg-slate-50 hover:bg-slate-100/50'}`}>
-                <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-full ${txtFile ? 'bg-sky-100 text-sky-600' : 'bg-white text-slate-400 shadow-sm border border-slate-100'}`}>
+              <div className={`relative flex flex-col items-center justify-center rounded-xl border border-slate-200 p-8 text-center transition-colors ${txtFiles.length > 0 ? 'bg-sky-50/50 border-sky-200' : 'bg-slate-50 hover:bg-slate-100/50'}`}>
+                <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-full ${txtFiles.length > 0 ? 'bg-sky-100 text-sky-600' : 'bg-white text-slate-400 shadow-sm border border-slate-100'}`}>
                   <FileIcon className="h-6 w-6" />
                 </div>
-                <h4 className="mb-1 text-sm font-medium text-foreground">TXT Acuan Ground Truth</h4>
-                <p className="mb-5 text-xs text-muted-foreground">Upload data ekspektasi (CSV/TXT)</p>
+                <h4 className="mb-1 text-sm font-medium text-foreground">TXT Header & Detail</h4>
+                <p className="mb-5 text-xs text-muted-foreground">Upload satu atau lebih TXT/CSV klaim</p>
                 
                 <label className={`relative rounded-md bg-white px-4 py-2 text-sm font-medium text-sky-700 shadow-sm ring-1 ring-inset ring-slate-200 transition-colors ${isUploadLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-slate-50"}`}>
                   <span>Pilih File</span>
                   <input
                     type="file"
-                    accept="text/plain,.csv"
+                    accept="text/plain,.txt,.csv"
+                    multiple
                     onChange={handleTxtFileChange}
                     disabled={isUploadLocked}
                     className="sr-only"
                   />
                 </label>
-                {txtFile && <p className="mt-4 max-w-[200px] truncate text-xs font-medium text-sky-700">{txtFile.name}</p>}
+                {txtFiles.length > 0 && <p className="mt-4 max-w-[220px] truncate text-xs font-medium text-sky-700">{txtFiles.length} file TXT dipilih</p>}
               </div>
             </div>
+
+            <div className={`rounded-lg border p-4 ${txtVerification.status === "PASS" ? "border-green-200 bg-green-50" : txtVerification.status === "WARNING" ? "border-amber-200 bg-amber-50" : txtVerification.status === "BLOCKED" ? "border-red-200 bg-red-50" : "border-slate-200 bg-slate-50"}`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className={`text-sm font-medium ${txtVerification.status === "PASS" ? "text-green-950" : txtVerification.status === "WARNING" ? "text-amber-950" : txtVerification.status === "BLOCKED" ? "text-red-950" : "text-slate-800"}`}>{txtVerification.message}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    Header: {txtVerification.headerClaimNumbers.length} klaim · Detail: {txtVerification.detailClaimNumbers.length} klaim
+                    {primaryHeaderTxtFile ? ` · Dipakai untuk OCR: ${primaryHeaderTxtFile.name}` : ""}
+                  </p>
+                </div>
+                <span className="w-fit rounded border border-slate-200 bg-white px-2 py-1 font-mono text-xs text-slate-600">
+                  {txtVerification.status}
+                </span>
+              </div>
+            </div>
+
+            {txtFiles.length > 0 && (
+              <div className="space-y-3">
+                {txtFiles.map((txtUploadFile) => (
+                  <div key={txtUploadFile.id} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-[minmax(0,1fr)_160px_auto] sm:items-start">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-950">{txtUploadFile.name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatBytes(txtUploadFile.size)} · {txtUploadFile.rowCount} baris · Deteksi: {getTxtKindLabel(txtUploadFile.detectedKind)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">{txtUploadFile.parseNote}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(txtUploadFile.claimNumbers.length > 0 ? txtUploadFile.claimNumbers.slice(0, 5) : ["Nomor klaim belum terbaca"]).map((claimNumber) => (
+                          <span key={claimNumber} className="rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-700">
+                            {claimNumber}
+                          </span>
+                        ))}
+                        {txtUploadFile.claimNumbers.length > 5 && (
+                          <span className="rounded border border-slate-200 bg-white px-2 py-1 font-mono text-[11px] text-slate-500">
+                            +{txtUploadFile.claimNumbers.length - 5}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-slate-600">Tipe</span>
+                      <select
+                        value={txtUploadFile.selectedKind}
+                        onChange={(event) => handleTxtKindChange(txtUploadFile.id, event)}
+                        disabled={isUploadLocked}
+                        className="min-h-11 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-base text-slate-950 outline-none transition-colors focus:border-sky-700 focus:ring-2 focus:ring-sky-100 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+                      >
+                        <option value="UNKNOWN">Pilih tipe</option>
+                        <option value="HEADER">Header</option>
+                        <option value="DETAIL">Detail</option>
+                      </select>
+                    </label>
+
+                    <div className="flex flex-col">
+                      <span className="mb-1 hidden text-xs opacity-0 sm:block">Aksi</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTxtFile(txtUploadFile.id)}
+                        disabled={isUploadLocked}
+                        className="min-h-11 w-full rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {(txtVerification.detailWithoutHeader.length > 0 || txtVerification.headerWithoutDetail.length > 0) && (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {txtVerification.detailWithoutHeader.length > 0 && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                    <p className="text-sm font-medium text-red-950">Detail tanpa header</p>
+                    <p className="mt-1 font-mono text-xs text-red-800">{txtVerification.detailWithoutHeader.join(", ")}</p>
+                  </div>
+                )}
+                {txtVerification.headerWithoutDetail.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-sm font-medium text-amber-950">Header tanpa detail</p>
+                    <p className="mt-1 font-mono text-xs text-amber-800">{txtVerification.headerWithoutDetail.join(", ")}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {isUploading && (

@@ -43,6 +43,7 @@ export function proxy(request: NextRequest) {
     "img-src 'self' data: blob: https:",
     "font-src 'self' https://fonts.gstatic.com",
     "connect-src 'self' https: wss:",
+    "frame-src 'self' https: blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

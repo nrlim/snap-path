@@ -186,7 +186,7 @@ function getMedicationTotalPrice(med: any) {
 }
 
 export async function checkDrugPrices(input: DrugPriceCheckInput, jobId: string): Promise<DrugPriceCheckOutput> {
-  const { providerId, medications } = input;
+  const { providerId, medications = [] } = input;
 
   // ── STEP 1: Parallel — fetch threshold config, exact master references and local medical-item master data ──
   const now = new Date();

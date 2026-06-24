@@ -145,8 +145,9 @@ export class AIGateway {
     return this.track('validateDocumentCompleteness', () => this.driver.validateDocumentCompleteness(payload));
   }
 
-  async mapArbitraryJsonToClaim(rawJson: any) {
-    return this.track('mapArbitraryJsonToClaim', () => this.driver.mapArbitraryJsonToClaim(sanitizeArbitraryJson(rawJson, this.piiRedactPatterns, this.piiSafeContexts)));
+  async mapArbitraryJsonToClaim(rawJson: any, skipPiiRedaction = false) {
+    const payloadToMap = skipPiiRedaction ? rawJson : sanitizeArbitraryJson(rawJson, this.piiRedactPatterns, this.piiSafeContexts);
+    return this.track('mapArbitraryJsonToClaim', () => this.driver.mapArbitraryJsonToClaim(payloadToMap));
   }
 
   async estimateDiagnosisLos(diagnosisCode: string, diagnosisName: string, thresholds?: { overstayDays?: number; understayDays?: number }) {

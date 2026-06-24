@@ -17,12 +17,16 @@ export interface OcrJobProcessingResult {
   txtItems?: unknown;
   ocrRawResult?: unknown;
   txtContent?: string | null;
+  pdfUrl?: string | null;
   detectedProviderName?: string | null;
   matchedProviderId?: string | null;
   matchedProviderName?: string | null;
   claimValidationPayload?: unknown;
   claimValidationPayloadReady?: boolean;
   error?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  processingTimeMs?: number;
 }
 
 interface ProviderResolution {
@@ -72,7 +76,7 @@ function getTokenOverlapScore(source: string, candidate: string): number {
   return overlap / Math.max(sourceTokens.size, candidateTokens.size);
 }
 
-function getProviderNameFromOcrItems(ocrItems: Array<{ field: string; value: string; correctedValue?: string }>): string | null {
+export function getProviderNameFromOcrItems(ocrItems: Array<{ field: string; value: string; correctedValue?: string }>): string | null {
   const providerItem = ocrItems.find((item) => item.field === "provider_name");
   const value = providerItem?.correctedValue ?? providerItem?.value;
   return value && value.trim().length > 0 ? value.trim() : null;
@@ -97,7 +101,7 @@ function parseStoredOcrItems(value: unknown): OcrItem[] {
   return Array.isArray(value) ? value.filter(isOcrItem) : [];
 }
 
-async function resolveProviderFromOcrName(providerName: string | null, clientId: string | null): Promise<ProviderResolution | null> {
+export async function resolveProviderFromOcrName(providerName: string | null, clientId: string | null): Promise<ProviderResolution | null> {
   if (!providerName) return null;
 
   const where: Prisma.ProviderWhereInput = { isActive: true };
@@ -138,6 +142,19 @@ async function resolveProviderFromOcrName(providerName: string | null, clientId:
   return bestScore >= 0.67 ? bestMatch : null;
 }
 
+/**
+ * Resolve provider from an OCR items array by extracting the provider_name field
+ * and delegating to resolveProviderFromOcrName for fuzzy matching.
+ */
+export async function resolveProviderFromOcrItems(
+  ocrItems: Array<{ field: string; value: string; correctedValue?: string }>,
+  clientId: string | null,
+): Promise<ProviderResolution | null> {
+  const providerName = getProviderNameFromOcrItems(ocrItems);
+  if (!providerName) return null;
+  return resolveProviderFromOcrName(providerName, clientId);
+}
+
 export function isActiveOcrStatus(status: string): boolean {
   return ACTIVE_OCR_STATUSES.has(status);
 }
@@ -156,6 +173,8 @@ export async function buildStoredOcrJobResponse(ocrJob: {
   txtItems: unknown;
   ocrRawResult: unknown;
   txtContent: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 }): Promise<OcrJobProcessingResult> {
   const storedOcrItems = parseStoredOcrItems(ocrJob.ocrItems);
   const providerName = getProviderNameFromOcrItems(storedOcrItems);
@@ -185,10 +204,15 @@ export async function buildStoredOcrJobResponse(ocrJob: {
     txtItems: ocrJob.txtItems,
     ocrRawResult: ocrJob.ocrRawResult,
     txtContent: ocrJob.txtContent,
+    pdfUrl: ocrJob.pdfUrl,
     detectedProviderName: providerName,
     matchedProviderId: ocrJob.providerId,
+    matchedProviderName: null,
     claimValidationPayload,
     claimValidationPayloadReady: ocrJob.matchScore === 100 && Boolean(ocrJob.providerId),
+    createdAt: ocrJob.createdAt.toISOString(),
+    updatedAt: ocrJob.updatedAt.toISOString(),
+    processingTimeMs: Math.max(0, ocrJob.updatedAt.getTime() - ocrJob.createdAt.getTime()),
   };
 }
 
@@ -287,6 +311,7 @@ export async function processOcrJobSnaptextStatus(ocrJobId: string): Promise<Ocr
       txtItems,
       ocrRawResult: sanitizedOcrRawResult,
       txtContent: ocrJob.txtContent,
+      pdfUrl: ocrJob.pdfUrl,
       detectedProviderName,
       matchedProviderId: matchedProvider?.id ?? null,
       matchedProviderName: matchedProvider?.name ?? null,
