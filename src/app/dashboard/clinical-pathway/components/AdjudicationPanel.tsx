@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, FileWarning, ShieldAlert } from "lucide-react";
 
 import {
+  buildDecisionGuidance,
   buildHitlPacket,
   REVIEW_DECISION_LABELS,
   REVIEW_STATUS_LABELS,
@@ -31,7 +32,11 @@ const DECISION_OPTIONS: ReviewDecisionValue[] = [
 ];
 
 const REASON_OPTIONS = [
+  { value: "FWA_INVESTIGATION", label: "Investigasi FWA" },
+  { value: "FWA_LOW_RISK", label: "FWA risiko rendah" },
+  { value: "POLICY_REJECT", label: "Reject policy" },
   { value: "POLICY_EXCESS", label: "Excess polis / benefit" },
+  { value: "FINANCIAL_ADJUSTMENT", label: "Koreksi finansial" },
   { value: "MISSING_DOCUMENT", label: "Dokumen belum lengkap" },
   { value: "MEDICAL_REVIEW", label: "Butuh review medis" },
   { value: "TARIFF_ADJUSTMENT", label: "Koreksi tarif" },
@@ -77,6 +82,12 @@ function findingIcon(finding: HitlFinding) {
   return <AlertTriangle className="h-4 w-4" />;
 }
 
+function decisionGuidanceTone(level: string): string {
+  if (level === "CRITICAL" || level === "HIGH") return "border-red-200 bg-red-50/70";
+  if (level === "MEDIUM") return "border-amber-200 bg-amber-50/60";
+  return "border-emerald-200 bg-emerald-50/60";
+}
+
 export default function AdjudicationPanel({ jobId, inputPayload, outputResult, reviewDecisions }: AdjudicationPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -105,6 +116,7 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
     
     return p;
   }, [inputPayload, outputResult]);
+  const decisionGuidance = useMemo(() => buildDecisionGuidance(inputPayload, outputResult, packet), [inputPayload, outputResult, packet]);
   const latestDecision = reviewDecisions[0] || null;
   const recommendedExcess = Math.max(0, packet.financialImpact.claimAmount - packet.financialImpact.recommendedPayableAmount);
   const hasFindings = packet.findings.length > 0;
@@ -139,7 +151,7 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
           <div className="flex flex-wrap items-center gap-2">
             {statusBadge(latestDecision?.nextReviewStatus || "OPEN")}
             <span className="rounded border border-slate-200 bg-white px-2 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
-              Rekomendasi: {REVIEW_DECISION_LABELS[packet.recommendedAction]}
+              Rekomendasi: {REVIEW_DECISION_LABELS[decisionGuidance.recommendedDecision]}
             </span>
           </div>
         </div>
@@ -157,7 +169,7 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
                   <p className="text-xs font-mono uppercase tracking-[0.18em] text-muted-foreground">Decision brief</p>
                   <p className="mt-2 text-base font-medium text-foreground">{packet.summary}</p>
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                    Aksi sistem yang disarankan adalah <span className="font-medium text-foreground">{REVIEW_DECISION_LABELS[packet.recommendedAction]}</span>. Reviewer tetap dapat memilih keputusan berbeda dengan catatan alasan.
+                    Aksi sistem yang disarankan adalah <span className="font-medium text-foreground">{REVIEW_DECISION_LABELS[decisionGuidance.recommendedDecision]}</span>. Reviewer tetap dapat memilih keputusan berbeda dengan catatan alasan.
                   </p>
                 </div>
               </div>
@@ -170,6 +182,43 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
                 <div className="flex items-center justify-between gap-4"><span className="text-muted-foreground">Excess policy</span><span className="font-mono text-red-600">{formatRupiah(packet.financialImpact.policyExcessAmount)}</span></div>
                 <div className="flex items-center justify-between gap-4"><span className="text-muted-foreground">Variance tarif/obat</span><span className="font-mono text-amber-700">{formatRupiah(packet.financialImpact.tariffVarianceAmount + packet.financialImpact.drugVarianceAmount)}</span></div>
                 <div className="mt-3 flex items-center justify-between gap-4 border-t border-border pt-3"><span className="font-medium text-foreground">Payable rekomendasi</span><span className="font-mono text-foreground">{formatRupiah(packet.financialImpact.recommendedPayableAmount)}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div className={`rounded-lg border p-4 sm:p-5 ${decisionGuidanceTone(decisionGuidance.fwaLevel)}`}>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded bg-white/80 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-700 ring-1 ring-inset ring-black/5">
+                    <ShieldAlert className="h-3.5 w-3.5" /> FWA {decisionGuidance.fwaLevel} · {decisionGuidance.fwaScore}/100
+                  </span>
+                  <span className="rounded bg-white/80 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-slate-600 ring-1 ring-inset ring-black/5">
+                    Evidence {decisionGuidance.evidenceConfidenceLabel}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm font-mono uppercase tracking-[0.16em] text-slate-500">Reasoning keputusan</p>
+                <h3 className="mt-1 text-lg font-medium tracking-tight text-foreground">{decisionGuidance.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{decisionGuidance.reason}</p>
+              </div>
+              <div className="shrink-0 rounded-md bg-white/80 px-3 py-2 ring-1 ring-inset ring-black/5 lg:min-w-48 lg:text-right">
+                <p className="text-[10px] font-mono uppercase tracking-[0.12em] text-muted-foreground">Keputusan disarankan</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{REVIEW_DECISION_LABELS[decisionGuidance.recommendedDecision]}</p>
+                <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{decisionGuidance.reasonCode}</p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+              <div className="rounded-md border border-white/70 bg-white/60 p-3">
+                <p className="text-xs font-medium text-foreground">Alasan utama</p>
+                <ul className="mt-2 space-y-1.5 text-xs leading-5 text-slate-700">
+                  {decisionGuidance.supportingReasons.map((reason) => <li key={reason}>• {reason}</li>)}
+                </ul>
+              </div>
+              <div className="rounded-md border border-white/70 bg-white/60 p-3">
+                <p className="text-xs font-medium text-foreground">Langkah reviewer</p>
+                <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-xs leading-5 text-slate-700">
+                  {decisionGuidance.reviewerNextSteps.map((step) => <li key={step}>{step}</li>)}
+                </ol>
               </div>
             </div>
           </div>
@@ -365,7 +414,7 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
               <div className="mt-4 space-y-4">
                 <label className="block text-sm font-medium text-foreground">
                   Keputusan
-                  <select name="decision" defaultValue={packet.recommendedAction} className="mt-2 block w-full rounded-md border border-border bg-background px-3 py-2.5 text-base font-light text-foreground outline-none transition-colors focus:ring-2 focus:ring-primary/20 sm:text-sm">
+                  <select name="decision" defaultValue={decisionGuidance.recommendedDecision} className="mt-2 block w-full rounded-md border border-border bg-background px-3 py-2.5 text-base font-light text-foreground outline-none transition-colors focus:ring-2 focus:ring-primary/20 sm:text-sm">
                     {DECISION_OPTIONS.map((decision) => <option key={decision} value={decision}>{REVIEW_DECISION_LABELS[decision]}</option>)}
                   </select>
                 </label>
@@ -383,14 +432,14 @@ export default function AdjudicationPanel({ jobId, inputPayload, outputResult, r
 
                 <label className="block text-sm font-medium text-foreground">
                   Reason code
-                  <select name="reasonCode" defaultValue={packet.recommendedAction === "REQUEST_DOCUMENTS" ? "MISSING_DOCUMENT" : recommendedExcess > 0 ? "POLICY_EXCESS" : "CLEAN_CLAIM"} className="mt-2 block w-full rounded-md border border-border bg-background px-3 py-2.5 text-base font-light text-foreground outline-none transition-colors focus:ring-2 focus:ring-primary/20 sm:text-sm">
+                  <select name="reasonCode" defaultValue={decisionGuidance.reasonCode} className="mt-2 block w-full rounded-md border border-border bg-background px-3 py-2.5 text-base font-light text-foreground outline-none transition-colors focus:ring-2 focus:ring-primary/20 sm:text-sm">
                     {REASON_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </select>
                 </label>
 
                 <label className="block text-sm font-medium text-foreground">
                   Catatan reviewer
-                  <textarea name="note" rows={5} placeholder="Tulis justifikasi keputusan, koreksi payable, atau dokumen yang harus diminta." className="mt-2 block w-full rounded-md border border-border bg-background px-3 py-2.5 text-base font-light leading-6 text-foreground outline-none transition-colors focus:ring-2 focus:ring-primary/20 sm:text-sm" />
+                  <textarea name="note" rows={8} defaultValue={decisionGuidance.recommendedReviewerNote} placeholder="Tulis justifikasi keputusan, koreksi payable, atau dokumen yang harus diminta." className="mt-2 block w-full rounded-md border border-border bg-background px-3 py-2.5 text-base font-light leading-6 text-foreground outline-none transition-colors focus:ring-2 focus:ring-primary/20 sm:text-sm" />
                 </label>
 
                 {error && <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

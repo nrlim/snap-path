@@ -14,6 +14,19 @@ export interface HitlFinding {
   details?: unknown[];
 }
 
+export interface DecisionGuidance {
+  recommendedDecision: ReviewDecisionValue;
+  reasonCode: string;
+  title: string;
+  reason: string;
+  fwaLevel: string;
+  fwaScore: number;
+  evidenceConfidenceLabel: string;
+  supportingReasons: string[];
+  reviewerNextSteps: string[];
+  recommendedReviewerNote: string;
+}
+
 export interface HitlPacket {
   recommendedAction: ReviewDecisionValue;
   summary: string;
@@ -166,6 +179,134 @@ export function maskPatientName(name: unknown): string {
   const parts = text.split(/\s+/).filter(Boolean);
   if (parts.length === 1) return `${parts[0].charAt(0)}***`;
   return `${parts[0]} ${parts.slice(1).map((part) => `${part.charAt(0)}.`).join(' ')}`;
+}
+
+export function buildDecisionGuidance(inputPayload: unknown, outputResult: unknown, packet: HitlPacket): DecisionGuidance {
+  const output = asRecord(outputResult);
+  const fwaRisk = asRecord(output.fwaRisk);
+  const policyValidation = asRecord(output.policyValidation);
+  const policyFindings = asArray(policyValidation.findings);
+  const documentValidation = asRecord(output.documentValidation);
+  const documentDetails = asRecord(documentValidation.details);
+  const losValidation = asRecord(output.losValidation);
+  const fwaSignals = asArray(fwaRisk.signals);
+  const fwaLevel = stringValue(fwaRisk.level) || 'LOW';
+  const fwaScore = numberOrZero(fwaRisk.score);
+  const hasRejectPolicy = policyFindings.some((finding) => stringValue(asRecord(finding).severity) === 'REJECT_RECOMMENDED');
+  const documentMissingCount = asArray(documentDetails.missingRequiredDocuments).length;
+  const losStatus = stringValue(losValidation.status);
+  const losCount = ['OVERSTAY', 'UNDERSTAY', 'MISSING_ACTUAL'].includes(losStatus) ? 1 : 0;
+  const diagnosisCount = countDiagnosisFindings(outputResult);
+  const totalExcess = Math.max(0, packet.financialImpact.claimAmount - packet.financialImpact.recommendedPayableAmount);
+  const highFwa = fwaLevel === 'CRITICAL' || fwaLevel === 'HIGH' || fwaScore >= 70;
+  const mediumFwa = !highFwa && (fwaLevel === 'MEDIUM' || fwaScore >= 40);
+  const lowFwa = !highFwa && !mediumFwa;
+
+  const recommendedDecision: ReviewDecisionValue = hasRejectPolicy
+    ? 'REJECT'
+    : highFwa
+      ? 'ESCALATE_MEDICAL_ADVISOR'
+      : documentMissingCount > 0
+        ? 'REQUEST_DOCUMENTS'
+        : diagnosisCount > 0 || losCount > 0
+          ? 'ESCALATE_MEDICAL_ADVISOR'
+          : totalExcess > 0
+            ? 'APPROVE_WITH_ADJUSTMENT'
+            : 'APPROVE';
+
+  const reasonCode = hasRejectPolicy
+    ? 'POLICY_REJECT'
+    : highFwa
+      ? 'FWA_INVESTIGATION'
+      : documentMissingCount > 0
+        ? 'MISSING_DOCUMENT'
+        : diagnosisCount > 0 || losCount > 0
+          ? 'MEDICAL_REVIEW'
+          : totalExcess > 0
+            ? 'FINANCIAL_ADJUSTMENT'
+            : lowFwa
+              ? 'FWA_LOW_RISK'
+              : 'CLEAN_CLAIM';
+
+  const title = highFwa
+    ? 'Tahan klaim dan eskalasi investigasi FWA'
+    : mediumFwa
+      ? 'Lanjutkan adjudikasi dengan kontrol reviewer'
+      : 'Risiko FWA rendah, klaim dapat diproses normal';
+
+  const reason = hasRejectPolicy
+    ? 'Policy engine memberi rekomendasi reject. Keputusan final sebaiknya menolak klaim kecuali reviewer menemukan koreksi data polis yang valid.'
+    : highFwa
+      ? `Skor FWA ${fwaLevel} (${fwaScore}/100) menunjukkan klaim perlu ditahan dari persetujuan otomatis. Karena FWA adalah lapisan triage, keputusan final sebaiknya eskalasi untuk investigasi/medical advisor sebelum approve, koreksi, atau reject.`
+      : documentMissingCount > 0
+        ? `Risiko FWA ${fwaLevel} (${fwaScore}/100), tetapi ${documentMissingCount} dokumen wajib belum lengkap. Keputusan yang paling aman adalah meminta dokumen tambahan sebelum menentukan payable final.`
+        : diagnosisCount > 0 || losCount > 0
+          ? `Risiko FWA ${fwaLevel} (${fwaScore}/100), namun ada temuan klinis/LOS yang membutuhkan pertimbangan medis. Klaim sebaiknya dieskalasi sebelum keputusan finansial final.`
+          : totalExcess > 0
+            ? `Risiko FWA ${fwaLevel} (${fwaScore}/100) tidak mengharuskan eskalasi, tetapi terdapat koreksi finansial ${formatRupiah(totalExcess)}. Klaim dapat disetujui dengan adjustment sesuai evidence.`
+            : `Risiko FWA ${fwaLevel} (${fwaScore}/100) rendah dan tidak ada temuan mayor yang mengurangi payable. Klaim dapat disetujui setelah reviewer memastikan dokumen pendukung konsisten.`;
+
+  const topSignalLabels = fwaSignals
+    .map((signal) => stringValue(asRecord(signal).label) || stringValue(asRecord(signal).evidence))
+    .filter(Boolean)
+    .slice(0, 3);
+  const supportingReasons = [
+    `FWA: ${fwaLevel} dengan skor ${fwaScore}/100${topSignalLabels.length > 0 ? `; sinyal utama: ${topSignalLabels.join('; ')}` : '.'}`,
+    `Evidence tersedia: ${packet.evidencePacket.summary.totalEvidence} bukti (${packet.evidencePacket.summary.highConfidenceCount} high-confidence), policy sumber ${packet.evidencePacket.sourcePolicy}.`,
+    packet.financialImpact.policyExcessAmount > 0 ? `Policy excess terdeteksi ${formatRupiah(packet.financialImpact.policyExcessAmount)}.` : 'Tidak ada policy excess material dari policy engine.',
+    packet.financialImpact.tariffVarianceAmount + packet.financialImpact.drugVarianceAmount > 0 ? `Variance tarif/obat terdeteksi ${formatRupiah(packet.financialImpact.tariffVarianceAmount + packet.financialImpact.drugVarianceAmount)}.` : 'Tidak ada variance tarif/obat material yang mengurangi payable.',
+    documentMissingCount > 0 ? `${documentMissingCount} dokumen wajib belum lengkap.` : 'Dokumen wajib tidak menunjukkan gap mayor.',
+    diagnosisCount > 0 || losCount > 0 ? `${diagnosisCount} temuan klinis dan ${losCount} temuan LOS perlu review.` : 'Tidak ada temuan klinis/LOS mayor.',
+  ];
+
+  const reviewerNextSteps: string[] = recommendedDecision === 'ESCALATE_MEDICAL_ADVISOR'
+    ? [
+        'Jangan approve otomatis sebelum sinyal FWA/klinis ditutup oleh reviewer berwenang.',
+        'Bandingkan sinyal FWA dengan evidence packet dan riwayat klaim/provider.',
+        'Catat keputusan akhir: approve, koreksi payable, reject, atau minta dokumen setelah investigasi selesai.',
+      ]
+    : recommendedDecision === 'REQUEST_DOCUMENTS'
+      ? [
+          'Kirim permintaan dokumen yang belum lengkap kepada provider/peserta.',
+          'Tahan payable final sampai dokumen diterima dan diverifikasi.',
+          'Gunakan evidence packet untuk menentukan apakah dokumen baru menyelesaikan temuan.',
+        ]
+      : recommendedDecision === 'APPROVE_WITH_ADJUSTMENT'
+        ? [
+            'Terapkan koreksi payable sesuai policy excess dan variance tarif/obat.',
+            'Pastikan item adjustment memiliki evidence lokal atau aturan polis yang jelas.',
+            'Simpan reason code dan catatan reviewer untuk audit trail.',
+          ]
+        : recommendedDecision === 'REJECT'
+          ? [
+              'Pastikan alasan reject didukung aturan polis/evidence yang eksplisit.',
+              'Catat pasal, rule, atau sinyal utama yang menjadi dasar penolakan.',
+              'Siapkan komunikasi keputusan yang dapat diaudit.',
+            ]
+          : [
+              'Setujui klaim bila dokumen pendukung konsisten dengan input klaim.',
+              'Pastikan tidak ada evidence baru yang mengubah risiko FWA rendah.',
+              'Simpan catatan singkat bahwa klaim disetujui karena tidak ada temuan mayor.',
+            ];
+
+  const recommendedReviewerNote = [
+    `Rekomendasi sistem: ${REVIEW_DECISION_LABELS[recommendedDecision]}.`,
+    reason,
+    `Dasar: ${supportingReasons.join(' ')}`,
+  ].join('\n\n');
+
+  return {
+    recommendedDecision,
+    reasonCode,
+    title,
+    reason,
+    fwaLevel,
+    fwaScore,
+    evidenceConfidenceLabel: `${packet.evidencePacket.summary.highConfidenceCount}/${packet.evidencePacket.summary.totalEvidence} high-confidence`,
+    supportingReasons,
+    reviewerNextSteps,
+    recommendedReviewerNote,
+  };
 }
 
 export function buildHitlPacket(inputPayload: unknown, outputResult: unknown): HitlPacket {
