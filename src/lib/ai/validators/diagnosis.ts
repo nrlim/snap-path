@@ -1,11 +1,9 @@
-import prisma from '@/lib/db';
 import { buildClinicalReferenceSearchContext } from '@/lib/evidence/clinical-reference-search';
 import type { MedicalSourceReference, MedicalSourceReferenceType } from '@/lib/evidence/types';
 import { ClaimValidationInput, ClaimValidationOutput } from '../types';
 import { getAIGateway } from '../gateway';
 
 type DiagnosisValidationDetail = ClaimValidationOutput['diagnosisValidation']['details'][number];
-type ProcedureFinding = NonNullable<DiagnosisValidationDetail['procedureFindings']>[number];
 
 const MEDICAL_REFERENCE_TYPES: ReadonlySet<MedicalSourceReferenceType> = new Set([
   'INDONESIA_GUIDELINE',
@@ -49,14 +47,6 @@ function normalizeEvidenceReferences(value: unknown): MedicalSourceReference[] {
   }).filter((item) => item.title.trim().length > 0 && item.relevance.trim().length > 0);
 }
 
-function deriveDiagnosisCategory(icdCode: string) {
-  return icdCode.trim().toUpperCase().match(/^[A-Z]\d{2}/)?.[0] || 'UNCLASSIFIED';
-}
-
-function isHighConfidenceAppropriateFinding(finding: ProcedureFinding) {
-  return finding.status === 'APPROPRIATE' && finding.confidence !== 'LOW' && Boolean(finding.procedureCode);
-}
-
 function normalizeProcedureKey(value: unknown): string {
   return String(value || '').trim().toUpperCase();
 }
@@ -86,63 +76,6 @@ function collectEpisodeAppropriateMedicationKeys(details: DiagnosisValidationDet
   return keys;
 }
 
-async function saveAiApprovedDiagnosisProcedureMappings(details: DiagnosisValidationDetail[], claimedProcedureCodes: string[]) {
-  const uniqueClaimedCodes = Array.from(new Set(claimedProcedureCodes.filter(Boolean)));
-  if (uniqueClaimedCodes.length === 0) return;
-
-  for (const detail of details) {
-    const findings = detail.procedureFindings || [];
-    const findingByCode = new Map(findings.map((finding) => [finding.procedureCode, finding]));
-    const hasCompleteAiApproval = uniqueClaimedCodes.every((code) => {
-      const finding = findingByCode.get(code);
-      return finding ? isHighConfidenceAppropriateFinding(finding) : false;
-    });
-
-    if (!hasCompleteAiApproval) continue;
-    if ((detail.irrelevantProcedures?.length || 0) > 0 || (detail.unmatchedProcedures?.length || 0) > 0) continue;
-
-    const diagnosis = await prisma.diagnosisCode.upsert({
-      where: { icdCode: detail.diagnosisCode },
-      update: {
-        description: detail.diagnosisName || detail.diagnosisCode,
-        isActive: true,
-      },
-      create: {
-        icdCode: detail.diagnosisCode,
-        description: detail.diagnosisName || detail.diagnosisCode,
-        category: deriveDiagnosisCategory(detail.diagnosisCode),
-        isActive: true,
-      },
-      select: { id: true },
-    });
-
-    for (const code of uniqueClaimedCodes) {
-      const finding = findingByCode.get(code);
-      if (!finding || !isHighConfidenceAppropriateFinding(finding)) continue;
-
-      const existing = await prisma.diagnosisProcedureMap.findFirst({
-        where: {
-          diagnosisId: diagnosis.id,
-          procedureCode: code,
-        },
-        select: { id: true },
-      });
-      if (existing) continue;
-
-      await prisma.diagnosisProcedureMap.create({
-        data: {
-          diagnosisId: diagnosis.id,
-          procedureCode: code,
-          procedureName: finding.procedureName || code,
-          isRequired: false,
-          confidence: finding.confidence === 'HIGH' ? 0.9 : 0.75,
-          source: 'AI_GENERATED',
-        },
-      });
-    }
-  }
-}
-
 export async function validateDiagnosisTreatment(input: ClaimValidationInput, jobId?: string): Promise<ClaimValidationOutput['diagnosisValidation']> {
   const diagnoses = input.diagnoses || [];
   const procedures = input.procedures || [];
@@ -158,99 +91,47 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
     if (p.code && name) inputProcNameMap[p.code] = name;
   }
 
-  const formatProcedure = (code: string, name?: string | null) => name ? `${code} — ${name}` : code;
-  const mapHasRequiredOrPositiveEvidence = (detail: ClaimValidationOutput['diagnosisValidation']['details'][number]) =>
-    (detail.matchedProcedures?.length || 0) > 0 || (detail.missingRequiredProcedures?.length || 0) > 0;
-
   let overallValid = true;
 
   for (const diag of diagnoses) {
-    // 1. Rule-based check against master data
-    const mapEntries = await prisma.diagnosisProcedureMap.findMany({
-      where: {
-        diagnosis: { icdCode: diag.code }
-      }
-    });
-
-    const missingRequiredProcedures: string[] = [];
-
-    // Check which required procedures are missing
-    const requiredCodes = mapEntries.filter(m => m.isRequired).map(m => m.procedureCode);
-    for (const req of requiredCodes) {
-      if (!claimedProcedureCodes.includes(req)) {
-        // Try to get name from tariff master
-        const tariffEntry = await prisma.tariffEntry.findFirst({
-          where: { procedureCode: req },
-          select: { procedureName: true }
-        });
-        missingRequiredProcedures.push(
-          tariffEntry?.procedureName ? `${req} — ${tariffEntry.procedureName}` : req
-        );
-        overallValid = false;
-      }
-    }
-
-    const mappedCodes = mapEntries.map(m => m.procedureCode);
-
-    // Local mapping is used only as positive evidence and required-procedure source.
-    // If the lookup table has no/incomplete data, do not create DB-only review findings;
-    // let the AI clinical fallback assess each claimed procedure based on clinical context.
-    const matchedCodes = claimedProcedureCodes.filter(c => mappedCodes.includes(c));
-    const matchedWithNames = matchedCodes.map(c => formatProcedure(c, inputProcNameMap[c]));
-    const procedureFindings = matchedCodes.map((code) => ({
-      procedureCode: code,
-      procedureName: inputProcNameMap[code] || code,
-      status: 'APPROPRIATE' as const,
-      reason: `Tindakan ini sesuai dengan mapping lokal diagnosis ${diag.code}.`,
-      againstDiagnosis: diag.code,
-      confidence: 'MEDIUM' as const,
-    }));
-
+    const diagnosisCode = String(diag.code || '').trim();
     details.push({
-      diagnosisCode: diag.code,
-      diagnosisName: diag.name || diag.code,
+      diagnosisCode,
+      diagnosisName: diag.name || diagnosisCode,
       clinicalSummary: '',
-      matchedProcedures: matchedWithNames,
+      matchedProcedures: [],
       unmatchedProcedures: [],
-      procedureFindings,
+      procedureFindings: [],
       irrelevantProcedures: [],
       medicationFindings: [],
-      missingRequiredProcedures,
-      missingRequiredProcedureDetails: missingRequiredProcedures.map((item) => {
-        const [code, name] = item.split(' — ');
-        return {
-          code: code || item,
-          name: name || item,
-          reason: `Prosedur ini ditandai wajib pada mapping diagnosis ${diag.code}.`,
-          evidenceLevel: 'REQUIRED' as const,
-        };
-      }),
+      missingRequiredProcedures: [],
+      missingRequiredProcedureDetails: [],
       suggestedProcedures: [],
-      notes: mapEntries.length === 0
-        ? 'Lookup table mapping tindakan-diagnosis belum memiliki data untuk diagnosis ini; clinical review dilakukan oleh AI berdasarkan konteks klaim, tanpa hardcoded mapping.'
-        : ''
+      notes: 'Review klinis menggunakan reasoning AI dan evidence eksternal; mapping lokal diagnosis-tindakan tidak digunakan pada step ini.',
     });
   }
 
   // 2. AI-based holistic validation
   let aiScore = 100;
   const externalClinicalEvidenceContext = await buildClinicalReferenceSearchContext({
-    diagnoses: input.diagnoses.map((diagnosis) => ({ code: diagnosis.code, name: diagnosis.name })),
-    procedures: input.procedures.map((procedure) => ({ code: procedure.code, name: procedure.name })),
+    diagnoses: diagnoses.map((diagnosis) => ({ code: diagnosis.code, name: diagnosis.name })),
+    procedures: procedures.map((procedure) => ({ code: procedure.code, name: procedure.name })),
     medications: input.medications?.map((medication) => ({ name: medication.name, genericName: medication.genericName })) || [],
   });
   try {
     const { data } = await gateway.validateDiagnosisTreatment({
-      ...input,
-      clinicalReviewMode: 'AI_FALLBACK_WHEN_LOCAL_MAPPING_ABSENT_OR_INCOMPLETE_WITH_EXTERNAL_MEDICAL_EVIDENCE',
+      encounter: input.encounter,
+      diagnoses,
+      procedures,
+      medications: input.medications || [],
+      documents: input.documents?.map((document) => ({
+        type: document.type,
+        date: document.date,
+        conclusion: document.conclusion,
+      })) || [],
+      notes: input.notes,
+      clinicalReviewMode: 'AI_EXTERNAL_EVIDENCE_REASONING_WITHOUT_LOCAL_MAPPING',
       externalClinicalEvidenceContext,
-      localMappingCoverage: details.map((detail) => ({
-        diagnosisCode: detail.diagnosisCode,
-        diagnosisName: detail.diagnosisName,
-        hasLocalMapping: mapHasRequiredOrPositiveEvidence(detail),
-        locallyMatchedProcedures: detail.matchedProcedures,
-        locallyRequiredMissingProcedures: detail.missingRequiredProcedures,
-      })),
     });
     aiScore = data.score;
     overallValid = overallValid && data.isValid;
@@ -420,14 +301,6 @@ export async function validateDiagnosisTreatment(input: ClaimValidationInput, jo
   const ruleBasedDeduction = hasActionableFindings ? Math.min(100, Math.ceil(missingRequiredDeduction + procedureDeduction + medicationDeduction)) : 0;
   const finalScore = Math.max(0, 100 - ruleBasedDeduction);
   const finalValid = missingRequiredCount === 0 && irrelevantCount === 0 && medicationReviewCount === 0 && medicationInappropriateCount === 0 && finalScore >= 80;
-
-  if (finalValid) {
-    try {
-      await saveAiApprovedDiagnosisProcedureMappings(details, claimedProcedureCodes);
-    } catch (error) {
-      console.error('Failed to cache AI-approved diagnosis-procedure mappings:', error);
-    }
-  }
 
   return {
     isValid: finalValid,

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import PathwayTimeline from "./PathwayTimeline";
 import { ArrowUp, BrainCircuit, BookOpen, Calculator, CheckCheck, CheckCircle2, ChevronDown, ClipboardCheck, Copy, MinusCircle, FileText, Pill, Stethoscope, AlertTriangle, Info } from 'lucide-react';
 import { resolveActualLosDays } from '@/lib/los';
+import { formatDuration } from '@/lib/utils';
 import WorkflowStatusTracker from './WorkflowStatusTracker';
 
 export function ScoreCircularGauge({ score, size = 120 }: { score: number; size?: number }) {
@@ -195,23 +196,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     }
     return () => clearInterval(interval);
   }, [job.id, job.status]);
-
-  if (job.status !== "COMPLETED" && job.status !== "FAILED") {
-    return (
-      <WorkflowStatusTracker
-        jobId={job.id}
-        workflowRunId={job.workflowRunId ?? null}
-        currentDbStatus={job.status}
-        onCompleted={() => {
-          // Reload page to get fresh server-rendered data
-          window.location.reload();
-        }}
-        onFailed={(errMsg) => {
-          setJob((prev: any) => ({ ...prev, status: "FAILED", error: errMsg }));
-        }}
-      />
-    );
-  }
+  const isProcessing = job.status !== "COMPLETED" && job.status !== "FAILED";
 
   if (job.status === "FAILED") {
     return (
@@ -238,7 +223,7 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     : startedTime && completedTime
       ? Math.max(0, completedTime - startedTime)
       : 0;
-  const workflowLatencyText = workflowLatencyMs > 0 ? `${(workflowLatencyMs / 1000).toFixed(2)} detik` : 'Belum tersedia';
+  const workflowLatencyText = workflowLatencyMs > 0 ? formatDuration(workflowLatencyMs / 1000) : 'Belum tersedia';
   const statusConfig = {
     VALID: { color: "success", label: "Valid" },
     INVALID: { color: "error", label: "Invalid" },
@@ -1844,6 +1829,22 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
               <button onClick={() => setShowPolicyModal(false)} className="px-5 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">Mengerti</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {isProcessing && (
+        <div className="fixed bottom-6 right-6 z-[100] w-full max-w-[420px] lg:bottom-10 lg:right-10">
+          <WorkflowStatusTracker
+            jobId={job.id}
+            workflowRunId={job.workflowRunId ?? null}
+            currentDbStatus={job.status}
+            onCompleted={() => {
+              window.location.reload();
+            }}
+            onFailed={(errMsg) => {
+              setJob((prev: any) => ({ ...prev, status: "FAILED", error: errMsg }));
+            }}
+          />
         </div>
       )}
 

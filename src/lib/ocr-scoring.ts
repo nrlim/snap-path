@@ -76,6 +76,23 @@ const FIELD_ALIASES: Record<string, string> = {
   no_tagihan: "invoice_number",
   no_kuitansi: "invoice_number",
   hospital_invoice_no: "invoice_number",
+  hospital_invoice_number: "invoice_number",
+  receipt_no: "invoice_number",
+  receipt_number: "invoice_number",
+  kuitansi_no: "invoice_number",
+  nomor_tagihan: "invoice_number",
+  nomor_invoice: "invoice_number",
+  admission_date: "admission_date",
+  admit_date: "admission_date",
+  admitted_date: "admission_date",
+  visit_start_date: "admission_date",
+  tanggal_masuk: "admission_date",
+  tgl_masuk: "admission_date",
+  discharge_date: "discharge_date",
+  discharged_date: "discharge_date",
+  visit_end_date: "discharge_date",
+  tanggal_pulang: "discharge_date",
+  tgl_pulang: "discharge_date",
   
   // NIK & Member ID -> patient_identifier
   member_id: "patient_identifier",
@@ -246,10 +263,79 @@ function parseNumberValue(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isDateField(field: string): boolean {
+  return field === "admission_date" || field === "discharge_date" || field === "patient_birth_date" || field.endsWith("_date");
+}
+
+function normalizeYear(year: string): string {
+  if (year.length === 2) {
+    const parsed = Number(year);
+    return `${parsed >= 70 ? "19" : "20"}${year}`;
+  }
+  return year;
+}
+
+function formatDateParts(year: string, month: string, day: string): string | null {
+  const normalizedYear = normalizeYear(year);
+  const normalizedMonth = month.padStart(2, "0");
+  const normalizedDay = day.padStart(2, "0");
+  const yearNumber = Number(normalizedYear);
+  const monthNumber = Number(normalizedMonth);
+  const dayNumber = Number(normalizedDay);
+
+  if (!Number.isInteger(yearNumber) || !Number.isInteger(monthNumber) || !Number.isInteger(dayNumber)) return null;
+  if (yearNumber < 1900 || yearNumber > 2100) return null;
+  if (monthNumber < 1 || monthNumber > 12) return null;
+  if (dayNumber < 1 || dayNumber > 31) return null;
+
+  const parsedDate = new Date(Date.UTC(yearNumber, monthNumber - 1, dayNumber));
+  if (
+    parsedDate.getUTCFullYear() !== yearNumber ||
+    parsedDate.getUTCMonth() !== monthNumber - 1 ||
+    parsedDate.getUTCDate() !== dayNumber
+  ) {
+    return null;
+  }
+
+  return `${normalizedYear}-${normalizedMonth}-${normalizedDay}`;
+}
+
+function normalizeDateValue(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) return formatDateParts(isoMatch[1] ?? "", isoMatch[2] ?? "", isoMatch[3] ?? "") ?? trimmed;
+
+  const slashOrDashMatch = trimmed.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/);
+  if (slashOrDashMatch) return formatDateParts(slashOrDashMatch[3] ?? "", slashOrDashMatch[2] ?? "", slashOrDashMatch[1] ?? "") ?? trimmed;
+
+  const yearFirstMatch = trimmed.match(/^(\d{4})[\/.](\d{1,2})[\/.](\d{1,2})$/);
+  if (yearFirstMatch) return formatDateParts(yearFirstMatch[1] ?? "", yearFirstMatch[2] ?? "", yearFirstMatch[3] ?? "") ?? trimmed;
+
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  if (digitsOnly.length === 8) {
+    if (digitsOnly.startsWith("19") || digitsOnly.startsWith("20")) {
+      return formatDateParts(digitsOnly.slice(0, 4), digitsOnly.slice(4, 6), digitsOnly.slice(6, 8)) ?? trimmed;
+    }
+    return formatDateParts(digitsOnly.slice(4, 8), digitsOnly.slice(2, 4), digitsOnly.slice(0, 2)) ?? trimmed;
+  }
+
+  if (digitsOnly.length === 6) {
+    return formatDateParts(digitsOnly.slice(4, 6), digitsOnly.slice(2, 4), digitsOnly.slice(0, 2)) ?? trimmed;
+  }
+
+  return trimmed;
+}
+
 function normalizeValueForComparison(field: string, value: string, valueType: OcrValueType): string {
   if (valueType === "number" || field === "amount" || field.endsWith("_score") || field.endsWith("page_number") || field.endsWith("total_pages")) {
     const parsed = parseNumberValue(value);
     return parsed === null ? "" : String(parsed);
+  }
+
+  if (isDateField(field)) {
+    return normalizeDateValue(value).toLowerCase();
   }
 
   return value
@@ -464,17 +550,13 @@ function parseOcrUploadCsvLine(text: string, target: Map<string, OcrScalarValue>
   mockObject["encounter_type"] = dataRow[9] !== "NULL" ? dataRow[9] : "";
 
   const adm = dataRow[12];
-  if (adm && adm.length === 8 && adm !== "NULL") {
-    mockObject["admission_date"] = `${adm.substring(4, 8)}-${adm.substring(2, 4)}-${adm.substring(0, 2)}`;
-  } else if (adm !== "NULL") {
-    mockObject["admission_date"] = adm;
+  if (adm && adm !== "NULL") {
+    mockObject["admission_date"] = normalizeDateValue(adm);
   }
 
   const dis = dataRow[13];
-  if (dis && dis.length === 8 && dis !== "NULL") {
-    mockObject["discharge_date"] = `${dis.substring(4, 8)}-${dis.substring(2, 4)}-${dis.substring(0, 2)}`;
-  } else if (dis !== "NULL") {
-    mockObject["discharge_date"] = dis;
+  if (dis && dis !== "NULL") {
+    mockObject["discharge_date"] = normalizeDateValue(dis);
   }
 
   // Column 21 is Amt Approved. Previously 20 (Amt Incurred).

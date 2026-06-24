@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, ChevronDown, ChevronUp, Loader2, XCircle } from "lucide-react";
+import { formatShortDuration } from "@/lib/utils";
 
 export interface WorkflowStepResult {
   stepId: string;
@@ -247,77 +249,107 @@ export default function WorkflowProgressModal({ isOpen, onClose, payload }: Prop
 
   const now = Date.now();
   const currentStep = currentStepIdx < steps.length ? steps[currentStepIdx] : steps[steps.length - 1];
-  const elapsedSec = startedAt ? ((now - startedAt) / 1000).toFixed(1) : "0.0";
 
   return (
     <>
-      {!isMinimized && <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity" onClick={isDone ? onClose : undefined} />}
-      <div className={`fixed z-50 transform transition-all duration-300 bg-surface border border-border overflow-hidden flex flex-col shadow-2xl ${
+      {!isMinimized && <div className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm transition-opacity" onClick={isDone ? onClose : undefined} />}
+      <div className={`fixed z-50 flex flex-col overflow-hidden border bg-[#f8fafc] shadow-2xl transition-all duration-300 ${
         isMinimized
-          ? "bottom-20 right-3 left-3 max-h-[168px] rounded-[22px] sm:bottom-4 sm:left-auto sm:w-[380px] sm:max-h-[190px]"
-          : "inset-x-0 bottom-0 lg:inset-x-auto lg:bottom-auto lg:top-1/2 lg:left-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 lg:w-full lg:max-w-md w-full rounded-t-[24px] lg:rounded-2xl max-h-[90vh]"
+          ? "bottom-20 left-3 right-3 h-auto rounded-xl border-slate-200/60 sm:bottom-4 sm:left-auto sm:w-[420px]"
+          : "bottom-0 left-0 right-0 max-h-[90vh] w-full rounded-t-[24px] border-transparent lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:w-[420px] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-xl lg:border-slate-200/60"
       }`}>
-        <div className="p-5 border-b border-border/60 flex items-center justify-between bg-surface sticky top-0 z-20">
-          <div className="min-w-0">
-            {!isMinimized && <div className="w-12 h-1.5 bg-border/80 rounded-full mx-auto mb-4 lg:hidden" />}
-            <h2 className={`${isMinimized ? "text-base" : "text-xl"} font-medium text-text mb-1 flex items-center gap-2`}>
-              AI Brain Validation
-              {isMinimized && currentStepIdx < steps.length && <span className="relative ml-1 flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-primary" /></span>}
-            </h2>
-            <p className="truncate text-xs text-text-subtle">{isMinimized && currentStep ? currentStep.description : "Memproses data klaim dan medical records..."}</p>
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-slate-200/50 bg-white p-5">
+          <div>
+            <h2 className="text-[17px] font-semibold text-slate-800">AI Brain Validation</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isMinimized && currentStep ? currentStep.description : "Memproses data klaim dan medical records..."}
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setIsMinimized(!isMinimized)} className="min-h-11 min-w-11 p-2 text-text-subtle hover:bg-surface-elevated rounded-md transition-colors" title={isMinimized ? "Expand" : "Minimize"}>
-              {isMinimized ? (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-              )}
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setIsMinimized(!isMinimized)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 transition-colors hover:bg-slate-50"
+            >
+              {isMinimized ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
             </button>
-            {isDone && <button onClick={onClose} className="min-h-11 min-w-11 p-2 text-text-subtle hover:bg-surface-elevated rounded-md transition-colors"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>}
+            {isDone && (
+              <button 
+                onClick={onClose} 
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 transition-colors hover:bg-slate-50"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            )}
           </div>
         </div>
 
-        {isMinimized && currentStep ? (
-          <div className="border-b border-border/60 px-5 py-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <span className="truncate text-xs font-medium uppercase tracking-[0.1em] text-primary">{currentStep.label}</span>
-              <span className="font-mono text-xs font-medium text-text-subtle">{elapsedSec}s</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-surface-elevated">
-              <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${Math.min(100, ((Math.min(currentStepIdx + 1, steps.length)) / steps.length) * 100)}%` }} />
+        {/* Body Timeline */}
+        {!isMinimized && (
+          <div className="custom-scrollbar flex-1 overflow-y-auto bg-[#f8fafc] p-6 pr-4">
+            <div className="relative">
+              {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600">{error}</div>}
+              
+              <div className="absolute bottom-4 left-[11px] top-4 w-[2px] bg-slate-200/80" />
+              
+              <div className="space-y-6">
+                {steps.map((step, idx) => {
+                   const isRunning = step.status === "running";
+                   const isCompleted = step.status === "completed";
+                   const isFailed = step.status === "failed";
+                   const stepElapsed = isRunning && stepStartTimes.current[idx]
+                     ? ((now - stepStartTimes.current[idx]) / 1000).toFixed(1)
+                     : null;
+
+                   return (
+                     <div key={step.stepId} className={`relative flex items-start gap-4 transition-opacity duration-300 ${isFailed ? 'opacity-50' : 'opacity-100'}`}>
+                       {/* Timeline Node */}
+                       <div className="relative z-10 mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center bg-[#f8fafc]">
+                          {isCompleted ? (
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                               <Check className="h-3.5 w-3.5 stroke-[3]" />
+                            </div>
+                          ) : isFailed ? (
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                               <XCircle className="h-4 w-4" />
+                            </div>
+                          ) : isRunning ? (
+                            <div className="h-5 w-5 animate-spin rounded-full border-[3px] border-slate-300 border-t-slate-600" />
+                          ) : (
+                            <div className="h-3 w-3 rounded-full bg-slate-200" />
+                          )}
+                       </div>
+
+                       {/* Step Content */}
+                       <div className="flex flex-1 justify-between gap-4">
+                          <div className="flex flex-col">
+                             <h3 className={`tracking-tight text-[15px] ${isRunning || isCompleted ? 'font-medium text-slate-900' : 'text-slate-500'}`}>
+                               {step.label}
+                             </h3>
+                             <p className={`mt-0.5 text-xs leading-relaxed ${isCompleted || isRunning ? 'text-slate-500' : 'text-slate-400/70'}`}>
+                               {isFailed && step.error ? step.error : step.description}
+                             </p>
+                          </div>
+                          <div className="shrink-0 pt-0.5 text-right">
+                             <span className={`font-mono text-[13px] ${isRunning ? 'font-medium text-slate-800' : isCompleted ? 'text-slate-500' : 'text-transparent'}`}>
+                               {isRunning && stepElapsed ? formatShortDuration(stepElapsed) : isCompleted && step.durationSec ? formatShortDuration(step.durationSec) : "-"}
+                             </span>
+                          </div>
+                       </div>
+                     </div>
+                   );
+                })}
+              </div>
             </div>
           </div>
-        ) : null}
+        )}
 
-        <div className={`${isMinimized ? "hidden" : "flex-1"} overflow-y-auto p-6 space-y-5`}>
-          {error && <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm border border-red-200 mb-4">{error}</div>}
-          {steps.map((step, idx) => (
-            <div key={step.stepId} className="flex gap-4 relative">
-              {idx !== steps.length - 1 && <div className="absolute top-8 bottom-[-20px] left-3.5 w-[2px] bg-border/60" />}
-              <div className="relative z-10 flex-shrink-0 flex items-center justify-center w-7 h-7 rounded-full bg-surface">
-                {step.status === "waiting" && <div className="w-3 h-3 rounded-full bg-border" />}
-                {step.status === "running" && <svg className="animate-spin w-5 h-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
-                {step.status === "completed" && <div className="flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg></div>}
-                {step.status === "failed" && <div className="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></div>}
-              </div>
-              <div className={`flex-1 pt-1 pb-1 ${step.status === "waiting" ? "opacity-50" : "opacity-100"}`}>
-                <div className="flex items-center justify-between mb-0.5">
-                  <h4 className={`font-medium text-sm ${step.status === "failed" ? "text-red-600" : "text-text"}`}>{step.label}</h4>
-                  <div className="flex items-center gap-2">
-                    {step.status === "running" && <span className="text-xs font-mono text-primary font-medium">{((now - (stepStartTimes.current[idx] || now)) / 1000).toFixed(1)}s</span>}
-                    {step.status === "completed" && step.durationSec && <span className="text-xs font-mono text-text-subtle">{step.durationSec}s</span>}
-                  </div>
-                </div>
-                <p className="text-xs text-text-subtle leading-relaxed">{step.status === "failed" && step.error ? step.error : step.description}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {isDone && !isMinimized && (
-          <div className="p-4 border-t border-border/60 bg-surface-elevated/50 text-center">
-            {error ? <button onClick={onClose} className="w-full py-2.5 bg-surface border border-border rounded-lg text-sm font-medium hover:bg-surface-elevated transition-colors">Tutup</button> : <p className="text-sm font-medium text-primary flex items-center justify-center gap-2"><svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>Mengalihkan ke halaman hasil...</p>}
+        {/* Footer info when done but not minimized */}
+        {isDone && !isMinimized && !error && (
+          <div className="border-t border-slate-200 bg-slate-50 p-4 text-center">
+            <p className="flex items-center justify-center gap-2 text-sm font-medium text-primary">
+              <Loader2 className="h-4 w-4 animate-spin" /> Mengalihkan ke halaman hasil...
+            </p>
           </div>
         )}
       </div>

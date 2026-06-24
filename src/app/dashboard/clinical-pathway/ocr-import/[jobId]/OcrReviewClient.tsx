@@ -111,11 +111,6 @@ export default function OcrReviewClient({ jobId }: OcrReviewClientProps) {
         </Link>
         <div className="flex flex-col items-end gap-1">
           <div className="font-mono text-xs text-slate-500">Job ID: {jobId}</div>
-          {processingTimeMs !== null && (
-            <div className="text-xs font-medium text-slate-500">
-              Waktu Proses OCR: {(processingTimeMs / 1000).toFixed(2)} detik
-            </div>
-          )}
         </div>
       </div>
 
@@ -126,6 +121,7 @@ export default function OcrReviewClient({ jobId }: OcrReviewClientProps) {
         txtItems={txtItems}
         txtContent={txtContent}
         pdfUrl={pdfUrl ?? undefined}
+        processingTimeMs={processingTimeMs}
         onCorrected={(updatedScoring) => setScoringResult(updatedScoring)}
         onForward={(claimJobId) => {
           if (claimJobId) {

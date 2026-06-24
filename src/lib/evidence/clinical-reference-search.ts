@@ -49,7 +49,9 @@ export interface ClinicalReferenceSearchInput {
 }
 
 const MAX_DIAGNOSES = 4;
-const MAX_TERMS_PER_DIAGNOSIS = 5;
+const MAX_TERMS_PER_DIAGNOSIS = 3;
+const MAX_MEDICATION_EVIDENCE_TERMS = 3;
+const MAX_SOURCES_PER_DIAGNOSIS = 8;
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
@@ -87,32 +89,31 @@ function buildPubMedQuery(diagnosis: DiagnosisSearchInput, procedures: Procedure
 async function fetchSourcesForDiagnosis(diagnosis: DiagnosisSearchInput, procedures: ProcedureSearchInput[], medications: MedicationSearchInput[]): Promise<ClinicalReferenceQueryResult> {
   const diagnosisCode = stringValue(diagnosis.code) || 'UNSPECIFIED';
   const diagnosisName = stringValue(diagnosis.name) || diagnosisCode;
-  const query = buildPubMedQuery(diagnosis, procedures, medications);
-  const sources: ClinicalReferenceSource[] = [];
+  const evidenceMedications = unique(medications.map((medication) => stringValue(medication.genericName || medication.name)))
+    .slice(0, MAX_MEDICATION_EVIDENCE_TERMS);
+  const query = buildPubMedQuery(
+    diagnosis,
+    procedures,
+    evidenceMedications.map((name) => ({ name })),
+  );
 
-  if (query) {
-    // 1. Fetch PubMed
-    const pubMedSources = await searchPubMedWithAbstracts(query, 4);
-    sources.push(...pubMedSources);
-  }
+  const [pubMedSources, whoSource, medicationSourceGroups] = await Promise.all([
+    query ? searchPubMedWithAbstracts(query, 3) : Promise.resolve([]),
+    searchWhoIndicator(diagnosisName),
+    Promise.all(evidenceMedications.map(async (medName) => {
+      const [rxNormSource, fdaSource] = await Promise.all([
+        searchRxNormDrug(medName),
+        searchFdaDrugLabels(medName),
+      ]);
+      return [rxNormSource, fdaSource].filter((source): source is ClinicalReferenceSource => Boolean(source));
+    })),
+  ]);
 
-  // 2. Fetch WHO Indicator for diagnosis
-  const whoSource = await searchWhoIndicator(diagnosisName);
-  if (whoSource) sources.push(whoSource);
-
-  // 3. Fetch FDA & RxNorm for medications
-  for (const med of medications) {
-    const medName = stringValue(med.genericName || med.name);
-    if (!medName) continue;
-    
-    // RxNorm
-    const rxNormSource = await searchRxNormDrug(medName);
-    if (rxNormSource) sources.push(rxNormSource);
-    
-    // FDA
-    const fdaSource = await searchFdaDrugLabels(medName);
-    if (fdaSource) sources.push(fdaSource);
-  }
+  const sources = [
+    ...pubMedSources,
+    ...(whoSource ? [whoSource] : []),
+    ...medicationSourceGroups.flat(),
+  ].slice(0, MAX_SOURCES_PER_DIAGNOSIS);
 
   return { diagnosisCode, diagnosisName, query, sources };
 }

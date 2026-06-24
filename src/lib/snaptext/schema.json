@@ -15,7 +15,7 @@
     },
     "invoice_number": {
       "type": "string",
-      "description": "Official invoice number. Look for Invoice No., No. Tagihan, Billing No., Receipt No., No. Kuitansi. Do NOT use RM number, Patient ID, Admission No., Visit No., policy number, card number, or medical form number. If no can read, skip"
+      "description": "Nomor invoice/tagihan/kuitansi rumah sakit. Ambil dari Invoice No, No Tagihan, Billing No, Hospital Invoice No, Receipt No, atau No Kuitansi. Jangan ambil No RM, Patient ID, Admission No, Visit No, polis, atau kartu."
     },
     "patient_identifier": {
       "type": "string",
@@ -39,11 +39,11 @@
     },
     "admission_date": {
       "type": "string",
-      "description": "Admit date or visit start date. Use yyyy-MM-dd. Take real event date, not print date. If no can read, skip."
+      "description": "Tanggal masuk/admission/visit start. Format yyyy-MM-dd. Ambil tanggal kejadian, bukan tanggal cetak atau tanggal invoice."
     },
     "discharge_date": {
       "type": "string",
-      "description": "Discharge date or visit end date. Use yyyy-MM-dd. If no can read, skip"
+      "description": "Tanggal pulang/discharge/visit end. Format yyyy-MM-dd. Ambil tanggal kejadian, bukan tanggal cetak atau tanggal invoice."
     },
     "documents": {
       "type": "array",

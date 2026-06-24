@@ -30,6 +30,7 @@ interface OcrPollResponse {
   ocrRawResult?: unknown;
   txtItems?: unknown;
   masterDataLookup?: unknown;
+  processingTimeMs?: number;
   error?: string;
 }
 
@@ -371,6 +372,7 @@ function parsePollResponse(value: unknown): OcrPollResponse {
     ocrRawResult: value.ocrRawResult,
     txtItems: value.txtItems,
     masterDataLookup: value.masterDataLookup,
+    processingTimeMs: readNumber(value, "processingTimeMs"),
     error: readString(value, "error"),
   };
 }
@@ -467,6 +469,7 @@ export default function OcrUploadWizard(): ReactElement {
   const [ocrRawResult, setOcrRawResult] = useState<unknown>(null);
   const [txtItems, setTxtItems] = useState<unknown>(null);
   const [masterDataLookup, setMasterDataLookup] = useState<unknown>(null);
+  const [processingTimeMs, setProcessingTimeMs] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<OcrProgressState>(INITIAL_PROGRESS);
@@ -680,6 +683,7 @@ export default function OcrUploadWizard(): ReactElement {
           setOcrRawResult(data.ocrRawResult);
           setTxtItems(data.txtItems);
           setMasterDataLookup(data.masterDataLookup);
+          setProcessingTimeMs(data.processingTimeMs ?? null);
           setProgress((previous) => ({
             ...previous,
             percent: 100,
@@ -1069,6 +1073,7 @@ export default function OcrUploadWizard(): ReactElement {
           scoringResult={scoringResult}
           ocrRawResult={ocrRawResult}
           txtItems={txtItems}
+          processingTimeMs={processingTimeMs}
           onCorrected={setScoringResult}
           onForward={handleForwarded}
         />

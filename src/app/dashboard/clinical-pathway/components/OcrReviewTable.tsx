@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Copy, Check, CheckCircle2, Circle, Loader2 } from "lucide-react";
 import { JsonViewer } from "@/components/ui/JsonViewer";
+import { formatDuration } from "@/lib/utils";
 
 import type { ScoringDetail, ScoringResult } from "@/lib/ocr-scoring";
 
@@ -23,6 +24,7 @@ interface OcrReviewTableProps {
   pdfUrl?: string;
   onCorrected?: (updatedScoring: ScoringResult) => void;
   onForward?: (claimJobId?: string) => void;
+  processingTimeMs?: number | null;
 }
 
 interface CorrectResponse {
@@ -85,26 +87,55 @@ function parseForwardResponse(value: unknown): ForwardResponse {
   };
 }
 
-function readNumber(record: Record<string, unknown>, key: string): number {
-  const value = record[key];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+interface TxtTableRow {
+  label: string;
+  value: string;
 }
 
+function stringifyTableValue(value: unknown): string {
+  if (value === null || value === undefined) return "-";
+  const text = String(value).trim().replace(/\.00$/, "");
+  return text || "-";
+}
 
-function stripTxtInternalFields(value: unknown): unknown {
-  if (!Array.isArray(value)) return value;
+function buildRowsFromTxtItems(value: unknown): TxtTableRow[] {
+  if (!Array.isArray(value)) return [];
 
-  return value.map((item) => {
-    if (!isRecord(item)) return item;
-    const { rawValue: _rawValue, valueType: _valueType, ...rest } = item;
-    void _rawValue;
-    void _valueType;
-    return rest;
+  return value.flatMap((item): TxtTableRow[] => {
+    if (!isRecord(item)) return [];
+    const label = typeof item.label === "string" ? item.label : typeof item.field === "string" ? item.field : "Field";
+    return [{ label, value: stringifyTableValue(item.value ?? item.rawValue) }];
   });
 }
 
-function formatSimilarity(value: number): string {
-  return `${Math.round(value * 100)}%`;
+function buildRowsFromTxtContent(value?: string | null): TxtTableRow[] {
+  const text = value?.trim();
+  if (!text) return [];
+
+  if (text.startsWith("{") || text.startsWith("[")) return [];
+
+  const parsedRows = text
+    .split(/\r?\n/g)
+    .map((row) => parseCsvLine(row.trim()))
+    .filter((row) => row.length > 1 && row.some((cell) => cell.trim().length > 0));
+
+  const dataRow = parsedRows
+    .filter((row) => row[0]?.trim() !== "Payor ID")
+    .sort((a, b) => b.length - a.length)[0];
+
+  if (!dataRow) return [];
+
+  return CSV_HEADERS.map((header, index) => ({
+    label: header,
+    value: stringifyTableValue(dataRow[index]),
+  }));
+}
+
+function buildTxtTableRows(txtContent: string | null | undefined, txtItems: unknown): TxtTableRow[] {
+  const contentRows = buildRowsFromTxtContent(txtContent);
+  if (contentRows.length > 0) return contentRows;
+
+  return buildRowsFromTxtItems(txtItems);
 }
 
 const CSV_HEADERS = [
@@ -143,9 +174,9 @@ export default function OcrReviewTable({
   ocrRawResult,
   txtItems,
   txtContent,
-  pdfUrl,
   onCorrected,
   onForward,
+  processingTimeMs,
 }: OcrReviewTableProps): ReactElement {
   const [isForwarding, setIsForwarding] = useState(false);
   const [forwardStage, setForwardStage] = useState(0);
@@ -159,7 +190,7 @@ export default function OcrReviewTable({
   const [copiedOcr, setCopiedOcr] = useState(false);
   const [copiedTxt, setCopiedTxt] = useState(false);
   
-  const [activeRightPanel, setActiveRightPanel] = useState<"pdf" | "txt">(pdfUrl ? "pdf" : "txt");
+  const [activeRightPanel, setActiveRightPanel] = useState<"pdf" | "txt">("pdf");
   
   const [mappedPayload, setMappedPayload] = useState<unknown | null>(null);
 
@@ -280,6 +311,8 @@ export default function OcrReviewTable({
   };
 
   const isPerfect = scoringResult.score === 100;
+  const pdfViewerUrl = `/api/v1/ocr/pdf?ocrJobId=${encodeURIComponent(ocrJobId)}`;
+  const txtTableRows = buildTxtTableRows(txtContent, txtItems);
 
   return (
     <>
@@ -326,6 +359,11 @@ export default function OcrReviewTable({
             <p className="mt-1 text-sm text-muted-foreground">
               {scoringResult.matchedFields} dari {scoringResult.totalFields} field schema sesuai dengan TXT ground truth.
             </p>
+            {typeof processingTimeMs === "number" && (
+              <p className="mt-2 text-xs font-medium text-slate-500">
+                Waktu Proses OCR: {formatDuration(processingTimeMs / 1000)}
+              </p>
+            )}
           </div>
 
           {isPerfect && !mappedPayload && (
@@ -443,11 +481,10 @@ export default function OcrReviewTable({
                 <div className="flex space-x-1 rounded-lg bg-slate-200/60 p-1">
                   <button
                     onClick={() => setActiveRightPanel("pdf")}
-                    disabled={!pdfUrl}
                     className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                       activeRightPanel === "pdf"
                         ? "bg-white text-slate-800 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        : "text-slate-500 hover:text-slate-700"
                     }`}
                   >
                     Sumber PDF
@@ -463,10 +500,20 @@ export default function OcrReviewTable({
                     Ground Truth TXT
                   </button>
                 </div>
+                {activeRightPanel === "pdf" && (
+                  <a
+                    href={pdfViewerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:text-sky-700"
+                  >
+                    Buka tab baru
+                  </a>
+                )}
                 {activeRightPanel === "txt" && txtItems != null && (
                   <button
                     onClick={() => {
-                      handleCopy(stripTxtInternalFields(txtItems), "txt");
+                      handleCopy(txtTableRows, "txt");
                     }}
                     className="flex items-center gap-1.5 rounded-md text-xs font-medium text-slate-500 hover:text-sky-700 focus:outline-none px-2"
                     title="Copy JSON TXT"
@@ -477,56 +524,29 @@ export default function OcrReviewTable({
                 )}
               </div>
               <div className={`flex-1 overflow-auto max-h-[600px] min-h-[500px] ${activeRightPanel === "txt" ? "bg-slate-950 p-4" : "bg-slate-100"}`}>
-                {activeRightPanel === "pdf" && pdfUrl ? (
-                  <iframe src={`${pdfUrl}#navpanes=0`} className="h-full w-full border-0 min-h-[500px]" title="PDF Viewer" />
-                ) : activeRightPanel === "pdf" && !pdfUrl ? (
-                   <div className="flex h-full min-h-[500px] items-center justify-center text-[11px] text-slate-500 font-mono">File PDF tidak tersedia.</div>
+                {activeRightPanel === "pdf" ? (
+                  <iframe src={`${pdfViewerUrl}#navpanes=0&toolbar=1`} className="h-full w-full border-0 min-h-[500px]" title="PDF Viewer" />
+                ) : txtTableRows.length > 0 ? (
+                  <div className="rounded border border-slate-800 overflow-hidden">
+                    <table className="min-w-full divide-y divide-slate-800 text-left text-xs text-sky-300 font-mono">
+                      <thead className="bg-slate-900 text-sky-400">
+                        <tr>
+                          <th scope="col" className="px-3 py-2 font-semibold">Header</th>
+                          <th scope="col" className="px-3 py-2 font-semibold border-l border-slate-800">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800">
+                        {txtTableRows.map((row, index) => (
+                          <tr key={`${row.label}-${index}`} className="hover:bg-slate-900/50">
+                            <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{row.label}</td>
+                            <td className="px-3 py-2 border-l border-slate-800 break-all">{row.value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
-                  (() => {
-                    let parsedCsvRow: string[] | null = null;
-                    if (txtContent) {
-                      const line = txtContent.trim();
-                      if (line && !line.startsWith("{") && !line.startsWith("[")) {
-                        const rows = line.split(/\r?\n/g).filter(Boolean);
-                        for (const r of rows) {
-                          const cols = parseCsvLine(r);
-                          // Make sure we get a row that looks like values
-                          if (cols.length >= 20 && cols[0] !== "Payor ID") {
-                            parsedCsvRow = cols.map(c => c.replace(/\.00$/, ""));
-                          }
-                        }
-                      }
-                    }
-
-                    if (parsedCsvRow && parsedCsvRow.length > 0) {
-                      return (
-                        <div className="rounded border border-slate-800 overflow-hidden">
-                          <table className="min-w-full divide-y divide-slate-800 text-left text-xs text-sky-300 font-mono">
-                            <thead className="bg-slate-900 text-sky-400">
-                              <tr>
-                                <th scope="col" className="px-3 py-2 font-semibold">Header</th>
-                                <th scope="col" className="px-3 py-2 font-semibold border-l border-slate-800">Value</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-800">
-                              {CSV_HEADERS.map((header, idx) => (
-                                <tr key={header} className="hover:bg-slate-900/50">
-                                  <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{header}</td>
-                                  <td className="px-3 py-2 border-l border-slate-800 break-all">{parsedCsvRow![idx] ?? "-"}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      );
-                    }
-
-                    if (txtItems != null) {
-                      return <JsonViewer data={stripTxtInternalFields(txtItems)} />;
-                    }
-
-                    return <span className="text-[11px] leading-relaxed text-green-300 font-mono">Data TXT tidak tersedia.</span>;
-                  })()
+                  <span className="text-[11px] leading-relaxed text-green-300 font-mono">Data TXT tidak tersedia.</span>
                 )}
               </div>
             </div>

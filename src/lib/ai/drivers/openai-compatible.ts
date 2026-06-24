@@ -255,14 +255,14 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
       details: z.array(z.object({
         diagnosisCode: z.string(),
         diagnosisName: z.string().describe('Human-readable name of the diagnosis'),
-        clinicalSummary: z.string().describe('Brief 2-3 sentence clinical summary of this condition for admision context'),
+        clinicalSummary: z.string().describe('Brief 1 sentence clinical summary for admission context'),
         matchedProcedures: z.array(z.string()).describe('Claimed procedures that are clinically relevant to this diagnosis. Include code and name when available.'),
         unmatchedProcedures: z.array(z.string()).describe('Only claimed procedures that are clearly irrelevant after clinical reasoning. Do not include procedures merely because they are absent from local mapping.'),
         procedureFindings: z.array(z.object({
           procedureCode: z.string(),
           procedureName: z.string(),
           status: z.enum(['APPROPRIATE', 'REVIEW_NEEDED', 'INAPPROPRIATE']),
-          reason: z.string().describe('Specific clinical rationale for the status, tied to diagnosis, procedure purpose, and available claim context'),
+          reason: z.string().describe('One concise sentence explaining clinical rationale, procedure purpose, and claim context'),
           againstDiagnosis: z.string().describe('Diagnosis/code being assessed'),
           confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']).describe('Use HIGH only when the relationship is clear from standard clinical practice or clearly unrelated'),
           evidenceReferences: z.array(evidenceReferenceSchema).nullable().describe('External medical references used for this specific diagnosis-procedure finding, when available.')
@@ -278,7 +278,7 @@ export class OpenAICompatibleAIDriver implements AIGatewayDriver {
           medicationName: z.string(),
           genericName: z.string().nullable(),
           status: z.enum(['APPROPRIATE', 'REVIEW_NEEDED', 'INAPPROPRIATE']),
-          reason: z.string().describe('Clinical reason explaining whether the medication matches this diagnosis'),
+          reason: z.string().describe('One concise sentence explaining whether the medication matches this diagnosis'),
           againstDiagnosis: z.string().describe('Diagnosis/code being assessed'),
           confidence: z.enum(['LOW', 'MEDIUM', 'HIGH']),
           evidenceReferences: z.array(evidenceReferenceSchema).nullable().describe('External medical references used for this diagnosis-medication finding, when available.')
@@ -350,9 +350,9 @@ OUTPUT REQUIREMENTS PER DIAGNOSIS:
 - unmatchedProcedures and irrelevantProcedures: include only procedures assessed as INAPPROPRIATE with MEDIUM/HIGH confidence.
 - missingRequiredProcedures: include only REQUIRED items; do not put COMMON/OPTIONAL suggestions here.
 - suggestedProcedures: advisory only, never mandatory. Provide procedures or medications that would be strongly recommended for this diagnosis.
-- clinicalEvidenceSummary: summarize the strongest medical-source rationale behind the diagnosis-procedure decision.
-- evidenceReferences: include the strongest references used for this diagnosis review.
-- notes: briefly summarize clinical review rationale, evidence retrieval status, and any missing context.
+- clinicalEvidenceSummary: one concise sentence summarizing the strongest medical-source rationale.
+- evidenceReferences: include only the strongest 1-2 references used for this diagnosis review.
+- notes: one concise sentence summarizing review rationale, evidence status, and missing context.
 - isValid should be false only when there is at least one true REQUIRED missing item, one clearly INAPPROPRIATE procedure/medication with MEDIUM/HIGH confidence, or other material clinical inconsistency.
 - score should reflect severity: keep high scores for plausible care with context gaps; reduce more for clear unrelated procedures or missing required critical care.
 

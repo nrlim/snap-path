@@ -7,12 +7,13 @@ import type { NextRequest } from 'next/server';
  */
 export function proxy(request: NextRequest) {
   const response = NextResponse.next();
+  const isOcrPdfViewerRoute = request.nextUrl.pathname.startsWith('/api/v1/ocr/pdf');
 
   // Security headers
   const headers = response.headers;
 
-  // Prevent clickjacking
-  headers.set('X-Frame-Options', 'DENY');
+  // Prevent clickjacking. OCR PDF is intentionally embeddable by the same app for the review viewer.
+  headers.set('X-Frame-Options', isOcrPdfViewerRoute ? 'SAMEORIGIN' : 'DENY');
 
   // Enforce HTTPS via HSTS (production only)
   if (process.env.NODE_ENV === 'production') {
@@ -36,15 +37,16 @@ export function proxy(request: NextRequest) {
 
   // Content Security Policy
   const isDev = process.env.NODE_ENV !== 'production';
+  const devLocalSources = isDev ? ' http://localhost:* http://127.0.0.1:*' : '';
   const cspDirectives = [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`, // unsafe-eval only for HMR in dev
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https: wss:",
-    "frame-src 'self' https: blob:",
-    "frame-ancestors 'none'",
+    `connect-src 'self' https: wss:${devLocalSources}`,
+    `frame-src 'self' https: blob:${devLocalSources}`,
+    isOcrPdfViewerRoute ? "frame-ancestors 'self'" : "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
   ];
