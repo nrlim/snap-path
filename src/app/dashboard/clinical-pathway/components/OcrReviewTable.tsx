@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Copy, Check, CheckCircle2, Circle, Loader2 } from "lucide-react";
+import { Copy, Check, CheckCircle2, ChevronDown, Circle, Loader2 } from "lucide-react";
 import { JsonViewer } from "@/components/ui/JsonViewer";
 import { formatDuration } from "@/lib/utils";
 
@@ -92,6 +92,21 @@ interface TxtTableRow {
   value: string;
 }
 
+interface OcrFormRow {
+  field: string;
+  group: string;
+  label: string;
+  ocrValue: string;
+  txtValue?: string;
+  match?: boolean;
+  similarity?: number;
+}
+
+interface OcrFormGroup {
+  title: string;
+  rows: OcrFormRow[];
+}
+
 function stringifyTableValue(value: unknown): string {
   if (value === null || value === undefined) return "-";
   const text = String(value).trim().replace(/\.00$/, "");
@@ -136,6 +151,124 @@ function buildTxtTableRows(txtContent: string | null | undefined, txtItems: unkn
   if (contentRows.length > 0) return contentRows;
 
   return buildRowsFromTxtItems(txtItems);
+}
+
+function isScalarValue(value: unknown): boolean {
+  return value === null || ["string", "number", "boolean"].includes(typeof value);
+}
+
+function titleFromKey(value: string): string {
+  return value
+    .replace(/[._-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getReadablePathParts(path: string): string[] {
+  return path
+    .replace(/^result\./, "")
+    .split(".")
+    .filter((part) => part !== "data" && part !== "result")
+    .map((part) => (/^\d+$/.test(part) ? `#${Number(part) + 1}` : titleFromKey(part)));
+}
+
+function toReadablePathLabel(path: string): string {
+  return getReadablePathParts(path).join(" / ");
+}
+
+function getOcrFormGroup(path: string): string {
+  const normalizedPath = path.replace(/^result\./, "");
+  const pageMatch = normalizedPath.match(/^pages\.(\d+)\.data(?:\.(.+))?$/);
+  if (pageMatch) {
+    const pageLabel = `Halaman ${Number(pageMatch[1] ?? 0) + 1}`;
+    const nestedKey = pageMatch[2]?.split(".").find((part) => !/^\d+$/.test(part));
+    return nestedKey ? `${pageLabel} / ${titleFromKey(nestedKey)}` : pageLabel;
+  }
+
+  const parts = normalizedPath.split(".").filter(Boolean);
+  const firstKey = parts.find((part) => !/^\d+$/.test(part));
+  if (!firstKey) return "Informasi Utama";
+
+  const rootGroupLabels: Record<string, string> = {
+    amount: "Informasi Utama",
+    provider_name: "Informasi Utama",
+    member_name: "Informasi Pasien",
+    patient_identifier: "Informasi Pasien",
+    insurance_number: "Informasi Asuransi",
+    patient_birth_date: "Informasi Pasien",
+    patient_gender: "Informasi Pasien",
+    encounter_type: "Informasi Episode",
+    admission_date: "Informasi Episode",
+    discharge_date: "Informasi Episode",
+    invoice_number: "Informasi Invoice",
+    documents: "Dokumen Pendukung",
+    diagnoses: "Diagnosis",
+    line_items: "Rincian Biaya",
+    document_metadata: "Metadata Dokumen",
+    pages: "Halaman PDF",
+  };
+
+  return rootGroupLabels[firstKey] ?? titleFromKey(firstKey);
+}
+
+function getComparisonField(path: string, scoringDetails: ScoringDetail[]): ScoringDetail | undefined {
+  return scoringDetails.find((detail) => path === detail.field || path.endsWith(`.${detail.field}`));
+}
+
+function flattenOcrFormRows(value: unknown, scoringDetails: ScoringDetail[], path = ""): OcrFormRow[] {
+  if (isScalarValue(value)) {
+    if (!path) return [];
+    const comparison = getComparisonField(path, scoringDetails);
+    return [{
+      field: path,
+      group: getOcrFormGroup(path),
+      label: toReadablePathLabel(path),
+      ocrValue: stringifyTableValue(value),
+      txtValue: comparison ? stringifyTableValue(comparison.expected) : undefined,
+      match: comparison?.match,
+      similarity: comparison?.similarity,
+    }];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) => flattenOcrFormRows(item, scoringDetails, path ? `${path}.${index}` : String(index)));
+  }
+
+  if (isRecord(value) && !Array.isArray(value)) {
+    return Object.entries(value).flatMap(([key, nestedValue]) => flattenOcrFormRows(nestedValue, scoringDetails, path ? `${path}.${key}` : key));
+  }
+
+  return [];
+}
+
+function buildOcrFormRows(ocrRawResult: unknown, scoringDetails: ScoringDetail[]): OcrFormRow[] {
+  const flattenedRows = flattenOcrFormRows(ocrRawResult, scoringDetails);
+  if (flattenedRows.length > 0) return flattenedRows;
+
+  return scoringDetails.map((detail) => ({
+    field: detail.field,
+    group: getOcrFormGroup(detail.field),
+    label: detail.label,
+    ocrValue: stringifyTableValue(detail.actual),
+    txtValue: stringifyTableValue(detail.expected),
+    match: detail.match,
+    similarity: detail.similarity,
+  }));
+}
+
+function groupOcrFormRows(rows: OcrFormRow[]): OcrFormGroup[] {
+  const groups = new Map<string, OcrFormRow[]>();
+
+  for (const row of rows) {
+    groups.set(row.group, [...(groups.get(row.group) ?? []), row]);
+  }
+
+  return Array.from(groups.entries()).map(([title, groupRows]) => ({ title, rows: groupRows }));
+}
+
+function formatSimilarityPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
 }
 
 const CSV_HEADERS = [
@@ -189,6 +322,8 @@ export default function OcrReviewTable({
 
   const [copiedOcr, setCopiedOcr] = useState(false);
   const [copiedTxt, setCopiedTxt] = useState(false);
+  const [activeOcrPanel, setActiveOcrPanel] = useState<"form" | "json">("form");
+  const [expandedOcrGroups, setExpandedOcrGroups] = useState<Record<string, boolean>>({});
   
   const [activeRightPanel, setActiveRightPanel] = useState<"pdf" | "txt">("pdf");
   
@@ -265,6 +400,14 @@ export default function OcrReviewTable({
     }
   };
 
+  const toggleOcrGroup = (groupTitle: string, defaultExpanded: boolean): void => {
+    setExpandedOcrGroups((current) => ({ ...current, [groupTitle]: !(current[groupTitle] ?? defaultExpanded) }));
+  };
+
+  const setAllOcrGroupsExpanded = (expanded: boolean): void => {
+    setExpandedOcrGroups(Object.fromEntries(ocrFormGroups.map((group) => [group.title, expanded])));
+  };
+
   const handleForward = async (): Promise<void> => {
     setIsForwarding(true);
     setForwardStage(0);
@@ -313,6 +456,8 @@ export default function OcrReviewTable({
   const isPerfect = scoringResult.score === 100;
   const pdfViewerUrl = `/api/v1/ocr/pdf?ocrJobId=${encodeURIComponent(ocrJobId)}`;
   const txtTableRows = buildTxtTableRows(txtContent, txtItems);
+  const ocrFormRows = buildOcrFormRows(ocrRawResult, scoringResult.details);
+  const ocrFormGroups = groupOcrFormRows(ocrFormRows);
 
   return (
     <>
@@ -410,9 +555,33 @@ export default function OcrReviewTable({
           
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="flex flex-col rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold text-slate-700">Hasil Mentah OCR (JSON)</span>
+              <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xs font-semibold text-slate-700">Hasil OCR</span>
+                  {!isEditingJson && (
+                    <div className="flex rounded-lg bg-slate-200/70 p-1" aria-label="Mode tampilan OCR">
+                      <button
+                        type="button"
+                        onClick={() => setActiveOcrPanel("form")}
+                        className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                          activeOcrPanel === "form" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        Form
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveOcrPanel("json")}
+                        className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                          activeOcrPanel === "json" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        JSON
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
                   {!isPerfect && ocrRawResult != null && (
                     <button
                       type="button"
@@ -421,6 +590,7 @@ export default function OcrReviewTable({
                           handleSaveJson();
                         } else {
                           setEditedJsonString(JSON.stringify(ocrRawResult, null, 2));
+                          setActiveOcrPanel("json");
                           setIsEditingJson(true);
                         }
                       }}
@@ -441,19 +611,19 @@ export default function OcrReviewTable({
                       Batal
                     </button>
                   )}
+                  {!isEditingJson && ocrRawResult != null && (
+                    <button
+                      onClick={() => handleCopy(activeOcrPanel === "form" ? ocrFormRows : ocrRawResult, "ocr")}
+                      className="flex items-center gap-1.5 rounded-md text-xs font-medium text-slate-500 hover:text-sky-700 focus:outline-none"
+                      title={activeOcrPanel === "form" ? "Salin form OCR" : "Salin JSON OCR"}
+                    >
+                      {copiedOcr ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                      <span>{copiedOcr ? "Tersalin!" : "Salin"}</span>
+                    </button>
+                  )}
                 </div>
-                {!isEditingJson && ocrRawResult != null && (
-                  <button
-                    onClick={() => handleCopy(ocrRawResult, "ocr")}
-                    className="flex items-center gap-1.5 rounded-md text-xs font-medium text-slate-500 hover:text-sky-700 focus:outline-none"
-                    title="Copy JSON OCR"
-                  >
-                    {copiedOcr ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                    <span>{copiedOcr ? "Tersalin!" : "Salin"}</span>
-                  </button>
-                )}
               </div>
-              <div className={`flex-1 overflow-auto bg-slate-950 p-4 max-h-[600px] min-h-[500px] ${isEditingJson ? "" : "scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"}`}>
+              <div className={`flex-1 overflow-auto max-h-[600px] min-h-[500px] ${activeOcrPanel === "form" && !isEditingJson ? "bg-white p-4" : "bg-slate-950 p-4 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"}`}>
                 {isEditingJson ? (
                   <textarea
                     className="h-[500px] w-full resize-y bg-transparent p-0 font-mono text-[11px] leading-relaxed text-sky-300 focus:outline-none focus:ring-0"
@@ -461,6 +631,70 @@ export default function OcrReviewTable({
                     onChange={(e) => setEditedJsonString(e.target.value)}
                     spellCheck={false}
                   />
+                ) : activeOcrPanel === "form" ? (
+                  ocrFormGroups.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs text-slate-500">Group besar otomatis ditutup agar data lebih mudah dipindai.</p>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button type="button" onClick={() => setAllOcrGroupsExpanded(true)} className="rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-50">Buka semua</button>
+                          <button type="button" onClick={() => setAllOcrGroupsExpanded(false)} className="rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:bg-slate-50">Tutup semua</button>
+                        </div>
+                      </div>
+                      {ocrFormGroups.map((group) => {
+                        const hasMismatch = group.rows.some((row) => row.match === false);
+                        const defaultExpanded = group.rows.length <= 8 || hasMismatch;
+                        const isExpanded = expandedOcrGroups[group.title] ?? defaultExpanded;
+
+                        return (
+                          <section key={group.title} className="rounded-lg border border-slate-200 bg-white">
+                            <button
+                              type="button"
+                              onClick={() => toggleOcrGroup(group.title, defaultExpanded)}
+                              className="flex min-h-11 w-full items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2 text-left transition-colors hover:bg-slate-100"
+                              aria-expanded={isExpanded}
+                            >
+                              <div className="min-w-0">
+                                <h5 className="truncate text-xs font-semibold text-slate-700">{group.title}</h5>
+                                <p className="mt-0.5 text-[11px] text-slate-500">{hasMismatch ? "Ada field yang perlu dicek" : "Tidak ada mismatch terdeteksi"}</p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <span className="font-mono text-[10px] text-slate-400">{group.rows.length} field</span>
+                                <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-150 ${isExpanded ? "rotate-180" : ""}`} />
+                              </div>
+                            </button>
+                            {isExpanded && (
+                              <div className="divide-y divide-slate-200">
+                                {group.rows.map((row) => (
+                                  <div key={row.field} className="p-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div>
+                                        <label className="text-xs font-medium text-slate-500">{row.label}</label>
+                                        <p className="mt-1 break-words text-sm font-medium text-slate-900">{row.ocrValue}</p>
+                                      </div>
+                                      {row.match !== undefined && row.similarity !== undefined && (
+                                        <span className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.1em] ring-1 ring-inset ${row.match ? "bg-emerald-500/10 text-emerald-700 ring-emerald-500/20" : "bg-amber-500/10 text-amber-700 ring-amber-500/20"}`}>
+                                          {row.match ? "Match" : formatSimilarityPercent(row.similarity)}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {row.txtValue !== undefined && (
+                                      <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">Ground truth TXT</p>
+                                        <p className="mt-1 break-words text-xs text-slate-700">{row.txtValue}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </section>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <span className="text-sm text-slate-500">Field OCR belum tersedia untuk ditampilkan sebagai form.</span>
+                  )
                 ) : ocrRawResult != null ? (
                   <JsonViewer 
                     data={ocrRawResult} 
