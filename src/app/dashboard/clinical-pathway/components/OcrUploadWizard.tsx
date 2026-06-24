@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, ReactElement } from "react";
 
+import { put } from "@vercel/blob/client";
 import { FileText, File as FileIcon } from "lucide-react";
 
 import type { ScoringDetail, ScoringResult } from "@/lib/ocr-scoring";
@@ -31,14 +32,13 @@ interface OcrPollResponse {
   error?: string;
 }
 
-interface SignedUploadTarget {
+interface BlobUploadTarget {
   path: string;
-  uploadUrl: string;
+  token: string;
 }
 
 interface OcrUploadUrlResponse {
-  pdf?: SignedUploadTarget;
-  txt?: SignedUploadTarget;
+  pdf?: BlobUploadTarget;
   error?: string;
 }
 
@@ -117,21 +117,20 @@ function parsePollResponse(value: unknown): OcrPollResponse {
   };
 }
 
-function parseSignedUploadTarget(value: unknown): SignedUploadTarget | undefined {
+function parseBlobUploadTarget(value: unknown): BlobUploadTarget | undefined {
   if (!isRecord(value)) return undefined;
 
   const path = readString(value, "path");
-  const uploadUrl = readString(value, "uploadUrl");
+  const token = readString(value, "token");
 
-  return path && uploadUrl ? { path, uploadUrl } : undefined;
+  return path && token ? { path, token } : undefined;
 }
 
 function parseUploadUrlResponse(value: unknown): OcrUploadUrlResponse {
   if (!isRecord(value)) return {};
 
   return {
-    pdf: parseSignedUploadTarget(value.pdf),
-    txt: parseSignedUploadTarget(value.txt),
+    pdf: parseBlobUploadTarget(value.pdf),
     error: readString(value, "error"),
   };
 }
@@ -214,6 +213,7 @@ export default function OcrUploadWizard(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<OcrProgressState>(INITIAL_PROGRESS);
   const [nowMs, setNowMs] = useState(Date.now());
+  const uploadInFlightRef = useRef(false);
 
   const maxPdfSizeMb = useMemo(() => getClientMaxPdfSizeMb(), []);
   const maxPdfSizeBytes = maxPdfSizeMb * 1024 * 1024;
@@ -224,6 +224,8 @@ export default function OcrUploadWizard(): ReactElement {
   }, [nowMs, progress.startedAtMs, step]);
 
   const handleUpload = async (): Promise<void> => {
+    if (uploadInFlightRef.current) return;
+
     if (!pdfFile || !txtFile) {
       setError("Silakan lengkapi PDF invoice dan TXT ground truth.");
       return;
@@ -239,6 +241,7 @@ export default function OcrUploadWizard(): ReactElement {
       return;
     }
 
+    uploadInFlightRef.current = true;
     setIsUploading(true);
     setError(null);
     setProgress({
@@ -251,13 +254,33 @@ export default function OcrUploadWizard(): ReactElement {
     });
 
     try {
-      // 1. Dapatkan Signed URL dari server
+      setProgress((previous) => ({
+        ...previous,
+        percent: 8,
+        label: "Menyiapkan dokumen",
+        detail: "CONSUL sedang menghitung hash PDF dan membaca TXT acuan sebelum membuat token unggahan.",
+      }));
+
+      const [pdfHash, txtContent] = await Promise.all([
+        calculateFileSha256(pdfFile),
+        txtFile.text(),
+      ]);
+
+      setProgress((previous) => ({
+        ...previous,
+        percent: 18,
+        label: "Membuat token unggahan",
+        detail: "Server membuat token upload langsung ke Blob Storage seperti pola SnapText.",
+      }));
+
+      // 1. Dapatkan token upload dari server. Token ini tidak memanggil Supabase Storage.
       const urlRes = await fetch("/api/v1/ocr/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pdfName: pdfFile.name,
           pdfSize: pdfFile.size,
+          pdfHash,
           txtName: txtFile.name,
           txtSize: txtFile.size,
         }),
@@ -266,43 +289,53 @@ export default function OcrUploadWizard(): ReactElement {
       const urlData = parseUploadUrlResponse(await urlRes.json());
 
       if (!urlRes.ok) {
-        throw new Error(urlData.error || "Gagal mendapatkan URL unggahan dari server.");
+        throw new Error(urlData.error || "Gagal mendapatkan token unggahan dari server.");
       }
 
-      if (!urlData.pdf || !urlData.txt) {
-        throw new Error("Server tidak mengembalikan URL unggahan Supabase yang lengkap.");
+      if (!urlData.pdf) {
+        throw new Error("Server tidak mengembalikan token unggahan PDF yang lengkap.");
       }
 
-      // 2. Hitung hash lokal dan unggah file langsung ke Supabase Storage.
-      // PDF tidak dikirim melalui server aplikasi agar tidak terkena batas ukuran request Next.js.
-      const [pdfHash, pdfUpload, txtUpload] = await Promise.all([
-        calculateFileSha256(pdfFile),
-        fetch(urlData.pdf.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": pdfFile.type || "application/pdf" },
-          body: pdfFile,
-        }),
-        fetch(urlData.txt.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": txtFile.type || "text/plain" },
-          body: txtFile,
-        }),
-      ]);
+      setProgress((previous) => ({
+        ...previous,
+        percent: 25,
+        label: "Mengunggah PDF",
+        detail: "PDF dikirim langsung ke Blob Storage. Halaman dikunci sampai upload selesai.",
+      }));
 
-      if (!pdfUpload.ok || !txtUpload.ok) {
-        throw new Error("Gagal mengunggah file langsung ke penyimpanan (Supabase Storage).");
-      }
+      // 2. Unggah PDF langsung dari browser seperti implementasi SnapText.
+      const blobResult = await put(urlData.pdf.path, pdfFile, {
+        access: "public",
+        token: urlData.pdf.token,
+        contentType: pdfFile.type || "application/pdf",
+        onUploadProgress: (event) => {
+          setProgress((previous) => ({
+            ...previous,
+            percent: Math.min(85, 25 + Math.floor(event.percentage * 0.6)),
+            label: "Mengunggah PDF",
+            detail: "PDF dikirim langsung ke Blob Storage. Halaman dikunci sampai upload selesai.",
+          }));
+        },
+      });
 
-      // 3. Proses OCR di server
+      setProgress((previous) => ({
+        ...previous,
+        percent: 90,
+        label: "Memulai OCR",
+        detail: "Upload selesai. CONSUL sedang membuat job OCR di SnapText.",
+      }));
+
+      // 3. Proses OCR di server. Server hanya menerima URL PDF dan TXT kecil, bukan binary PDF.
       const res = await fetch("/api/v1/ocr/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pdfPath: urlData.pdf.path,
+          pdfUrl: blobResult.url,
           pdfName: pdfFile.name,
           pdfSize: pdfFile.size,
           pdfHash,
-          txtPath: urlData.txt.path,
+          txtContent,
         }),
       });
       
@@ -336,7 +369,9 @@ export default function OcrUploadWizard(): ReactElement {
         startedAtMs: Date.now(),
       });
       setStep("POLLING");
+      uploadInFlightRef.current = false;
     } catch (uploadError: unknown) {
+      uploadInFlightRef.current = false;
       setError(getErrorMessage(uploadError, "Gagal mengunggah file."));
       setProgress(INITIAL_PROGRESS);
       setIsUploading(false);
@@ -447,8 +482,25 @@ export default function OcrUploadWizard(): ReactElement {
     setTxtFile(event.target.files?.[0] ?? null);
   };
 
+  const isUploadLocked = isUploading && step === "UPLOAD";
+
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6" aria-busy={isUploadLocked}>
+      {isUploadLocked && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4" role="status" aria-live="polite">
+          <div className="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-sky-700" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-medium text-slate-950">{progress.label}</p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{progress.detail}</p>
+                <p className="mt-3 font-mono text-xs text-slate-500">{progress.percent}% · Jangan tutup halaman ini</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Steps Indicator */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-4">
         {WIZARD_STEPS.map((currentStep, index) => (
@@ -489,12 +541,13 @@ export default function OcrUploadWizard(): ReactElement {
                 <h4 className="mb-1 text-sm font-medium text-foreground">PDF Invoice</h4>
                 <p className="mb-5 text-xs text-muted-foreground">Upload dokumen tagihan dari faskes</p>
                 
-                <label className="relative cursor-pointer rounded-md bg-white px-4 py-2 text-sm font-medium text-sky-700 shadow-sm ring-1 ring-inset ring-slate-200 hover:bg-slate-50 transition-colors">
+                <label className={`relative rounded-md bg-white px-4 py-2 text-sm font-medium text-sky-700 shadow-sm ring-1 ring-inset ring-slate-200 transition-colors ${isUploadLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-slate-50"}`}>
                   <span>Pilih File</span>
                   <input
                     type="file"
                     accept="application/pdf"
                     onChange={handlePdfFileChange}
+                    disabled={isUploadLocked}
                     className="sr-only"
                   />
                 </label>
@@ -508,12 +561,13 @@ export default function OcrUploadWizard(): ReactElement {
                 <h4 className="mb-1 text-sm font-medium text-foreground">TXT Acuan Ground Truth</h4>
                 <p className="mb-5 text-xs text-muted-foreground">Upload data ekspektasi (CSV/TXT)</p>
                 
-                <label className="relative cursor-pointer rounded-md bg-white px-4 py-2 text-sm font-medium text-sky-700 shadow-sm ring-1 ring-inset ring-slate-200 hover:bg-slate-50 transition-colors">
+                <label className={`relative rounded-md bg-white px-4 py-2 text-sm font-medium text-sky-700 shadow-sm ring-1 ring-inset ring-slate-200 transition-colors ${isUploadLocked ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-slate-50"}`}>
                   <span>Pilih File</span>
                   <input
                     type="file"
                     accept="text/plain,.csv"
                     onChange={handleTxtFileChange}
+                    disabled={isUploadLocked}
                     className="sr-only"
                   />
                 </label>
@@ -541,7 +595,7 @@ export default function OcrUploadWizard(): ReactElement {
             <button
               type="button"
               onClick={handleUpload}
-              disabled={isUploading}
+              disabled={isUploadLocked}
               className="min-h-11 rounded-md bg-sky-700 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isUploading ? "Mengunggah & Memulai OCR..." : "Mulai Proses OCR"}

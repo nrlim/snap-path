@@ -1,5 +1,3 @@
-import crypto from "crypto";
-
 import { NextRequest, NextResponse } from "next/server";
 import { start } from "workflow/api";
 import { z } from "zod";
@@ -9,17 +7,18 @@ import { getSession } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { getAuthenticatedUser } from "@/lib/rbac";
 import { createSnaptextJob } from "@/lib/snaptext";
-import { createSignedUrl, downloadClaimDocument } from "@/lib/supabase-storage";
 import { ocrProcessingWorkflow } from "@/workflows/ocr-processing";
 
 const DEFAULT_MAX_PDF_SIZE = 100 * 1024 * 1024;
+const MAX_TXT_CONTENT_LENGTH = 2 * 1024 * 1024;
 
 const OcrProcessRequestSchema = z.object({
   pdfPath: z.string().trim().min(1),
+  pdfUrl: z.string().trim().url(),
   pdfName: z.string().trim().min(1),
   pdfSize: z.number().int().positive(),
-  pdfHash: z.string().trim().regex(/^[a-fA-F0-9]{64}$/).optional(),
-  txtPath: z.string().trim().min(1),
+  pdfHash: z.string().trim().regex(/^[a-fA-F0-9]{64}$/),
+  txtContent: z.string().max(MAX_TXT_CONTENT_LENGTH),
 });
 
 interface OcrUploadResponse {
@@ -51,10 +50,6 @@ function formatMegabytes(bytes: number): string {
   return `${Math.floor(bytes / (1024 * 1024))}MB`;
 }
 
-function createMetadataHash(pdfPath: string, pdfName: string, pdfSize: number): string {
-  return crypto.createHash("sha256").update(`${pdfPath}:${pdfName}:${pdfSize}`).digest("hex");
-}
-
 export async function POST(req: NextRequest): Promise<NextResponse<OcrUploadResponse>> {
   try {
     const session = await getSession();
@@ -69,38 +64,26 @@ export async function POST(req: NextRequest): Promise<NextResponse<OcrUploadResp
 
     const parseResult = OcrProcessRequestSchema.safeParse(await req.json());
     if (!parseResult.success) {
-      return NextResponse.json({ error: "Parameter pdfPath, pdfName, pdfSize, pdfHash, dan txtPath wajib diisi dengan benar." }, { status: 400 });
+      return NextResponse.json({ error: "Parameter pdfPath, pdfUrl, pdfName, pdfSize, pdfHash, dan txtContent wajib diisi dengan benar." }, { status: 400 });
     }
 
-    const { pdfPath, pdfName, pdfSize, pdfHash, txtPath } = parseResult.data;
+    const { pdfPath, pdfUrl, pdfName, pdfSize, pdfHash, txtContent } = parseResult.data;
     const maxPdfSize = getMaxPdfSize();
 
     if (pdfSize > maxPdfSize) {
       return NextResponse.json({ error: `Ukuran PDF melebihi batas ${formatMegabytes(maxPdfSize)}.` }, { status: 400 });
     }
 
-    const bucket = process.env.SUPABASE_DOCUMENT_BUCKET || "claim-documents";
-    const [txtArrayBuffer, supabasePdfUrl] = await Promise.all([
-      downloadClaimDocument(txtPath),
-      createSignedUrl(bucket, pdfPath, 60 * 60 * 24 * 7),
-    ]);
-
-    const txtContent = new TextDecoder().decode(txtArrayBuffer);
-
-    if (!supabasePdfUrl) {
-      return NextResponse.json({ error: "Gagal mendapatkan URL file PDF dari storage." }, { status: 500 });
-    }
-
-    const fileHash = pdfHash?.toLowerCase() ?? createMetadataHash(pdfPath, pdfName, pdfSize);
-    const snaptextJob = await createSnaptextJob(supabasePdfUrl, pdfName, pdfSize, fileHash);
+    const fileHash = pdfHash.toLowerCase();
+    const snaptextJob = await createSnaptextJob(pdfUrl, pdfName, pdfSize, fileHash);
 
     const ocrJob = await prisma.ocrJob.create({
       data: {
         clientId: user.clientId,
         providerId: null,
         pdfStoragePath: pdfPath,
-        pdfUrl: supabasePdfUrl,
-        txtStoragePath: txtPath,
+        pdfUrl,
+        txtStoragePath: null,
         txtContent,
         snaptextJobId: snaptextJob.jobId,
         snaptextStatus: snaptextJob.status || "PENDING",

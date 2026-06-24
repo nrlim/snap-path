@@ -1,3 +1,5 @@
+import https from 'node:https';
+
 const DEFAULT_DOCUMENT_BUCKET = 'claim-documents';
 const DEFAULT_DOCUMENT_BUCKET_FILE_SIZE_LIMIT = 100 * 1024 * 1024;
 const MIN_DOCUMENT_BUCKET_FILE_SIZE_LIMIT = 20 * 1024 * 1024;
@@ -76,17 +78,136 @@ function encodeStoragePath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 function getNetworkErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  return 'unknown network error';
+  if (!(error instanceof Error)) return 'unknown network error';
+
+  const details: string[] = [];
+  if (error.message) details.push(error.message);
+
+  const cause = error.cause;
+  if (isRecord(cause)) {
+    const code = typeof cause.code === 'string' ? cause.code : undefined;
+    const syscall = typeof cause.syscall === 'string' ? cause.syscall : undefined;
+    const hostname = typeof cause.hostname === 'string' ? cause.hostname : undefined;
+    const causeMessage = typeof cause.message === 'string' ? cause.message : undefined;
+
+    if (code) details.push(`code=${code}`);
+    if (syscall) details.push(`syscall=${syscall}`);
+    if (hostname) details.push(`host=${hostname}`);
+    if (causeMessage && causeMessage !== error.message) details.push(causeMessage);
+  }
+
+  return details.length > 0 ? details.join('; ') : 'unknown network error';
+}
+
+function normalizeHeaders(headers: HeadersInit | undefined): Record<string, string> {
+  if (!headers) return {};
+
+  if (headers instanceof Headers) {
+    return Object.fromEntries(headers.entries());
+  }
+
+  if (Array.isArray(headers)) {
+    return Object.fromEntries(headers);
+  }
+
+  return Object.fromEntries(Object.entries(headers).map(([key, value]) => [key, String(value)]));
+}
+
+function requestBodyToBuffer(body: BodyInit | null | undefined): Buffer | undefined {
+  if (!body) return undefined;
+  if (typeof body === 'string') return Buffer.from(body);
+  if (body instanceof ArrayBuffer) return Buffer.from(body);
+  if (ArrayBuffer.isView(body)) return Buffer.from(body.buffer, body.byteOffset, body.byteLength);
+  return undefined;
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function fetchSupabaseStorageWithHttpsFallback(url: string, init: RequestInit): Promise<Response> {
+  const parsedUrl = new URL(url);
+  const body = requestBodyToBuffer(init.body);
+  const headers = normalizeHeaders(init.headers);
+
+  if (body && !Object.keys(headers).some((key) => key.toLowerCase() === 'content-length')) {
+    headers['content-length'] = body.byteLength.toString();
+  }
+
+  return await new Promise<Response>((resolve, reject) => {
+    const request = https.request(
+      parsedUrl,
+      {
+        method: init.method ?? 'GET',
+        headers,
+        family: 4,
+        timeout: 15000,
+      },
+      (incomingMessage) => {
+        const chunks: Buffer[] = [];
+
+        incomingMessage.on('data', (chunk: Buffer) => chunks.push(chunk));
+        incomingMessage.on('end', () => {
+          const responseHeaders = new Headers();
+          for (const [key, value] of Object.entries(incomingMessage.headers)) {
+            if (typeof value === 'string') responseHeaders.set(key, value);
+            if (Array.isArray(value)) responseHeaders.set(key, value.join(', '));
+          }
+
+          resolve(new Response(Buffer.concat(chunks), {
+            status: incomingMessage.statusCode ?? 500,
+            statusText: incomingMessage.statusMessage,
+            headers: responseHeaders,
+          }));
+        });
+      },
+    );
+
+    request.on('timeout', () => request.destroy(new Error('HTTPS request timeout')));
+    request.on('error', reject);
+
+    if (body) request.write(body);
+    request.end();
+  });
 }
 
 async function fetchSupabaseStorage(url: string, init: RequestInit, action: string): Promise<Response> {
+  const maxAttempts = 3;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await fetchWithTimeout(url, init, 15000);
+    } catch (error: unknown) {
+      lastError = error;
+      if (attempt < maxAttempts) await wait(400 * attempt);
+    }
+  }
+
   try {
-    return await fetch(url, init);
-  } catch (error: unknown) {
+    return await fetchSupabaseStorageWithHttpsFallback(url, init);
+  } catch (fallbackError: unknown) {
     throw new Error(
-      `Gagal menghubungi Supabase Storage saat ${action}. Periksa SUPABASE_URL, DNS/jaringan, dan status project Supabase. Detail: ${getNetworkErrorMessage(error)}`,
+      `Gagal menghubungi Supabase Storage saat ${action}. Periksa SUPABASE_URL, DNS/jaringan, dan status project Supabase. Detail: ${getNetworkErrorMessage(lastError)}. Fallback IPv4 juga gagal: ${getNetworkErrorMessage(fallbackError)}`,
     );
   }
 }
