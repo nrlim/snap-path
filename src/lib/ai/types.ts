@@ -55,6 +55,8 @@ export interface ClaimValidationInput {
   notes?: string;
   documents?: Array<{
     type: string;
+    date?: string;
+    conclusion?: string;
     url?: string;
     description?: string;
   }>;

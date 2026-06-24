@@ -1,131 +1,152 @@
 {
   "type": "object",
-  "description": "Ekstrak invoice medis menjadi JSON bersih untuk POC scoring OCR CONSUL. Output harus berupa JSON final saja. Gunakan hanya key yang didefinisikan schema ini. Tujuan output adalah dipetakan ke payload validasi klaim: diagnoses -> diagnoses, line_items PROCEDURE -> procedures, line_items MEDICATION/MEDICAL_SUPPLY -> medications/farmalkes, amount -> totalClaimAmount. Jangan tambahkan key lain, raw_text, notes, confidence, patch/diff, atau placeholder. Jangan pernah mengisi null, string kosong, '-', N/A, As Charge, object kosong, array kosong, atau nilai contoh. Jika field tidak terbaca, hilangkan field tersebut. Prioritaskan halaman invoice/tagihan aktual; abaikan benefit polis, reimbursement schedule, limit, tarif kamar umum, quotation, resep edukasi, dan ringkasan yang duplikat dengan detail billing.",
   "properties": {
     "amount": {
       "type": "number",
-      "description": "Grand total tagihan akhir invoice/kuitansi yang harus dibayar atau diklaim, dalam IDR tanpa simbol Rp dan tanpa pemisah ribuan. Ambil hanya satu nilai total akhir. Abaikan subtotal kategori, total departemen, deposit/uang muka, benefit limit, reimbursement limit, tarif kamar, estimated cost, diskon, dan pajak parsial. Jika ada beberapa kandidat, pilih nilai yang berlabel Grand Total / Total Invoice / Total Tagihan / Total Kuitansi / Amount Due."
+      "description": "Grand total akhir tagihan/klaim dalam IDR tanpa Rp/pemisah ribuan. Abaikan subtotal, limit, deposit, estimasi, diskon, pajak parsial."
     },
     "provider_name": {
       "type": "string",
-      "description": "Nama fasilitas kesehatan penerbit invoice, misalnya rumah sakit/klinik/provider. Ambil dari header atau footer institusi. Jangan isi dengan nama dokter, asuransi/payer, perusahaan pasien, atau nama departemen. Omit jika tidak terbaca."
+      "description": "Nama faskes penerbit invoice. Bukan dokter, payer, atau departemen."
     },
     "member_name": {
       "type": "string",
-      "description": "Nama lengkap pasien/anggota yang menerima layanan. Cari label Nama Pasien / Patient Name / Nama Anggota / Member Name. Jangan isi dengan nama dokter, petugas, payer, atau perusahaan. Omit jika tidak terbaca."
+      "description": "Nama pasien/anggota. Bukan dokter, payer, petugas, atau perusahaan."
     },
     "invoice_number": {
       "type": "string",
-      "description": "Nomor invoice/kuitansi/tagihan resmi. Prioritaskan label Invoice No. / No. Tagihan / Billing No. / Receipt No. / No. Kuitansi. Jangan gunakan No. RM, Patient ID, Admission No., Visit No., nomor polis, nomor kartu, atau nomor form medis sebagai invoice_number. Omit jika tidak terbaca."
+      "description": "Official invoice number. Look for Invoice No., No. Tagihan, Billing No., Receipt No., No. Kuitansi. Do NOT use RM number, Patient ID, Admission No., Visit No., policy number, card number, or medical form number. If no can read, skip"
     },
     "patient_identifier": {
       "type": "string",
-      "description": "Nomor rekam medis/MRN/Patient ID bila eksplisit ada. Jangan isi dengan invoice_number. Jangan output null; omit jika tidak terbaca."
+      "description": "No. RM/MRN/Patient ID jika ada. Bukan invoice_number."
     },
     "insurance_number": {
       "type": "string",
-      "description": "Nomor polis, nomor peserta, nomor kartu asuransi, atau nomor BPJS bila eksplisit ada. Jangan output null; omit jika tidak terbaca."
+      "description": "Nomor polis/peserta/kartu asuransi/BPJS jika ada."
     },
     "patient_birth_date": {
       "type": "string",
-      "description": "Tanggal lahir pasien dalam format ISO yyyy-MM-dd. Konversi dari dd/MM/yyyy atau dd-MM-yyyy jika perlu. Jangan tebak dari umur. Omit jika tidak terbaca."
+      "description": "Tanggal lahir pasien ISO yyyy-MM-dd. Jangan tebak dari umur."
     },
     "patient_gender": {
       "type": "string",
-      "description": "Jenis kelamin pasien. Isi hanya M untuk laki-laki/male/pria dan F untuk perempuan/female/wanita. Omit jika tidak terbaca."
+      "description": "Jenis kelamin: M atau F."
     },
     "encounter_type": {
       "type": "string",
-      "description": "Jenis episode perawatan. Isi hanya RAWAT_INAP, RAWAT_JALAN, atau IGD. Gunakan RAWAT_INAP untuk inpatient/admission/ward/bed rental; RAWAT_JALAN untuk outpatient/ambulatory; IGD untuk emergency/ED/UGD bila tidak ada rawat inap lanjutan. Omit jika tidak dapat disimpulkan dari dokumen."
+      "description": "Jenis episode: RAWAT_INAP, RAWAT_JALAN, atau IGD."
     },
     "admission_date": {
       "type": "string",
-      "description": "Tanggal masuk/admission/visit start dalam format ISO yyyy-MM-dd. Ambil tanggal episode, bukan tanggal cetak invoice jika berbeda. Omit jika tidak terbaca."
+      "description": "Admit date or visit start date. Use yyyy-MM-dd. Take real event date, not print date. If no can read, skip."
     },
     "discharge_date": {
       "type": "string",
-      "description": "Tanggal keluar/discharge/visit end dalam format ISO yyyy-MM-dd. Omit jika tidak terbaca."
+      "description": "Discharge date or visit end date. Use yyyy-MM-dd. If no can read, skip"
+    },
+    "documents": {
+      "type": "array",
+      "description": "Dokumen pendukung yang terlihat di PDF. Scan semua halaman. Type hanya: LMA, KTP, KARTU ASURANSI, SK KAMAR, FORM KRONOLOGIS KECELAKAAN, SURAT PERNYATAAN RAWAT INAP.",
+      "items": {
+        "type": "object",
+        "description": "Satu dokumen pendukung dari halaman/kartu/form/surat yang terlihat. Jangan buat dari info invoice saja.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Type standar dokumen. Alias: LMA/Lembar Medis Awal; KTP/e-KTP; Kartu Asuransi/Member Card/BPJS; SK Kamar; FK/FMK; SPRI."
+          },
+          "date": {
+            "type": "string",
+            "description": "Tanggal dokumen ISO 8601; jika tidak ada gunakan timestamp OCR."
+          },
+          "conclusion": {
+            "type": "string",
+            "description": "Kesimpulan singkat. Pakai standar sesuai type, mis. KTP: Identitas sesuai KTP."
+          }
+        }
+      }
     },
     "diagnoses": {
       "type": "array",
-      "description": "Daftar diagnosis klinis final pasien dari bagian diagnosis/ICD/discharge summary saja. Maksimal 8 diagnosis paling relevan. Jika ada ICD-10 final, pakai ICD-10 sebagai sumber utama, pilih diagnosis utama sebagai PRIMARY, dan deduplicate variasi nama yang sama. Jangan ambil diagnosis dari billing item, obat, lab, radiologi, benefit, nama pasien, tanggal lahir, payer/asuransi, dokter, heading, atau teks placeholder seperti 'not listed on this page'. Jika hanya banyak varian stroke/CVD/infarction, pertahankan varian paling spesifik dengan kode ICD dan buang duplikasi tanpa kode.",
+      "description": "Diagnosis final/ICD. Maks 8, dedupe, tepat satu PRIMARY. Jangan ambil dari billing item/obat/lab/radiologi/header.",
       "items": {
         "type": "object",
-        "description": "Satu diagnosis bersih untuk payload validasi klaim. Minimal punya name bermakna; code hanya jika ICD-10 terlihat jelas. Jangan isi nama pasien, tanggal lahir, label halaman, atau placeholder.",
+        "description": "Satu diagnosis bersih. Minimal name bermakna; code hanya ICD-10 jelas.",
         "properties": {
           "code": {
             "type": "string",
-            "description": "Kode ICD-10 yang terlihat jelas, contoh I63.9, I10, E78.4. Omit jika tidak ada. Jangan isi dengan nomor urut, kode billing, atau nama diagnosis."
+            "description": "Kode ICD-10 jelas, contoh I63.9. Omit jika tidak ada."
           },
           "name": {
             "type": "string",
-            "description": "Nama diagnosis klinis bermakna. Bersihkan prefix label. Jangan isi dengan 'not listed', nama pasien, tanggal lahir, payer, obat, tindakan, lab, radiologi, atau departemen."
+            "description": "Nama diagnosis klinis bersih. Bukan placeholder/nama pasien/obat/tindakan."
           },
           "type": {
             "type": "string",
-            "description": "Isi persis PRIMARY, SECONDARY, atau COMPLICATION. Harus ada tepat satu PRIMARY jika diagnosis tersedia; jika tidak eksplisit, diagnosis pertama paling utama menjadi PRIMARY."
+            "description": "PRIMARY, SECONDARY, atau COMPLICATION."
           },
           "sequence": {
             "type": "number",
-            "description": "Urutan diagnosis bersih dimulai dari 1 setelah deduplikasi; jangan lompat nomor."
+            "description": "Urutan mulai dari 1 setelah dedupe."
           }
         }
       }
     },
     "line_items": {
       "type": "array",
-      "description": "Rincian biaya invoice aktual yang akan dipetakan ke procedures dan medications. Jika detail billing tersedia, gunakan detail saja dan jangan masukkan subtotal/ringkasan kategori seperti DRUGS, LABORATORY, RADIOLOGY, BED RENTAL. Jika hanya summary kategori tersedia, gunakan summary kategori dengan quantity 1. Jangan duplikasi item dari halaman ringkasan dan halaman detail. Abaikan benefit polis, reimbursement schedule, limit, tarif kamar umum, quotation, estimated cost, row As Charge, item tidak dijamin/uncovered, dan item total 0. Semua harga harus IDR penuh tanpa pemisah ribuan: 1.368.000 -> 1368000, 12.722.500 -> 12722500. Jangan mengubah 709.000 menjadi 709 atau 12.722.500 menjadi 12722.5. Setiap item wajib memiliki item_type, name, quantity, unit_price, total_price. Pastikan total_price ≈ quantity * unit_price.",
+      "description": "Rincian biaya invoice aktual. Pakai detail jika ada; jangan duplikasi subtotal/ringkasan. Harga IDR penuh tanpa pemisah ribuan.",
       "items": {
         "type": "object",
-        "description": "Satu baris biaya aktual. Jangan isi null/string kosong. Jangan output subtotal jika detail item kategori yang sama sudah ada. Jangan output benefit/limit/reimbursement/tarif umum.",
+        "description": "Satu baris biaya aktual. Wajib item_type, name, quantity, unit_price, total_price. Abaikan benefit/limit/uncovered/total 0.",
         "properties": {
           "item_type": {
             "type": "string",
-            "description": "Klasifikasi persis salah satu: PROCEDURE, MEDICATION, MEDICAL_SUPPLY. MEDICATION untuk obat/farmasi/drugs termasuk tablet, kapsul, injeksi, infus cairan obat. MEDICAL_SUPPLY untuk alkes/BMHP/consumables seperti syringe, needle, cannula, catheter, diaper, electrode, tegaderm, underpad, extension tube, infusion set. PROCEDURE untuk konsultasi, visit, kamar, lab, radiologi, diagnostik, tindakan, terapi, sewa alat, administrasi, jasa."
+            "description": "PROCEDURE, MEDICATION, atau MEDICAL_SUPPLY."
           },
           "code": {
             "type": "string",
-            "description": "Kode item/baris/service yang eksplisit dari kolom kode, contoh 102/E atau 84/I. Jangan buat kode dari nomor urut ekstraksi; omit jika tidak ada kode eksplisit."
+            "description": "Kode item/service eksplisit. Omit jika tidak ada."
           },
           "name": {
             "type": "string",
-            "description": "Nama item tagihan bersih. Jangan gunakan nama kategori/subtotal saja jika detail tersedia. Jangan gabungkan harga, quantity, tanggal, atau komentar benefit. Untuk obat/alkes, pertahankan nama produk lengkap; untuk procedure, gunakan nama layanan aktual."
+            "description": "Nama item tagihan bersih. Jangan gabungkan harga/qty/tanggal."
           },
           "category": {
             "type": "string",
-            "description": "Kategori/departemen invoice bila jelas, contoh DRUGS, PHARMACY INPATIENT, LABORATORY, RADIOLOGY, DIAGNOSTIC, CONSULTATION AND VISIT, BED RENTAL, CONSUMABLES AND MEDICAL SUPPLIES. Jangan isi dengan benefit/limit atau aturan pakai."
+            "description": "Kategori/departemen invoice jika jelas."
           },
           "generic_name": {
             "type": "string",
-            "description": "Nama generik obat jika eksplisit dan berbeda dari name. Gunakan generic_name hanya untuk MEDICATION. Omit jika tidak jelas."
+            "description": "Nama generik obat jika eksplisit dan berbeda dari name."
           },
           "dosage": {
             "type": "string",
-            "description": "Kekuatan/sediaan obat yang melekat pada item, contoh 20MG TAB, 40MG INJ, 0.9% 500ML INF. Omit untuk procedure dan supply kecuali tertulis sebagai ukuran produk."
+            "description": "Kekuatan/sediaan obat/produk jika ada."
           },
           "quantity": {
             "type": "number",
-            "description": "Jumlah item dari kolom Qty. Untuk summary kategori gunakan 1. Jangan isi dengan harga atau total. Jika return/credit negatif muncul, pakai kuantitas net final yang ditagihkan."
+            "description": "Jumlah item. Untuk summary kategori gunakan 1."
           },
           "unit_price": {
             "type": "number",
-            "description": "Harga satuan IDR penuh tanpa simbol/pemisah ribuan. Jika quantity > 1, unit_price = total_price / quantity. Jangan isi total_price sebagai unit_price."
+            "description": "Harga satuan IDR. Jika perlu hitung total_price / quantity."
           },
           "total_price": {
             "type": "number",
-            "description": "Total harga baris IDR penuh tanpa simbol/pemisah ribuan. Wajib > 0. Jika quantity dan unit_price tersedia, total_price = quantity * unit_price. Jangan ambil angka benefit/limit."
+            "description": "Total harga baris IDR, wajib > 0."
           },
           "frequency": {
             "type": "string",
-            "description": "Frekuensi obat jika eksplisit sebagai aturan pakai, contoh 3x1 atau 2x1. Jangan isi untuk harga, quantity, atau procedure. Omit jika tidak ada."
+            "description": "Frekuensi obat jika ada, contoh 3x1."
           },
           "duration": {
             "type": "string",
-            "description": "Durasi terapi jika eksplisit, contoh 5 hari atau 10 hari. Jangan isi dengan service_date. Omit jika tidak ada."
+            "description": "Durasi terapi jika ada, contoh 5 hari."
           },
           "service_date": {
             "type": "string",
-            "description": "Tanggal layanan item format yyyy-MM-dd dari kolom tanggal layanan. Omit jika tidak terbaca."
+            "description": "Tanggal layanan yyyy-MM-dd jika ada."
           }
         }
       }

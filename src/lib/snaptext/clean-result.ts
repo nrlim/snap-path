@@ -1,3 +1,5 @@
+import { REQUIRED_CLAIM_DOCUMENT_AVAILABILITY, resolveRequiredClaimDocument } from "@/lib/claim-documents";
+
 type JsonValue = unknown;
 
 interface CleanDiagnosis {
@@ -22,6 +24,12 @@ interface CleanLineItem {
   service_date?: string;
 }
 
+interface CleanDocument {
+  type: string;
+  date: string;
+  conclusion: string;
+}
+
 const ROOT_KEYS = new Set([
   "amount",
   "provider_name",
@@ -37,6 +45,7 @@ const ROOT_KEYS = new Set([
   "diagnoses",
   "line_items",
   "document_metadata",
+  "documents",
 ]);
 
 const LINE_ITEM_KEYS = new Set([
@@ -366,6 +375,13 @@ function sanitizeLineItems(value: unknown): CleanLineItem[] | undefined {
   return result.length > 0 ? result : undefined;
 }
 
+function asTrueBoolean(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === "number") return value === 1;
+  const text = asCleanString(value)?.toLowerCase();
+  return Boolean(text && ["true", "yes", "y", "ya", "ada", "tersedia", "terdeteksi", "found"].includes(text));
+}
+
 function sanitizeDocumentMetadata(value: unknown): Record<string, JsonValue> | undefined {
   if (!isRecord(value)) return undefined;
 
@@ -376,6 +392,52 @@ function sanitizeDocumentMetadata(value: unknown): Record<string, JsonValue> | u
   }
 
   return Object.keys(result).length > 0 ? result : undefined;
+}
+
+function getDocumentConclusion(type: string, value: unknown): string {
+  if (isRecord(value)) {
+    const explicitConclusion = asCleanString(value.conclusion ?? value.description ?? value.summary);
+    if (explicitConclusion) return explicitConclusion;
+  }
+
+  return REQUIRED_CLAIM_DOCUMENT_AVAILABILITY.find((document) => document.type === type)?.conclusion ?? `${type} tersedia dalam PDF OCR.`;
+}
+
+function getDocumentDate(value: unknown): string {
+  if (isRecord(value)) {
+    const explicitDate = asCleanString(value.date ?? value.document_date ?? value.service_date);
+    if (explicitDate) return explicitDate;
+  }
+
+  return new Date().toISOString();
+}
+
+function sanitizeDocuments(value: unknown): CleanDocument[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  const byType = new Map<string, CleanDocument>();
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const rawType = asCleanString(item.type ?? item.document_type ?? item.name ?? item.title);
+    if (!rawType) continue;
+
+    const resolvedType = resolveRequiredClaimDocument(rawType);
+    if (!resolvedType) continue;
+
+    if (!byType.has(resolvedType)) {
+      byType.set(resolvedType, {
+        type: resolvedType,
+        date: getDocumentDate(item),
+        conclusion: getDocumentConclusion(resolvedType, item),
+      });
+    }
+  }
+
+  const result = REQUIRED_CLAIM_DOCUMENT_AVAILABILITY
+    .map((document) => byType.get(document.type))
+    .filter((document): document is CleanDocument => Boolean(document));
+
+  return result.length > 0 ? result : undefined;
 }
 
 function sanitizePayloadRecord(record: Record<string, unknown>): Record<string, JsonValue> {
@@ -399,6 +461,12 @@ function sanitizePayloadRecord(record: Record<string, unknown>): Record<string, 
     if (key === "document_metadata") {
       const metadata = sanitizeDocumentMetadata(value);
       if (metadata) result.document_metadata = metadata;
+      continue;
+    }
+
+    if (key === "documents") {
+      const documents = sanitizeDocuments(value);
+      if (documents) result.documents = documents;
       continue;
     }
 
@@ -426,7 +494,17 @@ function mergePageData(record: Record<string, unknown>): Record<string, unknown>
 
   for (const page of pages) {
     if (!isRecord(page) || !isRecord(page.data)) continue;
-    Object.assign(merged, page.data);
+    for (const [key, value] of Object.entries(page.data)) {
+      if (key === "document_metadata" && isRecord(value)) {
+        merged.document_metadata = { ...(isRecord(merged.document_metadata) ? merged.document_metadata : {}), ...value };
+        continue;
+      }
+      if (key === "documents" && Array.isArray(value)) {
+        merged.documents = [...(Array.isArray(merged.documents) ? merged.documents : []), ...value];
+        continue;
+      }
+      Object.assign(merged, { [key]: value });
+    }
     if (typeof page.pageNumber === "number") {
       merged.document_metadata = { ...(isRecord(merged.document_metadata) ? merged.document_metadata : {}), page_number: page.pageNumber };
     }

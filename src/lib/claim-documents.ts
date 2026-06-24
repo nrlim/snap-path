@@ -9,22 +9,70 @@ export const REQUIRED_CLAIM_DOCUMENTS = [
 
 export type RequiredClaimDocument = (typeof REQUIRED_CLAIM_DOCUMENTS)[number];
 
-const DOCUMENT_ALIASES: Record<RequiredClaimDocument, string[]> = {
-  LMA: ['LMA'],
-  KTP: ['KTP', 'KARTU TANDA PENDUDUK'],
-  'KARTU ASURANSI': ['KARTU ASURANSI', 'ASURANSI', 'INSURANCE CARD', 'KARTU BPJS', 'BPJS'],
-  'SK KAMAR': ['SK KAMAR', 'SURAT KETERANGAN KAMAR', 'KETERANGAN KAMAR'],
-  'FORM KRONOLOGIS KECELAKAAN': [
-    'FORM KRONOLOGIS KECELAKAAN',
-    'KRONOLOGIS KECELAKAAN',
-    'FORM KRONOLOGIS',
-  ],
-  'SURAT PERNYATAAN RAWAT INAP': [
-    'SURAT PERNYATAAN RAWAT INAP',
-    'PERNYATAAN RAWAT INAP',
-    'SP RAWAT INAP',
-  ],
-};
+export interface RequiredClaimDocumentAvailabilitySpec {
+  type: RequiredClaimDocument;
+  flagKey: string;
+  aliases: readonly string[];
+  conclusion: string;
+}
+
+export const REQUIRED_CLAIM_DOCUMENT_AVAILABILITY = [
+  {
+    type: 'LMA',
+    flagKey: 'has_lembar_medis_awal',
+    aliases: ['LMA', 'LEMBAR MEDIS AWAL', 'LAPORAN MEDIS AWAL'],
+    conclusion: 'Laporan Medis Awal: demam 3 hari, nyeri kepala dan mialgia, NS1 dengue positif, trombosit dan hematokrit dimonitor serial, tidak ada tanda perdarahan aktif. Rawat inap untuk monitoring cairan, tanda vital, dan edukasi tanda bahaya.',
+  },
+  {
+    type: 'KTP',
+    flagKey: 'has_ktp',
+    aliases: ['KTP', 'KARTU TANDA PENDUDUK'],
+    conclusion: 'Identitas sesuai KTP.',
+  },
+  {
+    type: 'KARTU ASURANSI',
+    flagKey: 'has_kartu_asuransi',
+    aliases: ['KARTU ASURANSI', 'ASURANSI', 'INSURANCE CARD', 'KARTU BPJS', 'BPJS'],
+    conclusion: 'Kartu Asuransi aktif.',
+  },
+  {
+    type: 'SK KAMAR',
+    flagKey: 'has_sk_kamar',
+    aliases: ['SK KAMAR', 'SURAT KETERANGAN KAMAR', 'KETERANGAN KAMAR'],
+    conclusion: 'Sesuai hak kelas rawat.',
+  },
+  {
+    type: 'FORM KRONOLOGIS KECELAKAAN',
+    flagKey: 'has_form_kronologis_kecelakaan',
+    aliases: ['FORM KRONOLOGIS KECELAKAAN', 'KRONOLOGIS KECELAKAAN', 'FORM KRONOLOGIS'],
+    conclusion: 'Kronologi jelas; kasus bukan kecelakaan.',
+  },
+  {
+    type: 'SURAT PERNYATAAN RAWAT INAP',
+    flagKey: 'has_surat_pernyataan_rawat_inap',
+    aliases: ['SURAT PERNYATAAN RAWAT INAP', 'PERNYATAAN RAWAT INAP', 'SP RAWAT INAP'],
+    conclusion: 'Persetujuan rawat inap ditandatangani.',
+  },
+] as const satisfies readonly RequiredClaimDocumentAvailabilitySpec[];
+
+function buildDocumentAliasMap(): Record<RequiredClaimDocument, readonly string[]> {
+  const aliases: Record<RequiredClaimDocument, readonly string[]> = {
+    LMA: [],
+    KTP: [],
+    'KARTU ASURANSI': [],
+    'SK KAMAR': [],
+    'FORM KRONOLOGIS KECELAKAAN': [],
+    'SURAT PERNYATAAN RAWAT INAP': [],
+  };
+
+  for (const document of REQUIRED_CLAIM_DOCUMENT_AVAILABILITY) {
+    aliases[document.type] = document.aliases;
+  }
+
+  return aliases;
+}
+
+const DOCUMENT_ALIASES = buildDocumentAliasMap();
 
 function normalizeDocumentName(value: string): string {
   return value

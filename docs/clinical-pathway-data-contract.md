@@ -52,6 +52,20 @@ Forbidden aliases: `medicationName`, `price`, `claimedUnitPrice`, `claimedTotal`
 
 `description` is not an input alias for diagnosis name.
 
+### Supporting document
+
+```ts
+{
+  type: 'LMA' | 'KTP' | 'KARTU ASURANSI' | 'SK KAMAR' | 'FORM KRONOLOGIS KECELAKAAN' | 'SURAT PERNYATAAN RAWAT INAP' | string;
+  date?: string;
+  conclusion?: string;
+  url?: string;
+  description?: string;
+}
+```
+
+SnapText OCR document availability uses top-level `documents[]` entries. `document_metadata` is reserved for technical OCR metadata only. A required document is considered provided only when `documents[].type` resolves to the required type. Do not infer required document availability from unrelated invoice text.
+
 ## 2. Producers and consumers
 
 Keep these files aligned whenever the contract changes:
@@ -61,6 +75,9 @@ Keep these files aligned whenever the contract changes:
 - `src/app/dashboard/clinical-pathway/components/PathwayImportModal.tsx`
 - `src/app/dashboard/clinical-pathway/components/PathwayResultViewer.tsx`
 - `src/app/api/v1/claims/map-json/route.ts`
+- `src/lib/ocr-claim-payload.ts`
+- `src/lib/snaptext/schema.json`
+- `src/lib/snaptext/clean-result.ts`
 - `src/lib/ai/drivers/openai-compatible.ts`
 - `src/lib/ai/validators/tariff.ts`
 - `src/lib/ai/validators/drug-price.ts`
@@ -286,6 +303,8 @@ LOS validation compares actual LOS from encounter dates with expected LOS from t
 Result UI should group pathway phases by canonical phase/day fields from pathway output. Do not infer grouping from provider-specific labels.
 
 ## 13. Safe-change checklist
+
+Latest contract update: supporting document availability from SnapText OCR is represented directly by canonical top-level `documents[]` entries with `type`, `date`, and `conclusion`; `document_metadata` is technical metadata only.
 
 Before changing this contract:
 1. Update all producers/consumers listed above.

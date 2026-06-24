@@ -1,3 +1,4 @@
+import { REQUIRED_CLAIM_DOCUMENT_AVAILABILITY } from "@/lib/claim-documents";
 import snaptextSchema from "./snaptext/schema.json";
 
 export type OcrValueType = "number" | "string" | "boolean" | "object" | "unknown";
@@ -102,6 +103,11 @@ const FIELD_ALIASES: Record<string, string> = {
   data_usability_score: "document_metadata.data_usability_score",
   document_metadata_data_usability_score: "document_metadata.data_usability_score",
 };
+
+for (const documentSpec of REQUIRED_CLAIM_DOCUMENT_AVAILABILITY) {
+  FIELD_ALIASES[documentSpec.flagKey] = `document_metadata.${documentSpec.flagKey}`;
+  FIELD_ALIASES[`document_metadata_${documentSpec.flagKey}`] = `document_metadata.${documentSpec.flagKey}`;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

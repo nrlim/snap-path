@@ -1,4 +1,9 @@
 import type { ClaimValidationInput } from "@/lib/ai/types";
+import {
+  REQUIRED_CLAIM_DOCUMENT_AVAILABILITY,
+  resolveRequiredClaimDocument,
+  type RequiredClaimDocument,
+} from "@/lib/claim-documents";
 import type { OcrItem, TxtItem } from "@/lib/ocr-scoring";
 
 export interface BuildOcrClaimPayloadInput {
@@ -36,6 +41,15 @@ export function buildClaimValidationPayloadFromAI(
   };
 
   const txtDiagnoses = extractDiagnosesFromTxtItems(input.txtItems);
+  const referenceDocumentDate = getReferenceDocumentDate();
+  const availabilityDocuments = buildDocumentAvailabilityEntries(
+    getDocumentAvailabilityTypes([aiMappedPayload, input.ocrRawResult], input.ocrItems),
+    referenceDocumentDate,
+  );
+
+  for (const document of availabilityDocuments) {
+    mappingLog[`documents.${document.type}`] = "Detected from SnapText document availability flag.";
+  }
 
   const payload: ClaimValidationInput = {
     providerId: input.providerId || "",
@@ -72,7 +86,7 @@ export function buildClaimValidationPayloadFromAI(
         actionJson: parsedActionJson || rule.actionJson
       };
     }) : [],
-    documents: aiMappedPayload.documents ? [...aiMappedPayload.documents] : [],
+    documents: mergeClaimDocuments(aiMappedPayload.documents ? [...aiMappedPayload.documents] : [], availabilityDocuments),
     totalClaimAmount: aiMappedPayload.totalClaimAmount || 0,
     currency: aiMappedPayload.currency,
     notes: aiMappedPayload.notes,
@@ -148,6 +162,7 @@ interface InvoiceLineItemInput {
 }
 
 type ClaimDiagnosisType = ClaimValidationInput["diagnoses"][number]["type"];
+type ClaimDocument = NonNullable<ClaimValidationInput["documents"]>[number];
 type EncounterType = ClaimValidationInput["encounter"]["type"];
 
 const RAW_RESULT_CANDIDATE_KEYS = [
@@ -204,6 +219,8 @@ function hasInvoiceClaimSignal(record: Record<string, unknown>): boolean {
     "discharge_date",
     "diagnoses",
     "line_items",
+    "documents",
+    "document_metadata",
   ].some((key) => record[key] !== undefined);
 }
 
@@ -214,7 +231,17 @@ function mergeSnaptextPageData(record: Record<string, unknown>): Record<string, 
   const merged: Record<string, unknown> = {};
   for (const page of pages) {
     if (!isRecord(page) || !isRecord(page.data)) continue;
-    Object.assign(merged, page.data);
+    for (const [key, value] of Object.entries(page.data)) {
+      if (Array.isArray(merged[key]) && Array.isArray(value)) {
+        merged[key] = [...merged[key], ...value];
+        continue;
+      }
+      if (isRecord(merged[key]) && isRecord(value)) {
+        merged[key] = { ...merged[key], ...value };
+        continue;
+      }
+      merged[key] = value;
+    }
   }
 
   return hasInvoiceClaimSignal(merged) ? merged : null;
@@ -309,6 +336,169 @@ function normalizeDate(value: string | null): string | null {
 
   const parsed = new Date(trimmed);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+}
+
+function normalizeDateTime(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  const normalizedDate = normalizeDate(trimmed);
+  return normalizedDate ? new Date(`${normalizedDate}T00:00:00.000Z`).toISOString() : null;
+}
+
+function readTrueFlag(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === "number") return value === 1;
+  if (typeof value !== "string") return false;
+
+  return ["true", "yes", "y", "ya", "ada", "tersedia", "terdeteksi", "found"].includes(value.trim().toLowerCase());
+}
+
+function normalizeFlagKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
+}
+
+function hasTrueFlag(value: unknown, flagKey: string, depth = 0): boolean {
+  if (depth > 12) return false;
+  if (Array.isArray(value)) return value.some((item) => hasTrueFlag(item, flagKey, depth + 1));
+  if (!isRecord(value)) return false;
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const normalizedKey = normalizeFlagKey(key);
+    if ((normalizedKey === flagKey || normalizedKey === `document_metadata_${flagKey}`) && readTrueFlag(nestedValue)) {
+      return true;
+    }
+
+    if (hasTrueFlag(nestedValue, flagKey, depth + 1)) return true;
+  }
+
+  return false;
+}
+
+function hasTrueOcrItemFlag(ocrItems: OcrItem[], flagKey: string): boolean {
+  return ocrItems.some((item) => {
+    const normalizedField = normalizeFlagKey(item.field);
+    if (normalizedField !== `document_metadata_${flagKey}` && normalizedField !== flagKey) return false;
+    return readTrueFlag(item.correctedValue ?? item.value ?? item.rawValue);
+  });
+}
+
+function getReferenceDocumentDate(fallbackDate?: string): string {
+  return normalizeDateTime(fallbackDate ?? null) ?? new Date().toISOString();
+}
+
+function getStringFromUnknown(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+}
+
+function collectDocumentTypesFromValue(value: unknown, depth = 0): RequiredClaimDocument[] {
+  if (depth > 10) return [];
+
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectDocumentTypesFromValue(item, depth + 1));
+  }
+
+  if (!isRecord(value)) return [];
+
+  const documentTypes: RequiredClaimDocument[] = [];
+  const rawDocumentType = getStringFromUnknown(value.type ?? value.document_type ?? value.documentType ?? value.name ?? value.title);
+  if (rawDocumentType) {
+    const resolvedType = resolveRequiredClaimDocument(rawDocumentType);
+    if (resolvedType) documentTypes.push(resolvedType);
+  }
+
+  const nestedDocuments = value.documents;
+  if (Array.isArray(nestedDocuments)) {
+    documentTypes.push(...nestedDocuments.flatMap((document) => collectDocumentTypesFromValue(document, depth + 1)));
+  }
+
+  const nestedResult = value.result;
+  if (isRecord(nestedResult)) {
+    documentTypes.push(...collectDocumentTypesFromValue(nestedResult, depth + 1));
+  }
+
+  const nestedData = value.data;
+  if (isRecord(nestedData)) {
+    documentTypes.push(...collectDocumentTypesFromValue(nestedData, depth + 1));
+  }
+
+  if (Array.isArray(value.pages)) {
+    documentTypes.push(...value.pages.flatMap((page) => collectDocumentTypesFromValue(page, depth + 1)));
+  }
+
+  return documentTypes;
+}
+
+function getDocumentAvailabilityTypes(sources: unknown[], ocrItems: OcrItem[]): RequiredClaimDocument[] {
+  const detectedTypes = new Set<RequiredClaimDocument>();
+
+  for (const source of sources) {
+    for (const documentType of collectDocumentTypesFromValue(source)) {
+      detectedTypes.add(documentType);
+    }
+  }
+
+  for (const documentSpec of REQUIRED_CLAIM_DOCUMENT_AVAILABILITY) {
+    if (hasTrueOcrItemFlag(ocrItems, documentSpec.flagKey) || sources.some((source) => hasTrueFlag(source, documentSpec.flagKey))) {
+      detectedTypes.add(documentSpec.type);
+    }
+  }
+
+  return REQUIRED_CLAIM_DOCUMENT_AVAILABILITY
+    .map((documentSpec) => documentSpec.type)
+    .filter((documentType) => detectedTypes.has(documentType));
+}
+
+function buildDocumentAvailabilityEntries(documentTypes: RequiredClaimDocument[], referenceDate: string): ClaimDocument[] {
+  const documentTypeSet = new Set(documentTypes);
+
+  return REQUIRED_CLAIM_DOCUMENT_AVAILABILITY
+    .filter((documentSpec) => documentTypeSet.has(documentSpec.type))
+    .map((documentSpec) => ({
+      type: documentSpec.type,
+      date: referenceDate,
+      conclusion: documentSpec.conclusion,
+    }));
+}
+
+function mergeClaimDocuments(existingDocuments: ClaimDocument[] | undefined, availabilityDocuments: ClaimDocument[]): ClaimDocument[] {
+  const defaultsByType = new Map(availabilityDocuments.map((document) => [document.type, document]));
+  const usedRequiredTypes = new Set<RequiredClaimDocument>();
+  const result: ClaimDocument[] = [];
+
+  for (const document of existingDocuments ?? []) {
+    const requiredType = resolveRequiredClaimDocument(document.type);
+    if (!requiredType) {
+      result.push(document);
+      continue;
+    }
+
+    const defaultDocument = defaultsByType.get(requiredType);
+    usedRequiredTypes.add(requiredType);
+    result.push({
+      ...document,
+      type: requiredType,
+      ...(defaultDocument?.date && !document.date ? { date: defaultDocument.date } : {}),
+      ...(defaultDocument?.conclusion && !document.conclusion ? { conclusion: document.description ?? defaultDocument.conclusion } : {}),
+    });
+  }
+
+  for (const document of availabilityDocuments) {
+    if (!usedRequiredTypes.has(document.type as RequiredClaimDocument)) {
+      result.push(document);
+    }
+  }
+
+  return result;
 }
 
 function normalizeGender(value: string | null): "M" | "F" | null {
@@ -536,6 +726,10 @@ export function buildClaimValidationPayloadFromOcr(input: BuildOcrClaimPayloadIn
   const diagnoses = buildDiagnoses(record, input.txtItems);
   const { procedures, medications } = buildProceduresAndMedications(record);
   const missingClinicalFields = collectMissingClinicalFields({ diagnoses, procedures, medications });
+  const availabilityDocuments = buildDocumentAvailabilityEntries(
+    getDocumentAvailabilityTypes([record, input.ocrRawResult], input.ocrItems),
+    getReferenceDocumentDate(),
+  );
 
   const mappingLog: Record<string, string> = {
     amount: String(totalClaimAmount),
@@ -552,7 +746,12 @@ export function buildClaimValidationPayloadFromOcr(input: BuildOcrClaimPayloadIn
     "diagnoses.length": String(diagnoses.length),
     "procedures.length": String(procedures.length),
     "medications.length": String(medications.length),
+    "documents.detectedFromAvailabilityFlags": String(availabilityDocuments.length),
   };
+
+  for (const document of availabilityDocuments) {
+    mappingLog[`documents.${document.type}`] = "Detected from SnapText document availability flag.";
+  }
 
   const payload: OcrClaimValidationPayload = {
     clientId: input.clientId,
@@ -591,6 +790,7 @@ export function buildClaimValidationPayloadFromOcr(input: BuildOcrClaimPayloadIn
         url: input.pdfUrl,
         description: `Invoice OCR ${invoiceNumber} (${input.pdfStoragePath})`,
       },
+      ...availabilityDocuments,
     ],
     extra: {
       source: "SNAPTEXT_OCR_INVOICE",

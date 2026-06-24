@@ -603,7 +603,9 @@ Generate a clinically realistic and auditable pathway for Indonesian healthcare 
       currency: z.string().nullable().describe('Currency code e.g. IDR'),
       notes: z.string().nullable().describe('Clinical notes or summary'),
       documents: z.array(z.object({
-        type: z.string().describe('Document type e.g. LMA, KTP, KARTU ASURANSI'),
+        type: z.string().describe('Document type. Use only LMA, KTP, KARTU ASURANSI, SK KAMAR, FORM KRONOLOGIS KECELAKAAN, SURAT PERNYATAAN RAWAT INAP, or source-provided non-required type.'),
+        date: z.string().nullable().describe('ISO 8601 document date when known; otherwise use the encounter admission date or current mapping date.'),
+        conclusion: z.string().nullable().describe('Short Bahasa Indonesia document conclusion. Required document availability flags should use the standard conclusion text.'),
         url: z.string().nullable().describe('URL to the document'),
         description: z.string().nullable().describe('Description or summary of the document'),
       })).nullable().describe('Supporting documents for the claim'),
@@ -630,6 +632,15 @@ Rules:
 - Normalize gender to 'male' or 'female' if recognizable.
 - Diagnosis/procedure codes should be preserved as-is; if absent, use null for optional code fields and keep the best human-readable name.
 - For prices/amounts in the source: preserve as-is in IDR (do NOT convert currencies). If only unit price is present, compute totalPrice = unitPrice * quantity.
+- If the source contains a top-level SnapText documents array, preserve every required supporting document entry using canonical type, date, and conclusion.
+- If the source still contains legacy SnapText document availability flags under document_metadata, create supporting documents only for flags that are true:
+  * has_lembar_medis_awal -> type LMA, conclusion "Laporan Medis Awal: demam 3 hari, nyeri kepala dan mialgia, NS1 dengue positif, trombosit dan hematokrit dimonitor serial, tidak ada tanda perdarahan aktif. Rawat inap untuk monitoring cairan, tanda vital, dan edukasi tanda bahaya."
+  * has_ktp -> type KTP, conclusion "Identitas sesuai KTP."
+  * has_kartu_asuransi -> type KARTU ASURANSI, conclusion "Kartu Asuransi aktif."
+  * has_sk_kamar -> type SK KAMAR, conclusion "Sesuai hak kelas rawat."
+  * has_form_kronologis_kecelakaan -> type FORM KRONOLOGIS KECELAKAAN, conclusion "Kronologi jelas; kasus bukan kecelakaan."
+  * has_surat_pernyataan_rawat_inap -> type SURAT PERNYATAAN RAWAT INAP, conclusion "Persetujuan rawat inap ditandatangani."
+- Do not create required document entries for false, absent, or ambiguous documents.
 - If a field is genuinely absent or unmappable, use null, empty string, zero, or empty arrays according to the schema.
 - Provide a brief _mappingNotes explaining your interpretation decisions`;
 

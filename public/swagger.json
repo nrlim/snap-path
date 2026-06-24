@@ -357,6 +357,15 @@
               "SURAT PERNYATAAN RAWAT INAP"
             ]
           },
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Tanggal dokumen atau tanggal deteksi OCR dalam ISO 8601."
+          },
+          "conclusion": {
+            "type": "string",
+            "description": "Kesimpulan singkat dokumen pendukung."
+          },
           "url": {
             "type": "string",
             "format": "uri"
