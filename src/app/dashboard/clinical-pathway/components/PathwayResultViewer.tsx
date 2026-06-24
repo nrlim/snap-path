@@ -367,8 +367,10 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
       maxDeduction: 20,
       deducted: fallbackTariffDeduction,
       reason: tariffHasDeduction
-        ? `${tariffIssues || tariffOver}/${registeredTariffItems.length} item tindakan terdaftar tidak sesuai threshold. Pengurangan skor dihitung proporsional.`
-        : "Item tindakan yang terdaftar berada dalam threshold master fee schedule.",
+        ? `${tariffIssues || tariffOver}/${registeredTariffItems.length} item tindakan terdaftar tidak sesuai threshold. Tindakan NOT_FOUND dihitung terpisah di kesiapan master data.`
+        : registeredTariffItems.length > 0 && missingTariffMasterItems.length > 0
+          ? `${registeredTariffItems.length} tindakan terdaftar berada dalam threshold. ${missingTariffMasterItems.length} tindakan tidak terdaftar dihitung terpisah di kesiapan master data.`
+          : "Item tindakan yang terdaftar berada dalam threshold master fee schedule.",
     },
     {
       label: "Harga obat/farmalkes referensi master",
@@ -411,15 +413,24 @@ export default function PathwayResultViewer({ job: initialJob }: { job: any }) {
     const shouldClearHiddenDiagnosisDeduction = (item.code === 'DIAGNOSIS_TREATMENT' || item.label === 'Diagnosis, tindakan & obat klinis')
       && item.deducted > 0
       && !hasDiagnosisFindings;
-    const deducted = shouldClearHiddenDiagnosisDeduction ? 0 : Math.max(0, item.deducted || 0);
-    const earnedScore = shouldClearHiddenDiagnosisDeduction ? maxScore : (typeof item.score === 'number' ? item.score : Math.max(0, maxScore - deducted));
+    const shouldClearHiddenTariffDeduction = (item.code === 'TARIFF' || item.label === 'Tarif tindakan terdaftar')
+      && item.deducted > 0
+      && tariffIssues === 0
+      && registeredTariffItems.length > 0;
+    const deducted = shouldClearHiddenDiagnosisDeduction || shouldClearHiddenTariffDeduction ? 0 : Math.max(0, item.deducted || 0);
+    const earnedScore = shouldClearHiddenDiagnosisDeduction || shouldClearHiddenTariffDeduction ? maxScore : (typeof item.score === 'number' ? item.score : Math.max(0, maxScore - deducted));
+    const normalizedReason = shouldClearHiddenDiagnosisDeduction
+      ? 'Diagnosis, tindakan, dan obat sesuai kebutuhan klinis utama.'
+      : shouldClearHiddenTariffDeduction
+        ? `${registeredTariffItems.length} tindakan terdaftar berada dalam threshold. ${missingTariffMasterItems.length} tindakan tidak terdaftar dihitung terpisah di kesiapan master data.`
+        : item.reason;
     return {
       ...item,
       maxScore,
       deducted,
       score: earnedScore,
-      status: shouldClearHiddenDiagnosisDeduction ? 'PASS' : (item.status ?? (deducted === 0 ? 'PASS' : earnedScore > 0 ? 'PARTIAL' : 'NEEDS_REVIEW')),
-      reason: shouldClearHiddenDiagnosisDeduction ? 'Diagnosis, tindakan, dan obat sesuai kebutuhan klinis utama.' : item.reason,
+      status: shouldClearHiddenDiagnosisDeduction || shouldClearHiddenTariffDeduction ? 'PASS' : (item.status ?? (deducted === 0 ? 'PASS' : earnedScore > 0 ? 'PARTIAL' : 'NEEDS_REVIEW')),
+      reason: normalizedReason,
     };
   };
   const scoreBreakdown: ScoreBreakdownItem[] = Array.isArray(persistedScoreItems) && persistedScoreItems.length > 0

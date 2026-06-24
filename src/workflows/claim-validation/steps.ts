@@ -376,8 +376,10 @@ export async function aggregateAndSaveStep(
   if (tariffDeduction > 0) {
     overallScore -= tariffDeduction;
     scoreBreakdown.items[1].deducted = tariffDeduction;
-    scoreBreakdown.items[1].reason = `${invalidRegisteredTariffItems.length}/${registeredTariffItems.length} item tindakan terdaftar tidak sesuai threshold master fee schedule. Pengurangan dihitung proporsional per item, bukan penuh 20 poin.`;
+    scoreBreakdown.items[1].reason = `${invalidRegisteredTariffItems.length}/${registeredTariffItems.length} item tindakan terdaftar tidak sesuai threshold master fee schedule. Tindakan NOT_FOUND tidak mengurangi aspek tarif; item tersebut dihitung terpisah di kesiapan master data.`;
     if (status !== 'REVIEW_NEEDED') status = 'WARNING';
+  } else if (registeredTariffItems.length > 0 && unregisteredTariffItems.length > 0) {
+    scoreBreakdown.items[1].reason = `${registeredTariffItems.length} tindakan terdaftar berada dalam threshold. ${unregisteredTariffItems.length} tindakan tidak terdaftar tidak mengurangi aspek tarif dan dihitung terpisah di kesiapan master data.`;
   }
   if (drugPriceDeduction > 0) {
     overallScore -= drugPriceDeduction;
