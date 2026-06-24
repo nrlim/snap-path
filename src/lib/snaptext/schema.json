@@ -7,7 +7,7 @@
     },
     "provider_name": {
       "type": "string",
-      "description": "Nama faskes penerbit invoice. Bukan dokter, payer, atau departemen."
+      "description": "Nama rumah sakit/klinik penerbit layanan dari header/logo. Bukan insurer/payer/TPA, dokter, pasien, perusahaan, atau departemen."
     },
     "member_name": {
       "type": "string",
@@ -15,7 +15,7 @@
     },
     "invoice_number": {
       "type": "string",
-      "description": "Nomor invoice/tagihan/kuitansi rumah sakit. Ambil dari Invoice No, No Tagihan, Billing No, Hospital Invoice No, Receipt No, atau No Kuitansi. Jangan ambil No RM, Patient ID, Admission No, Visit No, polis, atau kartu."
+      "description": "Nomor dokumen tagihan/kuitansi. Ambil hanya nilai di dekat label Invoice No/No Invoice/No Tagihan/Billing No/Receipt No/No Kuitansi. Bukan No RM/MRN, Reg/Visit/Admission No, claim no, polis, kartu, atau SEP."
     },
     "patient_identifier": {
       "type": "string",
@@ -39,11 +39,11 @@
     },
     "admission_date": {
       "type": "string",
-      "description": "Tanggal masuk/admission/visit start. Format yyyy-MM-dd. Ambil tanggal kejadian, bukan tanggal cetak atau tanggal invoice."
+      "description": "Tanggal mulai perawatan/kunjungan. Ambil dari Admission/Admit/Tgl Masuk/Rawat mulai/Period from. Format yyyy-MM-dd. Bukan tanggal invoice, cetak, bayar, lahir, atau service item."
     },
     "discharge_date": {
       "type": "string",
-      "description": "Tanggal pulang/discharge/visit end. Format yyyy-MM-dd. Ambil tanggal kejadian, bukan tanggal cetak atau tanggal invoice."
+      "description": "Tanggal selesai perawatan/kunjungan. Ambil dari Discharge/Tgl Pulang/Tgl Keluar/Rawat s.d./Period to. Format yyyy-MM-dd. Rawat jalan satu tanggal: samakan dengan admission_date. Bukan tanggal invoice/cetak/bayar."
     },
     "documents": {
       "type": "array",
