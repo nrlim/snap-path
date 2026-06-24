@@ -225,7 +225,7 @@ export async function deleteClaimDocumentFromSupabaseStorage(path: string): Prom
 }
 
 export async function createSignedUploadUrl(path: string): Promise<{ signedUrl: string; path: string }> {
-  const config = await ensureBucket();
+  const config = getSupabaseStorageConfig();
   const signUrl = `${config.supabaseUrl}/storage/v1/object/upload/sign/${encodeURIComponent(config.bucket)}/${encodeStoragePath(path)}`;
   const response = await fetchSupabaseStorage(signUrl, {
     method: 'POST',
