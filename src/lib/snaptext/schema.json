@@ -69,36 +69,36 @@
     },
     "diagnoses": {
       "type": "array",
-      "description": "Diagnosis final saja. Ambil hanya PRIMARY dan SECONDARY. Maks 3, dedupe. Jangan ambil komplikasi terpisah, gejala, billing item, obat, lab, radiologi, atau header.",
+      "description": "STRICT: Hanya ambil PRIMARY dan SECONDARY diagnosis. MAKSIMAL 3 DIAGNOSA. DILARANG KERAS mengambil diagnosa dari Resume Medis (Discharge Summary), keluhan pasien, atau riwayat penyakit. Hanya ambil dari kolom/label diagnosis final/utama/sekunder.",
       "items": {
         "type": "object",
-        "description": "Satu diagnosis final bersih. Harus PRIMARY atau SECONDARY; code hanya ICD-10 jelas.",
+        "description": "Satu diagnosis final bersih.",
         "properties": {
           "code": {
             "type": "string",
-            "description": "Kode ICD-10 jelas, contoh I63.9. Omit jika tidak ada."
+            "description": "Kode ICD-10 jika tertulis eksplisit. Kosongkan jika tidak ada."
           },
           "name": {
             "type": "string",
-            "description": "Nama diagnosis klinis final. Bukan keluhan, tindakan, obat, lab, radiologi, atau nama pasien."
+            "description": "Nama diagnosis klinis persis seperti tertulis. Bukan keluhan, bukan deskripsi panjang resume medis, bukan obat/tindakan."
           },
           "type": {
             "type": "string",
-            "description": "Hanya PRIMARY atau SECONDARY. Jangan pakai COMPLICATION."
+            "description": "Hanya PRIMARY atau SECONDARY."
           },
           "sequence": {
             "type": "number",
-            "description": "Urutan diagnosis final setelah dedupe; PRIMARY harus 1."
+            "description": "Urutan diagnosis (1, 2, atau 3). PRIMARY wajib bernilai 1."
           }
         }
       }
     },
     "line_items": {
       "type": "array",
-      "description": "Hanya rincian biaya dari tabel/detail invoice aktual. Jangan ambil dari manfaat polis, estimasi, ringkasan benefit, tarif kamar, resep, lab result, clinical note, atau discharge summary.",
+      "description": "STRICT INVOICE ONLY: Hanya ambil rincian dari tabel tagihan final/billing breakdown. DILARANG KERAS mengambil dari resep, hasil lab, ringkasan medis, atau teks klinis.",
       "items": {
         "type": "object",
-        "description": "Satu baris charge invoice aktual. Wajib item_type, name, quantity, unit_price, total_price. Abaikan subtotal, total, benefit, limit, discount, uncovered, dan total 0.",
+        "description": "Satu baris tagihan konkret (ada harga/qty). Abaikan subtotal, grand total, diskon, atau limit benefit asuransi.",
         "properties": {
           "item_type": {
             "type": "string",
@@ -110,7 +110,7 @@
           },
           "name": {
             "type": "string",
-            "description": "Nama item persis dari baris invoice detail. Jangan buat dari diagnosis, resep, hasil lab, kategori ringkasan, harga, qty, atau tanggal."
+            "description": "Nama item persis seperti tertulis di baris tabel invoice. Jangan menebak, mengubah, atau menyusun dari tempat lain."
           },
           "category": {
             "type": "string",
@@ -126,23 +126,23 @@
           },
           "quantity": {
             "type": "number",
-            "description": "Jumlah pada baris invoice detail. Jika tidak ada gunakan 1; jangan hitung dari teks klinis."
+            "description": "Jumlah dari tabel tagihan. Jika tidak ada, isi 1. Dilarang hitung manual dari resep."
           },
           "unit_price": {
             "type": "number",
-            "description": "Harga satuan IDR dari invoice detail. Jika kosong, hitung total_price / quantity."
+            "description": "Harga satuan dari tabel tagihan. Boleh kosong jika hanya ada total."
           },
           "total_price": {
             "type": "number",
-            "description": "Total baris invoice detail IDR, wajib > 0. Bukan subtotal/grand total."
+            "description": "Total harga dari baris tagihan. Wajib > 0. Dilarang isi dengan subtotal/grand total."
           },
           "frequency": {
             "type": "string",
-            "description": "Frekuensi obat jika ada, contoh 3x1."
+            "description": "Aturan pakai obat dari tabel invoice jika ada (contoh 3x1)."
           },
           "duration": {
             "type": "string",
-            "description": "Durasi terapi jika ada, contoh 5 hari."
+            "description": "Durasi penggunaan dari tabel invoice jika ada (contoh 5 hari)."
           },
           "service_date": {
             "type": "string",
