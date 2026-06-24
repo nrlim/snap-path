@@ -1,17 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { z } from "zod";
+
 import { getSession } from "@/lib/auth";
 import { getAuthenticatedUser } from "@/lib/rbac";
 import { createSignedUploadUrl } from "@/lib/supabase-storage";
 
-const MAX_PDF_SIZE = 20 * 1024 * 1024;
+const DEFAULT_MAX_PDF_SIZE = 100 * 1024 * 1024;
 const MAX_TXT_SIZE = 2 * 1024 * 1024;
 
-interface UploadUrlRequest {
-  pdfName: string;
-  pdfSize: number;
-  txtName: string;
-  txtSize: number;
+const UploadUrlRequestSchema = z.object({
+  pdfName: z.string().trim().min(1),
+  pdfSize: z.number().int().positive(),
+  txtName: z.string().trim().min(1),
+  txtSize: z.number().int().positive(),
+});
+
+function getMaxPdfSize(): number {
+  const rawLimitMb = process.env.OCR_MAX_PDF_UPLOAD_MB ?? process.env.SUPABASE_DOCUMENT_BUCKET_FILE_SIZE_LIMIT_MB;
+  if (!rawLimitMb) return DEFAULT_MAX_PDF_SIZE;
+
+  const parsedLimitMb = Number.parseInt(rawLimitMb, 10);
+  if (!Number.isFinite(parsedLimitMb) || parsedLimitMb <= 0) return DEFAULT_MAX_PDF_SIZE;
+
+  return parsedLimitMb * 1024 * 1024;
+}
+
+function formatMegabytes(bytes: number): string {
+  return `${Math.floor(bytes / (1024 * 1024))}MB`;
 }
 
 function sanitizeFilename(filename: string): string {
@@ -30,15 +46,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "Sesi tidak valid. Silakan masuk kembali." }, { status: 401 });
     }
 
-    const body = await req.json() as Partial<UploadUrlRequest>;
-    const { pdfName, pdfSize, txtName, txtSize } = body;
-
-    if (!pdfName || typeof pdfSize !== "number" || !txtName || typeof txtSize !== "number") {
-      return NextResponse.json({ error: "Parameter pdfName, pdfSize, txtName, dan txtSize wajib diisi." }, { status: 400 });
+    const parseResult = UploadUrlRequestSchema.safeParse(await req.json());
+    if (!parseResult.success) {
+      return NextResponse.json({ error: "Parameter pdfName, pdfSize, txtName, dan txtSize wajib diisi dengan benar." }, { status: 400 });
     }
 
-    if (pdfSize > MAX_PDF_SIZE) {
-      return NextResponse.json({ error: "Ukuran PDF melebihi batas 20MB." }, { status: 400 });
+    const { pdfName, pdfSize, txtName, txtSize } = parseResult.data;
+    const maxPdfSize = getMaxPdfSize();
+
+    if (pdfSize > maxPdfSize) {
+      return NextResponse.json({ error: `Ukuran PDF melebihi batas ${formatMegabytes(maxPdfSize)}.` }, { status: 400 });
     }
 
     if (txtSize > MAX_TXT_SIZE) {

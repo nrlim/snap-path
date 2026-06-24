@@ -1,5 +1,6 @@
 const DEFAULT_DOCUMENT_BUCKET = 'claim-documents';
-const DOCUMENT_BUCKET_FILE_SIZE_LIMIT = 20 * 1024 * 1024;
+const DEFAULT_DOCUMENT_BUCKET_FILE_SIZE_LIMIT = 100 * 1024 * 1024;
+const MIN_DOCUMENT_BUCKET_FILE_SIZE_LIMIT = 20 * 1024 * 1024;
 const DOCUMENT_ALLOWED_MIME_TYPES = [
   'application/pdf',
   'image/jpeg',
@@ -10,13 +11,43 @@ const DOCUMENT_ALLOWED_MIME_TYPES = [
   'application/octet-stream',
 ];
 
+interface SupabaseStorageConfig {
+  supabaseUrl: string;
+  serviceRoleKey: string;
+  bucket: string;
+  fileSizeLimit: number;
+}
+
+interface SupabaseSignedUploadUrlResponse {
+  url?: string;
+  signedURL?: string;
+  signedUrl?: string;
+  signed_url?: string;
+  token?: string;
+}
+
 export interface SupabaseUploadResult {
   bucket: string;
   path: string;
   signedUrl: string | null;
 }
 
-function getSupabaseStorageConfig() {
+let ensureBucketPromise: Promise<SupabaseStorageConfig> | null = null;
+
+function resolveDocumentBucketFileSizeLimit(): number {
+  const configuredLimitsMb = [
+    process.env.SUPABASE_DOCUMENT_BUCKET_FILE_SIZE_LIMIT_MB,
+    process.env.OCR_MAX_PDF_UPLOAD_MB,
+  ]
+    .map((rawLimitMb) => (rawLimitMb ? Number.parseInt(rawLimitMb, 10) : Number.NaN))
+    .filter((limitMb) => Number.isFinite(limitMb) && limitMb > 0);
+
+  if (configuredLimitsMb.length === 0) return DEFAULT_DOCUMENT_BUCKET_FILE_SIZE_LIMIT;
+
+  return Math.max(MIN_DOCUMENT_BUCKET_FILE_SIZE_LIMIT, Math.max(...configuredLimitsMb) * 1024 * 1024);
+}
+
+function getSupabaseStorageConfig(): SupabaseStorageConfig {
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const bucket = process.env.SUPABASE_DOCUMENT_BUCKET || DEFAULT_DOCUMENT_BUCKET;
@@ -29,6 +60,7 @@ function getSupabaseStorageConfig() {
     supabaseUrl: supabaseUrl.trim().replace(/\/$/, ''),
     serviceRoleKey: serviceRoleKey.trim(),
     bucket: bucket.trim(),
+    fileSizeLimit: resolveDocumentBucketFileSizeLimit(),
   };
 }
 
@@ -59,7 +91,24 @@ async function fetchSupabaseStorage(url: string, init: RequestInit, action: stri
   }
 }
 
-async function ensureBucket(): Promise<ReturnType<typeof getSupabaseStorageConfig>> {
+async function updateBucketConfig(config: SupabaseStorageConfig): Promise<void> {
+  const updateBucket = await fetchSupabaseStorage(`${config.supabaseUrl}/storage/v1/bucket/${encodeURIComponent(config.bucket)}`, {
+    method: 'PUT',
+    headers: storageHeaders(config.serviceRoleKey, 'application/json'),
+    body: JSON.stringify({
+      public: false,
+      file_size_limit: config.fileSizeLimit,
+      allowed_mime_types: DOCUMENT_ALLOWED_MIME_TYPES,
+    }),
+  }, 'memperbarui konfigurasi bucket');
+
+  if (!updateBucket.ok) {
+    const errorText = await updateBucket.text();
+    throw new Error(`Gagal memperbarui konfigurasi bucket Supabase Storage: ${errorText}`);
+  }
+}
+
+async function ensureBucketInternal(): Promise<SupabaseStorageConfig> {
   const config = getSupabaseStorageConfig();
   const bucketUrl = `${config.supabaseUrl}/storage/v1/bucket/${encodeURIComponent(config.bucket)}`;
   const getBucket = await fetchSupabaseStorage(bucketUrl, {
@@ -67,7 +116,10 @@ async function ensureBucket(): Promise<ReturnType<typeof getSupabaseStorageConfi
     cache: 'no-store',
   }, 'mengecek bucket');
 
-  if (getBucket.ok) return config;
+  if (getBucket.ok) {
+    await updateBucketConfig(config);
+    return config;
+  }
 
   const bucketErrorText = await getBucket.text();
   const bucketNotFound = getBucket.status === 404 || bucketErrorText.includes('Bucket not found') || bucketErrorText.includes('"statusCode":"404"');
@@ -83,7 +135,7 @@ async function ensureBucket(): Promise<ReturnType<typeof getSupabaseStorageConfi
       id: config.bucket,
       name: config.bucket,
       public: false,
-      file_size_limit: DOCUMENT_BUCKET_FILE_SIZE_LIMIT,
+      file_size_limit: config.fileSizeLimit,
       allowed_mime_types: DOCUMENT_ALLOWED_MIME_TYPES,
     }),
   }, 'membuat bucket');
@@ -93,7 +145,20 @@ async function ensureBucket(): Promise<ReturnType<typeof getSupabaseStorageConfi
     throw new Error(`Gagal membuat bucket Supabase Storage: ${errorText}`);
   }
 
+  if (createBucket.status === 409) {
+    await updateBucketConfig(config);
+  }
+
   return config;
+}
+
+async function ensureBucket(): Promise<SupabaseStorageConfig> {
+  ensureBucketPromise ??= ensureBucketInternal().catch((error: unknown) => {
+    ensureBucketPromise = null;
+    throw error;
+  });
+
+  return ensureBucketPromise;
 }
 
 export async function uploadClaimDocumentToSupabaseStorage(
@@ -172,12 +237,16 @@ export async function createSignedUploadUrl(path: string): Promise<{ signedUrl: 
     throw new Error(`Gagal membuat upload URL: ${errorText}`);
   }
 
-  const data = await response.json() as { url?: string };
-  if (!data.url) {
+  const data = await response.json() as SupabaseSignedUploadUrlResponse;
+  const signedUploadPath = data.url ?? data.signedURL ?? data.signedUrl ?? data.signed_url
+    ?? (data.token ? `/object/upload/sign/${encodeURIComponent(config.bucket)}/${encodeStoragePath(path)}?token=${encodeURIComponent(data.token)}` : undefined);
+
+  if (!signedUploadPath) {
     throw new Error('Supabase Storage tidak mengembalikan URL upload yang valid.');
   }
 
-  const uploadUrl = data.url.startsWith('http') ? data.url : `${config.supabaseUrl}/storage/v1${data.url}`;
+  const uploadPath = signedUploadPath.startsWith('/') ? signedUploadPath : `/${signedUploadPath}`;
+  const uploadUrl = signedUploadPath.startsWith('http') ? signedUploadPath : `${config.supabaseUrl}/storage/v1${uploadPath}`;
 
   return {
     signedUrl: uploadUrl,

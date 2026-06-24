@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, ReactElement } from "react";
+
 import { FileText, File as FileIcon } from "lucide-react";
+
 import type { ScoringDetail, ScoringResult } from "@/lib/ocr-scoring";
 
 import OcrReviewTable from "./OcrReviewTable";
@@ -29,8 +31,19 @@ interface OcrPollResponse {
   error?: string;
 }
 
+interface SignedUploadTarget {
+  path: string;
+  uploadUrl: string;
+}
+
+interface OcrUploadUrlResponse {
+  pdf?: SignedUploadTarget;
+  txt?: SignedUploadTarget;
+  error?: string;
+}
+
 const WIZARD_STEPS: WizardStep[] = ["UPLOAD", "POLLING", "REVIEW", "FORWARDED"];
-const MAX_PDF_SIZE_BYTES = 20 * 1024 * 1024;
+const DEFAULT_MAX_PDF_SIZE_MB = 100;
 const MAX_TXT_SIZE_BYTES = 2 * 1024 * 1024;
 
 const INITIAL_PROGRESS: OcrProgressState = {
@@ -58,6 +71,16 @@ function readNumber(record: Record<string, unknown>, key: string): number | unde
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
+}
+
+function getClientMaxPdfSizeMb(): number {
+  const rawLimitMb = process.env.NEXT_PUBLIC_OCR_MAX_PDF_UPLOAD_MB;
+  if (!rawLimitMb) return DEFAULT_MAX_PDF_SIZE_MB;
+
+  const parsedLimitMb = Number.parseInt(rawLimitMb, 10);
+  if (!Number.isFinite(parsedLimitMb) || parsedLimitMb <= 0) return DEFAULT_MAX_PDF_SIZE_MB;
+
+  return parsedLimitMb;
 }
 
 function isScoringDetail(value: unknown): value is ScoringDetail {
@@ -92,6 +115,36 @@ function parsePollResponse(value: unknown): OcrPollResponse {
     masterDataLookup: value.masterDataLookup,
     error: readString(value, "error"),
   };
+}
+
+function parseSignedUploadTarget(value: unknown): SignedUploadTarget | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const path = readString(value, "path");
+  const uploadUrl = readString(value, "uploadUrl");
+
+  return path && uploadUrl ? { path, uploadUrl } : undefined;
+}
+
+function parseUploadUrlResponse(value: unknown): OcrUploadUrlResponse {
+  if (!isRecord(value)) return {};
+
+  return {
+    pdf: parseSignedUploadTarget(value.pdf),
+    txt: parseSignedUploadTarget(value.txt),
+    error: readString(value, "error"),
+  };
+}
+
+async function calculateFileSha256(file: File): Promise<string> {
+  if (!window.crypto.subtle) {
+    throw new Error("Browser tidak mendukung hashing file yang dibutuhkan untuk OCR.");
+  }
+
+  const digest = await window.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function getStepIndex(step: WizardStep): number {
@@ -162,6 +215,9 @@ export default function OcrUploadWizard(): ReactElement {
   const [progress, setProgress] = useState<OcrProgressState>(INITIAL_PROGRESS);
   const [nowMs, setNowMs] = useState(Date.now());
 
+  const maxPdfSizeMb = useMemo(() => getClientMaxPdfSizeMb(), []);
+  const maxPdfSizeBytes = maxPdfSizeMb * 1024 * 1024;
+
   const elapsedSeconds = useMemo(() => {
     if (!progress.startedAtMs || step !== "POLLING") return 0;
     return Math.max(0, Math.floor((nowMs - progress.startedAtMs) / 1000));
@@ -173,8 +229,8 @@ export default function OcrUploadWizard(): ReactElement {
       return;
     }
 
-    if (pdfFile.size > MAX_PDF_SIZE_BYTES) {
-      setError("Ukuran PDF melebihi batas 20MB. Kompres atau pisahkan dokumen sebelum diunggah.");
+    if (pdfFile.size > maxPdfSizeBytes) {
+      setError(`Ukuran PDF melebihi batas ${maxPdfSizeMb}MB. Kompres atau pisahkan dokumen sebelum diunggah.`);
       return;
     }
 
@@ -207,27 +263,28 @@ export default function OcrUploadWizard(): ReactElement {
         }),
       });
 
+      const urlData = parseUploadUrlResponse(await urlRes.json());
+
       if (!urlRes.ok) {
-        const errData = await urlRes.json().catch(() => ({}));
-        throw new Error(errData.error || "Gagal mendapatkan URL unggahan dari server.");
+        throw new Error(urlData.error || "Gagal mendapatkan URL unggahan dari server.");
       }
 
-      const urlData = await urlRes.json() as {
-        pdf: { path: string; uploadUrl: string };
-        txt: { path: string; uploadUrl: string };
-      };
+      if (!urlData.pdf || !urlData.txt) {
+        throw new Error("Server tidak mengembalikan URL unggahan Supabase yang lengkap.");
+      }
 
-      // 2. Unggah langsung ke Supabase Storage
-      const uploadHeaders = { "x-upsert": "true" };
-      const [pdfUpload, txtUpload] = await Promise.all([
+      // 2. Hitung hash lokal dan unggah file langsung ke Supabase Storage.
+      // PDF tidak dikirim melalui server aplikasi agar tidak terkena batas ukuran request Next.js.
+      const [pdfHash, pdfUpload, txtUpload] = await Promise.all([
+        calculateFileSha256(pdfFile),
         fetch(urlData.pdf.uploadUrl, {
           method: "PUT",
-          headers: { ...uploadHeaders, "Content-Type": pdfFile.type || "application/pdf" },
+          headers: { "Content-Type": pdfFile.type || "application/pdf" },
           body: pdfFile,
         }),
         fetch(urlData.txt.uploadUrl, {
           method: "PUT",
-          headers: { ...uploadHeaders, "Content-Type": txtFile.type || "text/plain" },
+          headers: { "Content-Type": txtFile.type || "text/plain" },
           body: txtFile,
         }),
       ]);
@@ -244,6 +301,7 @@ export default function OcrUploadWizard(): ReactElement {
           pdfPath: urlData.pdf.path,
           pdfName: pdfFile.name,
           pdfSize: pdfFile.size,
+          pdfHash,
           txtPath: urlData.txt.path,
         }),
       });
