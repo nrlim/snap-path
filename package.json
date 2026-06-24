@@ -9,6 +9,8 @@
     "lint": "eslint",
     "seed:kfa-drugs": "tsx prisma/seed-kfa-drugs.ts",
     "seed:policy-rules": "tsx prisma/seed-policy-rules.ts",
+    "seed:siloam": "tsx prisma/seed-siloam.ts",
+    "seed:rspp": "tsx prisma/seed-rspp.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

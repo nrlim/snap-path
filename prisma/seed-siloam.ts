@@ -75,10 +75,22 @@ function parsePrice(v: unknown): number | null {
 }
 
 // ----------------------------------------------------------------
+// Clean strings from unnecessary special characters
+// ----------------------------------------------------------------
+function cleanString(str: string): string {
+  if (!str || typeof str !== 'string') return "";
+  return str
+    .replace(/^[^a-zA-Z0-9(]+/, '') // Hapus karakter non-alphanumeric di awal (kecuali kurung)
+    .replace(/[^a-zA-Z0-9)]+$/, '') // Hapus karakter non-alphanumeric di akhir
+    .replace(/\s+/g, ' ') // Ganti multiple whitespace jadi satu spasi
+    .trim();
+}
+
+// ----------------------------------------------------------------
 // Extract name from an item
 // ----------------------------------------------------------------
 function extractName(item: Record<string, unknown>): string {
-  return (
+  const rawName = (
     (item.item as string) ||
     (item.name as string) ||
     (item.procedure as string) ||
@@ -88,6 +100,7 @@ function extractName(item: Record<string, unknown>): string {
     (item.service as string) ||
     ""
   );
+  return cleanString(rawName);
 }
 
 // ----------------------------------------------------------------
@@ -128,10 +141,11 @@ function buildEntries(
     const maxPrice = Math.max(...prices);
 
     globalIndex.count++;
-    const procedureCode =
-      (item.code as string) ||
-      (item.service_code as string) ||
-      `SILOAM-${key.toUpperCase()}-${globalIndex.count}`;
+    
+    let rawCode = (item.code as string) || (item.service_code as string);
+    let procedureCode = rawCode 
+      ? cleanString(rawCode).replace(/\s+/g, '-')
+      : `SILOAM-${cleanString(key).toUpperCase()}-${globalIndex.count}`;
 
     result.push({
       providerId,
@@ -159,13 +173,21 @@ function buildEntries(
 }
 
 // ----------------------------------------------------------------
-// Non-array sections to completely skip (metadata)
+// Non-array sections to completely skip (metadata/non-tariff)
 // ----------------------------------------------------------------
 const SKIP_KEYS = new Set([
+  // Metadata / document structure
   "year", "issuer", "document_type", "document_metadata", "date",
   "subject", "contacts", "signatory", "document_id", "effective_date",
-  "page_number", "policy_notes", "has_signature",
-  "surcharge_table", // policy table, not actionable tariff data
+  "page_number", "policy_notes", "has_signature", "institution",
+  "body", "closing", "addressee", "letterhead", "salutation",
+  "reference_no", "issue_date", "currency", "document_title",
+  "section_header", "policy_section",
+  // Non-tariff data
+  "contact_persons",   // people, not prices
+  "terms_and_conditions", // text conditions
+  "policy_points",     // narrative policy text
+  "surcharge_table",   // percentage surcharge table, not absolute prices
 ]);
 
 async function main() {
@@ -242,7 +264,9 @@ async function main() {
   // Keep the entry with higher maxPrice if same name appears in multiple sections
   const byName = new Map<string, Record<string, unknown>>();
   for (const e of byCode.values()) {
-    const nameKey = (e.procedureName as string).toLowerCase().trim();
+    const nameRaw = e.procedureName;
+    if (!nameRaw || typeof nameRaw !== "string") continue;
+    const nameKey = nameRaw.toLowerCase().trim();
     const existing = byName.get(nameKey);
     if (!existing || (e.maxPrice as number) > (existing.maxPrice as number)) {
       byName.set(nameKey, e);

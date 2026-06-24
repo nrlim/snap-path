@@ -3,7 +3,7 @@
   "properties": {
     "amount": {
       "type": "number",
-      "description": "Grand total akhir tagihan/klaim dalam IDR tanpa Rp/pemisah ribuan. Abaikan subtotal, limit, deposit, estimasi, diskon, pajak parsial."
+      "description": "Final grand total to pay. Use IDR. No Rp symbol. No dot or comma separator. Take only one final total. Ignore subtotal, deposit, benefit limit, room rate, discount, tax. If many numbers, pick one with label Grand Total, Total Invoice, Total Tagihan, Total Kuitansi, or Amount Due."
     },
     "provider_name": {
       "type": "string",
@@ -15,7 +15,7 @@
     },
     "invoice_number": {
       "type": "string",
-      "description": "Nomor dokumen tagihan/kuitansi. Ambil hanya nilai di dekat label Invoice No/No Invoice/No Tagihan/Billing No/Receipt No/No Kuitansi. Bukan No RM/MRN, Reg/Visit/Admission No, claim no, polis, kartu, atau SEP."
+      "description": "Official invoice number. Look for Invoice No., No. Tagihan, Billing No., Receipt No., No. Kuitansi. Do NOT use RM number, Patient ID, Admission No., Visit No., policy number, card number, or medical form number. If no can read, skip."
     },
     "patient_identifier": {
       "type": "string",
@@ -54,7 +54,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "description": "Type standar dokumen. Alias: LMA/Lembar Medis Awal; KTP/e-KTP; Kartu Asuransi/Member Card/BPJS; SK Kamar; FK/FMK; SPRI."
+            "description": "Type standar dokumen. Alias: LMA/Lembar Medis Awal; KTP/e-KTP/NIK; Kartu Asuransi/Member Card/BPJS; SK Kamar; FK/FMK; SPRI."
           },
           "date": {
             "type": "string",
