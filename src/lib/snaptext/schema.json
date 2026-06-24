@@ -1,10 +1,10 @@
 {
   "type": "object",
-  "description": "Ekstrak invoice medis menjadi JSON bersih untuk POC scoring OCR CONSUL. Output harus berupa JSON final saja, bukan patch/diff/instruksi perbaikan. Gunakan HANYA key root yang ada di schema ini. Jangan tambahkan key lain seperti tariffs, benefits, limits, raw_text, notes, confidence, code, name, type, sequence, atau key patch seperti {op/search/replace}. Jangan pernah mengisi nilai null, string kosong, '-', 'N/A', 'As Charge', object kosong {}, array kosong [], atau placeholder. Jika sebuah field tidak terbaca atau tidak tersedia di dokumen, hilangkan field tersebut dari JSON. Untuk array, jangan masukkan object yang tidak punya nilai bermakna. Prioritaskan data tagihan aktual/invoice pasien, bukan tabel manfaat polis, tabel tarif kamar, quotation, benefit schedule, limit reimbursement, atau halaman edukasi/diagnosis/prescription yang bukan rincian tagihan.",
+  "description": "Ekstrak invoice medis menjadi JSON bersih untuk POC scoring OCR CONSUL. Output harus berupa JSON final saja. Gunakan hanya key yang didefinisikan schema ini. Tujuan output adalah dipetakan ke payload validasi klaim: diagnoses -> diagnoses, line_items PROCEDURE -> procedures, line_items MEDICATION/MEDICAL_SUPPLY -> medications/farmalkes, amount -> totalClaimAmount. Jangan tambahkan key lain, raw_text, notes, confidence, patch/diff, atau placeholder. Jangan pernah mengisi null, string kosong, '-', N/A, As Charge, object kosong, array kosong, atau nilai contoh. Jika field tidak terbaca, hilangkan field tersebut. Prioritaskan halaman invoice/tagihan aktual; abaikan benefit polis, reimbursement schedule, limit, tarif kamar umum, quotation, resep edukasi, dan ringkasan yang duplikat dengan detail billing.",
   "properties": {
     "amount": {
       "type": "number",
-      "description": "Grand total tagihan akhir invoice/kuitansi yang harus dibayar atau diklaim, dalam IDR tanpa simbol Rp dan tanpa pemisah ribuan. Ambil hanya satu nilai total akhir. Abaikan subtotal kategori, total departemen, deposit/uang muka, benefit limit, reimbursement limit, tarif kamar, estimated cost, diskon, dan pajak parsial. Jika ada beberapa kandidat, pilih nilai yang berlabel Grand Total / Total Invoice / Total Tagihan / Total Kuitansi / Amount Due."
+      "description": "Grand total tagihan akhir invoice/kuitansi dalam IDR sebagai totalClaimAmount. Ambil hanya nilai total akhir yang ditagihkan/diklaim. Jangan ambil subtotal kategori, benefit limit, reimbursement limit, tarif kamar, estimated cost, deposit, diskon, pajak parsial, atau angka benefit. Untuk angka Indonesia, hapus titik pemisah ribuan: 47.291.139 harus menjadi 47291139; 709.000 harus menjadi 709000, bukan 709."
     },
     "provider_name": {
       "type": "string",
@@ -48,72 +48,72 @@
     },
     "diagnoses": {
       "type": "array",
-      "description": "Daftar diagnosis klinis final pasien yang benar-benar tertulis pada bagian diagnosis/ICD/medical summary. Jangan ambil diagnosis dari tabel billing, nama item tindakan, obat, lab, radiologi, atau benefit. Jika ada tabel ICD-10 final, gunakan tabel itu sebagai sumber utama dan abaikan duplikasi diagnosis tanpa kode dari halaman lain. Jangan isi array jika diagnosis tidak ada. Jangan memasukkan heading/label kosong seperti PRIMARY DIAGNOSIS, SECONDARY DIAGNOSIS, DIAGNOSIS, DRUGS, EMERGENCY. Jangan memasukkan nama lab, radiologi, tindakan, obat, rumah sakit, payer/asuransi, dokter, atau departemen sebagai diagnosis. Deduplicate diagnosis yang sama; pilih versi paling lengkap dengan kode ICD-10 jika ada. Jangan output object yang seluruh fieldnya kosong/null.",
+      "description": "Daftar diagnosis klinis final pasien dari bagian diagnosis/ICD/discharge summary saja. Maksimal 8 diagnosis paling relevan. Jika ada ICD-10 final, pakai ICD-10 sebagai sumber utama, pilih diagnosis utama sebagai PRIMARY, dan deduplicate variasi nama yang sama. Jangan ambil diagnosis dari billing item, obat, lab, radiologi, benefit, nama pasien, tanggal lahir, payer/asuransi, dokter, heading, atau teks placeholder seperti 'not listed on this page'. Jika hanya banyak varian stroke/CVD/infarction, pertahankan varian paling spesifik dengan kode ICD dan buang duplikasi tanpa kode.",
       "items": {
         "type": "object",
-        "description": "Satu diagnosis bersih. Hilangkan field yang tidak tersedia; jangan isi null, string kosong, atau '-'. Minimal harus punya code ICD-10 valid atau name diagnosis bermakna. Jika code tidak terbaca, omit code; jangan isi code dengan kosong, '-', nama diagnosis, atau nomor urut.",
+        "description": "Satu diagnosis bersih untuk payload validasi klaim. Minimal punya name bermakna; code hanya jika ICD-10 terlihat jelas. Jangan isi nama pasien, tanggal lahir, label halaman, atau placeholder.",
         "properties": {
           "code": {
             "type": "string",
-            "description": "Kode ICD-10 jika terlihat jelas, contoh I63.9, I63, I10, E78.4, I25, E13. Jangan isi dengan nama diagnosis, nama lab, nomor urut, kode billing, string kosong, atau '-'. Omit jika tidak ada kode ICD-10 yang jelas."
+            "description": "Kode ICD-10 yang terlihat jelas, contoh I63.9, I10, E78.4. Omit jika tidak ada. Jangan isi dengan nomor urut, kode billing, atau nama diagnosis."
           },
           "name": {
             "type": "string",
-            "description": "Nama diagnosis klinis bermakna, contoh Stroke iskemik, Cerebral infarction, Diabetes mellitus, Hypertension. Bersihkan prefix seperti 'PRIMARY DIAGNOSIS:' sehingga hanya tersisa diagnosisnya. Omit jika hanya heading/label tanpa diagnosis aktual. Jangan isi dengan CRP, Uric Acid, MRI, ECG, obat, tindakan, payer, dokter, atau departemen."
+            "description": "Nama diagnosis klinis bermakna. Bersihkan prefix label. Jangan isi dengan 'not listed', nama pasien, tanggal lahir, payer, obat, tindakan, lab, radiologi, atau departemen."
           },
           "type": {
             "type": "string",
-            "description": "Isi hanya PRIMARY, SECONDARY, atau COMPLICATION. Jika dokumen menyatakan primary/utama gunakan PRIMARY; secondary/sekunder gunakan SECONDARY. Jika tidak eksplisit, diagnosis pertama PRIMARY dan sisanya SECONDARY."
+            "description": "Isi persis PRIMARY, SECONDARY, atau COMPLICATION. Harus ada tepat satu PRIMARY jika diagnosis tersedia; jika tidak eksplisit, diagnosis pertama paling utama menjadi PRIMARY."
           },
           "sequence": {
             "type": "number",
-            "description": "Urutan diagnosis bersih dimulai dari 1 setelah deduplikasi. Satu diagnosis PRIMARY pertama, lalu SECONDARY/COMPLICATION berikutnya. Jangan lompat nomor dan jangan ulang sequence yang sama."
+            "description": "Urutan diagnosis bersih dimulai dari 1 setelah deduplikasi; jangan lompat nomor."
           }
         }
       }
     },
     "line_items": {
       "type": "array",
-      "description": "Rincian biaya invoice aktual. Ambil hanya item yang ditagihkan kepada pasien/klaim. Jangan memasukkan tabel tarif/benefit/limit polis, daftar tarif kamar umum, reimbursement schedule, atau row 'As Charge'. Jangan campur summary kategori dengan detail: jika tabel detail billing terbaca, gunakan detail saja dan jangan masukkan subtotal kategori seperti DRUGS/LABORATORY/RADIOLOGY; jika hanya summary kategori yang tersedia, gunakan summary kategori dengan quantity 1. Jangan duplikasi item yang sama dari halaman ringkasan dan halaman detail. Setiap item harus memiliki name dan minimal total_price numerik; jika total_price tidak terlihat tetapi quantity dan unit_price terlihat, hitung total_price = quantity * unit_price. Jika unit_price tidak terlihat tetapi total_price dan quantity terlihat, hitung unit_price = total_price / quantity. Jika quantity tidak terlihat tetapi total_price terlihat, gunakan quantity 1 dan unit_price = total_price untuk menjaga JSON clean. Jangan output null pada field apa pun; omit field yang benar-benar tidak tersedia.",
+      "description": "Rincian biaya invoice aktual yang akan dipetakan ke procedures dan medications. Jika detail billing tersedia, gunakan detail saja dan jangan masukkan subtotal/ringkasan kategori seperti DRUGS, LABORATORY, RADIOLOGY, BED RENTAL. Jika hanya summary kategori tersedia, gunakan summary kategori dengan quantity 1. Jangan duplikasi item dari halaman ringkasan dan halaman detail. Abaikan benefit polis, reimbursement schedule, limit, tarif kamar umum, quotation, estimated cost, row As Charge, item tidak dijamin/uncovered, dan item total 0. Semua harga harus IDR penuh tanpa pemisah ribuan: 1.368.000 -> 1368000, 12.722.500 -> 12722500. Jangan mengubah 709.000 menjadi 709 atau 12.722.500 menjadi 12722.5. Setiap item wajib memiliki item_type, name, quantity, unit_price, total_price. Pastikan total_price ≈ quantity * unit_price.",
       "items": {
         "type": "object",
-        "description": "Satu baris biaya bersih. Jangan isi field dengan null, string kosong, '-', atau gabungan nilai yang tidak sesuai tipe. Omit field opsional yang tidak tersedia.",
+        "description": "Satu baris biaya aktual. Jangan isi null/string kosong. Jangan output subtotal jika detail item kategori yang sama sudah ada. Jangan output benefit/limit/reimbursement/tarif umum.",
         "properties": {
           "item_type": {
             "type": "string",
-            "description": "Klasifikasi tunggal dan persis salah satu dari PROCEDURE, MEDICATION, MEDICAL_SUPPLY. MEDICATION untuk obat/farmasi/drugs. MEDICAL_SUPPLY untuk consumables, alkes, BMHP, disposable, syringe, needle, catheter, diaper, electrode, infusion set. PROCEDURE untuk konsultasi, visit, kamar, laboratorium, radiologi, diagnostic, tindakan, terapi, sewa alat, administrasi, dan biaya jasa. Jangan output gabungan seperti 'PROCEDURE, null'."
+            "description": "Klasifikasi persis salah satu: PROCEDURE, MEDICATION, MEDICAL_SUPPLY. MEDICATION untuk obat/farmasi/drugs termasuk tablet, kapsul, injeksi, infus cairan obat. MEDICAL_SUPPLY untuk alkes/BMHP/consumables seperti syringe, needle, cannula, catheter, diaper, electrode, tegaderm, underpad, extension tube, infusion set. PROCEDURE untuk konsultasi, visit, kamar, lab, radiologi, diagnostik, tindakan, terapi, sewa alat, administrasi, jasa."
           },
           "code": {
             "type": "string",
-            "description": "Kode item/baris/service yang eksplisit pada kolom kode, contoh 102/E atau 84/I. Jangan isi dengan nama item, nama lab, nomor sequence hasil ekstraksi, '-' atau null. Omit jika tidak ada kode eksplisit."
+            "description": "Kode item/baris/service yang eksplisit dari kolom kode, contoh 102/E atau 84/I. Jangan buat kode dari nomor urut ekstraksi; omit jika tidak ada kode eksplisit."
           },
           "name": {
             "type": "string",
-            "description": "Nama item tagihan yang bersih. Jangan gabungkan dengan category, tanggal, quantity, harga, atau nama dokter kecuali memang bagian dari nama layanan. Untuk obat/alkes, pertahankan nama produk lengkap seperti XARELTO 20MG TAB. Untuk procedure, gunakan nama layanan seperti ECG READING atau IPD CONSULTATION/VISIT L 1."
+            "description": "Nama item tagihan bersih. Jangan gunakan nama kategori/subtotal saja jika detail tersedia. Jangan gabungkan harga, quantity, tanggal, atau komentar benefit. Untuk obat/alkes, pertahankan nama produk lengkap; untuk procedure, gunakan nama layanan aktual."
           },
           "category": {
             "type": "string",
-            "description": "Kategori/departemen sumber invoice bila jelas, contoh DRUGS, PHARMACY INPATIENT, LABORATORY, RADIOLOGY, DIAGNOSTIC, CONSULTATION AND VISIT, BED RENTAL, CONSUMABLES AND MEDICAL SUPPLIES. Jangan isi dengan instruksi dosis, nama dokter, tanggal, kamar, atau komentar menu. Omit jika tidak jelas."
+            "description": "Kategori/departemen invoice bila jelas, contoh DRUGS, PHARMACY INPATIENT, LABORATORY, RADIOLOGY, DIAGNOSTIC, CONSULTATION AND VISIT, BED RENTAL, CONSUMABLES AND MEDICAL SUPPLIES. Jangan isi dengan benefit/limit atau aturan pakai."
           },
           "generic_name": {
             "type": "string",
-            "description": "Nama generik obat jika berbeda dan eksplisit tertulis. Jangan isi jika sama dengan name, tidak terlihat, atau hanya unit seperti '1 Amp'/'1 tablet'. Omit untuk procedure dan medical supply."
+            "description": "Nama generik obat jika eksplisit dan berbeda dari name. Gunakan generic_name hanya untuk MEDICATION. Omit jika tidak jelas."
           },
           "dosage": {
             "type": "string",
-            "description": "Kekuatan/sediaan obat yang melekat pada item, contoh 20MG TAB, 40MG INJ, 0.9% 500ML INF. Jangan isi dengan quantity, tanggal, kode stok, atau teks seperti 'Qty:+4 -2'. Omit jika tidak ada."
+            "description": "Kekuatan/sediaan obat yang melekat pada item, contoh 20MG TAB, 40MG INJ, 0.9% 500ML INF. Omit untuk procedure dan supply kecuali tertulis sebagai ukuran produk."
           },
           "quantity": {
             "type": "number",
-            "description": "Jumlah item yang ditagihkan. Parse dari kolom Qty atau dari frasa seperti '3 PIECES' menjadi 3. Untuk summary kategori yang hanya punya total, gunakan 1. Jangan isi dengan harga."
+            "description": "Jumlah item dari kolom Qty. Untuk summary kategori gunakan 1. Jangan isi dengan harga atau total. Jika return/credit negatif muncul, pakai kuantitas net final yang ditagihkan."
           },
           "unit_price": {
             "type": "number",
-            "description": "Harga satuan IDR tanpa simbol Rp. Jika tidak terlihat tetapi total_price dan quantity tersedia, hitung total_price / quantity. Jangan isi string."
+            "description": "Harga satuan IDR penuh tanpa simbol/pemisah ribuan. Jika quantity > 1, unit_price = total_price / quantity. Jangan isi total_price sebagai unit_price."
           },
           "total_price": {
             "type": "number",
-            "description": "Total harga baris IDR tanpa simbol Rp. Wajib ada untuk setiap line_items. Jika tidak terlihat tetapi quantity dan unit_price tersedia, hitung quantity * unit_price. Jangan isi string."
+            "description": "Total harga baris IDR penuh tanpa simbol/pemisah ribuan. Wajib > 0. Jika quantity dan unit_price tersedia, total_price = quantity * unit_price. Jangan ambil angka benefit/limit."
           },
           "frequency": {
             "type": "string",
@@ -125,7 +125,7 @@
           },
           "service_date": {
             "type": "string",
-            "description": "Tanggal layanan baris item dalam format ISO yyyy-MM-dd. Ambil dari kolom tanggal layanan. Jangan taruh tanggal di duration. Omit jika tidak terbaca."
+            "description": "Tanggal layanan item format yyyy-MM-dd dari kolom tanggal layanan. Omit jika tidak terbaca."
           }
         }
       }

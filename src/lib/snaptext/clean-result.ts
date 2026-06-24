@@ -72,12 +72,22 @@ const DIAGNOSIS_HEADING_NAMES = new Set([
 ]);
 
 const NON_DIAGNOSIS_PATTERNS = [
+  /\b(not\s+listed|not\s+shown|not\s+available|not\s+on\s+this\s+page|tidak\s+tercantum|tidak\s+ada)\b/i,
+  /\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b/,
   /\b(crp|uric acid|electrolyte|nat|kal|chlo|creatinine|ureum|glucose|sgpt|sgot|d-?dimer|cbc|full blood count)\b/i,
   /\b(mri|mra|ecg|electrocardiogram|echocardiogram|doppler|radiology|laboratory|diagnostic)\b/i,
   /\b(syringe|needle|nacl|asering|otsu|brainact|interco|xarelto|plavix|trajenta|crestor|lipitor|brilinta|esoferr|farmasal)\b/i,
   /\b(consultation|visit|bed rental|food and beverage|o2 per day|therapy|procedure|ward|pharmacy)\b/i,
   /\b(panin|life|asuransi|insurance|hospital|siloam|mrccc)\b/i,
 ];
+
+const BENEFIT_OR_NON_BILLING_PATTERNS = [
+  /\b(benefit|limit|manfaat|reimbursement|reimburs|reimburst|schedule|quotation|estimated\s+cost|tarif\s+kamar|as\s+charge)\b/i,
+  /\b(tidak\s+dijamin|uncover|not\s+covered|exclusion|maksimum\s+per\s+tahun|per\s+tahun\s+pertanggungan)\b/i,
+];
+
+const SUPPLY_NAME_PATTERN = /\b(syringe|needle|cannula|catheter|diaper|electrode|tegaderm|underpad|extension\s+tube|extention\s+tube|intrafix|vasofix|skintact|opsite|swab|jelly|connector|infusion\s+set|consumable|medical\s+supply|alkes|bmhp)\b/i;
+const MEDICATION_NAME_PATTERN = /\b(tab|tablet|cap|capsule|inj|injection|inf|vial|amp|ampoule|mg|mcg|gram|ml|nacl|asering|xarelto|plavix|trajenta|crestor|lipitor|brilinta|brainact|interco|esoferr|farmasal|neurotam|neuroaid|forxiga)\b/i;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -202,13 +212,14 @@ function sanitizeDiagnoses(value: unknown): CleanDiagnosis[] | undefined {
     .filter((item): item is CleanDiagnosis => item !== null);
 
   const hasCodedPrimary = rawDiagnoses.some((diagnosis) => diagnosis.type === "PRIMARY" && diagnosis.code);
+  const hasCodedStroke = rawDiagnoses.some((diagnosis) => Boolean(diagnosis.code?.startsWith("I63") || diagnosis.code?.startsWith("I69") || /cerebral\s+infarction/i.test(diagnosis.name)));
   const hasCodedHypertension = rawDiagnoses.some((diagnosis) => diagnosis.code === "I10" || /hypertension|hipertensi/i.test(diagnosis.name));
   const hasCodedDiabetes = rawDiagnoses.some((diagnosis) => diagnosis.code && /diabetes|dm\s*tipe/i.test(diagnosis.name));
   const hasCodedLipid = rawDiagnoses.some((diagnosis) => diagnosis.code && /lipid|hyperlip|hiperlip/i.test(diagnosis.name));
 
   const filtered = rawDiagnoses.filter((diagnosis) => {
     if (diagnosis.code) return true;
-    if (hasCodedPrimary && diagnosis.type === "PRIMARY" && /stroke|cvd|cerebral|infarction/i.test(diagnosis.name)) return false;
+    if ((hasCodedPrimary || hasCodedStroke) && /stroke|cvd|cerebral|infarction|infark/i.test(diagnosis.name)) return false;
     if (hasCodedHypertension && /^(ht|hipertensi|hypertension)$/i.test(diagnosis.name)) return false;
     if (hasCodedDiabetes && /^(dm|dm tipe 2|diabetes)$/i.test(diagnosis.name)) return false;
     if (hasCodedLipid && /lipid|hiperlip|hyperlip/i.test(diagnosis.name)) return false;
@@ -224,13 +235,22 @@ function sanitizeDiagnoses(value: unknown): CleanDiagnosis[] | undefined {
     }
   }
 
-  const result = Array.from(byKey.values())
+  const sorted = Array.from(byKey.values())
     .sort((a, b) => {
       if (a.type === "PRIMARY" && b.type !== "PRIMARY") return -1;
       if (a.type !== "PRIMARY" && b.type === "PRIMARY") return 1;
+      if (a.code && !b.code) return -1;
+      if (!a.code && b.code) return 1;
       return a.sequence - b.sequence;
     })
-    .map((diagnosis, index) => ({ ...diagnosis, sequence: index + 1 }));
+    .slice(0, 8);
+
+  const hasPrimary = sorted.some((diagnosis) => diagnosis.type === "PRIMARY");
+  const result = sorted.map((diagnosis, index) => ({
+    ...diagnosis,
+    type: !hasPrimary && index === 0 ? "PRIMARY" : diagnosis.type,
+    sequence: index + 1,
+  }));
 
   return result.length > 0 ? result : undefined;
 }
@@ -243,16 +263,41 @@ function normalizeItemType(value: unknown): CleanLineItem["item_type"] | null {
   return null;
 }
 
+function normalizeLineItemType(item: Record<string, unknown>, name: string, category: string | null): CleanLineItem["item_type"] | null {
+  const rawType = normalizeItemType(item.item_type ?? item.type);
+  const text = [name, category ?? ""].join(" ");
+
+  if (SUPPLY_NAME_PATTERN.test(text)) return "MEDICAL_SUPPLY";
+  if (/\b(drug|drugs|pharmacy|farmasi)\b/i.test(category ?? "") || MEDICATION_NAME_PATTERN.test(name)) return "MEDICATION";
+
+  return rawType ?? "PROCEDURE";
+}
+
+function shouldExcludeLineItemName(name: string, category: string | null): boolean {
+  const text = [name, category ?? ""].join(" ");
+  if (BENEFIT_OR_NON_BILLING_PATTERNS.some((pattern) => pattern.test(text))) return true;
+  if (/\b(sub\s*total|subtotal|total\s+(drugs|laboratory|radiology|diagnostic|procedure|bed|consultation)|grand\s+total)\b/i.test(name)) return true;
+  return false;
+}
+
 function sanitizeLineItem(item: unknown): CleanLineItem | null {
   if (!isRecord(item)) return null;
 
   const name = asCleanString(item.name);
-  const itemType = normalizeItemType(item.item_type ?? item.type);
+  const category = asCleanString(item.category);
   const totalPrice = asNumber(item.total_price ?? item.totalPrice ?? item.amount);
-  if (!name || !itemType || totalPrice === null) return null;
+  if (!name || totalPrice === null || totalPrice <= 0 || shouldExcludeLineItemName(name, category)) return null;
+
+  const itemType = normalizeLineItemType(item, name, category);
+  if (!itemType) return null;
 
   const quantity = asNumber(item.quantity ?? item.qty);
-  const unitPrice = asNumber(item.unit_price ?? item.unitPrice ?? item.price);
+  const rawUnitPrice = asNumber(item.unit_price ?? item.unitPrice ?? item.price);
+  const normalizedQuantity = quantity !== null && quantity > 0 ? quantity : 1;
+  const computedUnitPrice = totalPrice / normalizedQuantity;
+  const unitPrice = rawUnitPrice !== null && rawUnitPrice > 0 ? rawUnitPrice : computedUnitPrice;
+  const unitPriceMismatchRatio = computedUnitPrice > 0 ? Math.abs(unitPrice - computedUnitPrice) / computedUnitPrice : 0;
+  const normalizedUnitPrice = normalizedQuantity > 1 && unitPriceMismatchRatio > 0.05 ? computedUnitPrice : unitPrice;
   const serviceDate = asCleanString(item.service_date ?? item.performed_date);
   const lineItem: CleanLineItem = {
     item_type: itemType,
@@ -263,7 +308,6 @@ function sanitizeLineItem(item: unknown): CleanLineItem | null {
   const code = asCleanString(item.code ?? item.service_code);
   if (code && code !== "-") lineItem.code = code;
 
-  const category = asCleanString(item.category);
   if (category) lineItem.category = category;
 
   const genericName = asCleanString(item.generic_name ?? item.genericName);
@@ -272,11 +316,8 @@ function sanitizeLineItem(item: unknown): CleanLineItem | null {
   const dosage = asCleanString(item.dosage);
   if (dosage && !/^qty\s*:/i.test(dosage)) lineItem.dosage = dosage;
 
-  if (quantity !== null && quantity > 0) lineItem.quantity = quantity;
-  else lineItem.quantity = 1;
-
-  if (unitPrice !== null && unitPrice > 0) lineItem.unit_price = unitPrice;
-  else lineItem.unit_price = totalPrice / lineItem.quantity;
+  lineItem.quantity = normalizedQuantity;
+  lineItem.unit_price = normalizedUnitPrice;
 
   const frequency = asCleanString(item.frequency);
   if (frequency) lineItem.frequency = frequency;
@@ -289,11 +330,40 @@ function sanitizeLineItem(item: unknown): CleanLineItem | null {
   return lineItem;
 }
 
+function isSummaryLineItem(item: CleanLineItem): boolean {
+  if (item.code || item.service_date) return false;
+  const normalizedName = item.name.toLowerCase().trim();
+  const normalizedCategory = item.category?.toLowerCase().trim();
+  if (normalizedName.includes("subtotal") || normalizedName.includes("sub total")) return true;
+  return Boolean(normalizedCategory && normalizedName === normalizedCategory);
+}
+
+function getLineItemDedupeKey(item: CleanLineItem): string {
+  return [
+    item.item_type,
+    item.code ?? "",
+    item.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
+    item.service_date ?? "",
+    item.quantity,
+    Math.round(item.total_price),
+  ].join("|");
+}
+
 function sanitizeLineItems(value: unknown): CleanLineItem[] | undefined {
   if (!Array.isArray(value)) return undefined;
 
-  const items = value.map(sanitizeLineItem).filter((item): item is CleanLineItem => item !== null);
-  return items.length > 0 ? items : undefined;
+  const sanitizedItems = value.map(sanitizeLineItem).filter((item): item is CleanLineItem => item !== null);
+  const hasDetailedItems = sanitizedItems.some((item) => Boolean(item.code || item.service_date));
+  const items = hasDetailedItems ? sanitizedItems.filter((item) => !isSummaryLineItem(item)) : sanitizedItems;
+
+  const byKey = new Map<string, CleanLineItem>();
+  for (const item of items) {
+    const key = getLineItemDedupeKey(item);
+    if (!byKey.has(key)) byKey.set(key, item);
+  }
+
+  const result = Array.from(byKey.values());
+  return result.length > 0 ? result : undefined;
 }
 
 function sanitizeDocumentMetadata(value: unknown): Record<string, JsonValue> | undefined {
